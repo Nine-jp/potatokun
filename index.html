@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポテトくん VRM無料配布中！</title>
+    <meta name="description" content="Clusterで使えるオリジナルアバター「ポテトくん」の無料配布ページです。フライドポテトがモチーフの元気なキャラクター！">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Christmas Snowflakes -->
+    <div class="snowflakes" aria-hidden="true">
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+        <div class="snowflake">❅</div>
+        <div class="snowflake">❆</div>
+    </div>
+
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">🎄 ポテトくん 🎅</h1>
+            <nav>
+                <ul>
+                    <li><a href="#about">ポテトくんとは</a></li>
+                    <li><a href="#details">配布データ</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container hero-content">
+                <div class="hero-text">
+                    <h2>🎄 メリークリスマス! 🎅<br>フライドポテトの妖精!?<br>「ポテトくん」爆誕!</h2>
+                    <p>Clusterで使えるVRMアバターを<br>無料配布中！</p>
+                    <a href="#download" class="btn btn-primary">今すぐダウンロード</a>
+                </div>
+                <div class="hero-image" id="canvas-container">
+                    <!-- 3D Model will be rendered here -->
+                </div>
+            </div>
+        </section>
+
+        <section id="about" class="section about">
+            <div class="container">
+                <h2 class="section-title">🎁 ポテトくんとは？</h2>
+                <div class="about-content">
+                    <p>フライドポテトをモチーフにした、元気いっぱいのオリジナルキャラクターです。<br>
+                        黄色いボディに赤い手足がチャームポイント！<br>
+                        Clusterなどのメタバース空間で、目立つこと間違いなし！</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="details" class="section details">
+            <div class="container">
+                <h2 class="section-title">🎁 配布データについて</h2>
+                <div class="details-card">
+                    <dl>
+                        <dt>形式</dt>
+                        <dd>VRM</dd>
+                        <dt>価格</dt>
+                        <dd class="price">無料</dd>
+                        <dt>利用想定</dt>
+                        <dd>ClusterなどのVRM対応プラットフォーム</dd>
+                    </dl>
+                    <div class="license-info">
+                        <h3>利用規約</h3>
+                        <ul>
+                            <li>個人利用OK</li>
+                            <li>改変OK</li>
+                            <li>再配布NG</li>
+                            <li>公序良俗に反する利用NG</li>
+                        </ul>
+                    </div>
+                    <div id="download" class="download-area">
+                        <a href="https://drive.google.com/file/d/1aCOSdKp_398Cfhfl84JzhEScdX0vSTb_/view?usp=drive_link"
+                            class="btn btn-large" target="_blank">VRMをダウンロード</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Potato-kun Project</p>
+        </div>
+    </footer>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="script.js"></script>
+</body>
+
+</html>

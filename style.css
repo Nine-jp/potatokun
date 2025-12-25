@@ -1,0 +1,486 @@
+:root {
+    --primary-color: #FFD700;
+    /* Potato Yellow */
+    --secondary-color: #FF4500;
+    /* Ketchup Red */
+    --text-color: #333;
+    --bg-color: #FFFBE6;
+    /* Light Cream */
+    --white: #ffffff;
+}
+
+body {
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    margin: 0;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* Header */
+.header {
+    background-color: var(--white);
+    padding: 15px 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--secondary-color);
+    margin: 0;
+}
+
+.header nav ul {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: 20px;
+}
+
+.header nav a {
+    text-decoration: none;
+    color: var(--text-color);
+    font-weight: 700;
+    transition: color 0.3s;
+}
+
+.header nav a:hover {
+    color: var(--secondary-color);
+}
+
+/* Hero Section */
+.hero {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #FFF 100%);
+    padding: 60px 0;
+    overflow: hidden;
+}
+
+.hero-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.hero-text {
+    flex: 1;
+    min-width: 300px;
+    padding-right: 20px;
+}
+
+.hero-text h2 {
+    font-size: 2.5rem;
+    color: var(--secondary-color);
+    margin-bottom: 20px;
+    line-height: 1.3;
+    text-shadow: 2px 2px 0 #FFF;
+}
+
+.hero-text p {
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+    font-weight: 700;
+}
+
+.hero-image {
+    flex: 1;
+    min-width: 300px;
+    text-align: center;
+    height: 400px;
+    /* Fixed height for 3D viewer */
+    position: relative;
+    /* For absolute positioning of canvas if needed */
+    background: linear-gradient(to bottom, #0a1128 0%, #1e3a5f 50%, #2d1b4e 100%);
+    border: 4px solid var(--primary-color);
+    border-radius: 20px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.hero-image img {
+    max-width: 100%;
+    height: auto;
+    max-height: 400px;
+    filter: drop-shadow(5px 5px 10px rgba(0, 0, 0, 0.2));
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-15px);
+    }
+
+    100% {
+        transform: translateY(0);
+    }
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 15px 40px;
+    border-radius: 50px;
+    text-decoration: none;
+    font-weight: 900;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary {
+    background-color: var(--secondary-color);
+    color: var(--white);
+    font-size: 1.2rem;
+    box-shadow: 0 4px 0 #cc3700;
+}
+
+.btn-primary:hover {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #cc3700;
+}
+
+.btn-large {
+    background-color: var(--primary-color);
+    color: var(--text-color);
+    font-size: 1.5rem;
+    box-shadow: 0 4px 0 #e6c200;
+    width: 80%;
+    text-align: center;
+    max-width: 400px;
+}
+
+.btn-large:hover {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #e6c200;
+}
+
+/* Sections */
+.section {
+    padding: 60px 0;
+}
+
+.section-title {
+    text-align: center;
+    font-size: 2rem;
+    color: var(--secondary-color);
+    margin-bottom: 40px;
+    position: relative;
+    display: inline-block;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.section-title::after {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 4px;
+    background-color: var(--primary-color);
+    margin-top: 5px;
+    border-radius: 2px;
+}
+
+.about {
+    background-color: var(--white);
+    text-align: center;
+}
+
+.about-content p {
+    font-size: 1.1rem;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.details {
+    background-color: var(--bg-color);
+}
+
+.details-card {
+    background: var(--white);
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    max-width: 700px;
+    margin: 0 auto;
+    border: 4px solid var(--primary-color);
+}
+
+dl {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 15px;
+    margin-bottom: 30px;
+    font-size: 1.1rem;
+}
+
+dt {
+    font-weight: 700;
+    color: var(--secondary-color);
+    text-align: right;
+}
+
+dd {
+    margin: 0;
+}
+
+.price {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--secondary-color);
+}
+
+.license-info {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.license-info h3 {
+    margin-top: 0;
+    font-size: 1.2rem;
+    text-align: center;
+}
+
+.license-info ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+}
+
+.license-info li {
+    background: var(--white);
+    padding: 5px 15px;
+    border-radius: 20px;
+    border: 1px solid #ddd;
+    font-size: 0.9rem;
+}
+
+.download-area {
+    text-align: center;
+}
+
+.note {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 10px;
+}
+
+/* Footer */
+.footer {
+    background-color: var(--secondary-color);
+    color: var(--white);
+    text-align: center;
+    padding: 20px 0;
+}
+
+.footer p {
+    margin: 0;
+    font-weight: 700;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hero-content {
+        flex-direction: column-reverse;
+        text-align: center;
+    }
+
+    .hero-text {
+        padding-right: 0;
+        margin-top: 30px;
+    }
+
+    .hero-text h2 {
+        font-size: 2rem;
+    }
+
+    dl {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+
+    dt {
+        text-align: center;
+        margin-bottom: -10px;
+    }
+}
+
+/* ===== CHRISTMAS THEME ===== */
+
+/* Snowflakes */
+.snowflakes {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: hidden;
+}
+
+.snowflake {
+    position: absolute;
+    top: -10%;
+    color: #fff;
+    font-size: 1.5em;
+    user-select: none;
+    animation: snowfall linear infinite;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+}
+
+@keyframes snowfall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0.3;
+    }
+}
+
+/* Distribute snowflakes across the screen */
+.snowflake:nth-child(1) {
+    left: 10%;
+    animation-duration: 10s;
+    animation-delay: 0s;
+}
+
+.snowflake:nth-child(2) {
+    left: 20%;
+    animation-duration: 12s;
+    animation-delay: 2s;
+    font-size: 1.2em;
+}
+
+.snowflake:nth-child(3) {
+    left: 30%;
+    animation-duration: 8s;
+    animation-delay: 4s;
+    font-size: 1.8em;
+}
+
+.snowflake:nth-child(4) {
+    left: 40%;
+    animation-duration: 14s;
+    animation-delay: 1s;
+}
+
+.snowflake:nth-child(5) {
+    left: 50%;
+    animation-duration: 11s;
+    animation-delay: 3s;
+    font-size: 1.4em;
+}
+
+.snowflake:nth-child(6) {
+    left: 60%;
+    animation-duration: 9s;
+    animation-delay: 5s;
+}
+
+.snowflake:nth-child(7) {
+    left: 70%;
+    animation-duration: 13s;
+    animation-delay: 0.5s;
+    font-size: 1.6em;
+}
+
+.snowflake:nth-child(8) {
+    left: 80%;
+    animation-duration: 10s;
+    animation-delay: 2.5s;
+}
+
+.snowflake:nth-child(9) {
+    left: 90%;
+    animation-duration: 12s;
+    animation-delay: 1.5s;
+    font-size: 1.3em;
+}
+
+.snowflake:nth-child(10) {
+    left: 15%;
+    animation-duration: 11s;
+    animation-delay: 4.5s;
+}
+
+/* Christmas Button Effects */
+.btn-primary {
+    box-shadow: 0 4px 0 #cc3700, 0 0 20px rgba(255, 69, 0, 0.5);
+    animation: christmasGlow 2s ease-in-out infinite;
+}
+
+@keyframes christmasGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 0 #cc3700, 0 0 20px rgba(255, 69, 0, 0.5);
+    }
+
+    50% {
+        box-shadow: 0 4px 0 #cc3700, 0 0 30px rgba(255, 69, 0, 0.8);
+    }
+}
+
+.btn-large {
+    box-shadow: 0 4px 0 #e6c200, 0 0 20px rgba(255, 215, 0, 0.5);
+}
+
+.btn-large:hover {
+    box-shadow: 0 2px 0 #e6c200, 0 0 30px rgba(255, 215, 0, 0.8);
+}
+
+/* Christmas Card Borders */
+.details-card {
+    border: 4px solid #228B22;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05), 0 0 20px rgba(34, 139, 34, 0.3);
+}
+
+/* Hero Image Christmas Border */
+.hero-image {
+    border: 4px solid #228B22;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1), 0 0 30px rgba(34, 139, 34, 0.4);
+}
+
+/* Section Title Christmas Sparkle */
+.section-title::after {
+    background: linear-gradient(90deg, #FF4500, #FFD700, #228B22, #FFD700, #FF4500);
+    background-size: 200% 100%;
+    animation: christmasShine 3s linear infinite;
+}
+
+@keyframes christmasShine {
+    0% {
+        background-position: 0% 0%;
+    }
+
+    100% {
+        background-position: 200% 0%;
+    }
+}

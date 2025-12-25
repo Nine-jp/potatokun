@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Development files
+.DS_Store
+*.log
+npm-debug.log*
+
+# Editor directories
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Unused FBX models (keeping only uma2025-6.fbx for the site)
+PotatoKun.fbx
+yeahhhhh.fbx
+script_potatokun_wave.js
