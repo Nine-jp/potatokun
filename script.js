@@ -17,6 +17,7 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 
 // 3D Model Viewer
 const init3DViewer = () => {
+    alert('System Check: Version V5 Active');
     const container = document.getElementById('canvas-container');
     if (!container) return;
 
@@ -190,6 +191,7 @@ const init3DViewer = () => {
             const maxDim = Math.max(size.x, size.y, size.z);
 
             console.log('[Debug] Model Size:', size);
+            console.log('[Debug] Model Center:', center);
             console.log('[Debug] Max Dim:', maxDim);
 
             if (maxDim > 0) {
