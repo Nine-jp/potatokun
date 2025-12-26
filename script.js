@@ -134,6 +134,8 @@ const init3DViewer = () => {
     // Load FBX Model Function
     const loader = new FBXLoader();
     const loadModel = (fullPath) => {
+        console.clear();
+        console.log('%c --- POTATO SYSTEM: RELOAD VERSION --- ', 'background: #222; color: #bada55; font-size: 20px;');
         // fullPath should already be encoded via the dropdown value or passed directly
         console.log('[Debug] Start loading:', fullPath);
         if (currentObject) {
