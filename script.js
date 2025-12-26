@@ -17,7 +17,6 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 
 // 3D Model Viewer
 const init3DViewer = () => {
-    alert('System Check: Version V6 Active');
     const container = document.getElementById('canvas-container');
     if (!container) return;
 
@@ -99,8 +98,7 @@ const init3DViewer = () => {
     // Model Configuration
     const models = [
         { file: "ポテトくん(通常).fbx" },
-        { file: "ポテトくん(2026年午年).fbx" },
-        { file: "ポテトくん(スカル).fbx" }
+        { file: "ポテトくん(2026年午年).fbx" }
     ];
 
     // Populate dropdown
@@ -118,7 +116,6 @@ const init3DViewer = () => {
         modelSelect.addEventListener('change', (e) => {
             const config = models[e.target.value];
             if (config) {
-                alert('Model selector changed: ' + config.file);
                 loadModel(`models/${encodeURIComponent(config.file)}`);
             }
         });
@@ -127,76 +124,57 @@ const init3DViewer = () => {
     // Load FBX Model Function
     const loader = new FBXLoader();
     const loadModel = (fullPath) => {
-        try {
-            console.clear();
-            console.log('%c --- POTATO SYSTEM: V6 ACTIVE --- ', 'background: #222; color: #bada55; font-size: 20px;');
-            alert('Starting load: ' + fullPath);
+        if (currentObject) {
+            scene.remove(currentObject);
+        }
 
-            if (currentObject) {
-                scene.remove(currentObject);
+        rightArmBone = null;
+        rightForeArmBone = null;
+        leftArmBone = null;
+        mixer = null;
+
+        loader.load(fullPath, (object) => {
+            console.log('Model loaded:', fullPath);
+            currentObject = object;
+
+            // Traverse to find bones
+            object.traverse((child) => {
+                if (child.isBone) {
+                    const name = child.name.toLowerCase();
+                    if (!rightArmBone && (name === 'upper_armr' || name.includes('upper_armr') || name.includes('rightarm') || name.includes('arm_r'))) rightArmBone = child;
+                    if (!rightForeArmBone && (name === 'lower_armr' || name.includes('lower_armr') || name.includes('rightforearm') || name.includes('forearm_r'))) rightForeArmBone = child;
+                    if (!leftArmBone && (name === 'upper_arml' || name.includes('upper_arml') || name.includes('leftarm') || name.includes('arm_l'))) leftArmBone = child;
+                }
+            });
+
+            if (object.animations && object.animations.length > 0) {
+                mixer = new THREE.AnimationMixer(object);
+                const action = mixer.clipAction(object.animations[0]);
+                action.play();
             }
 
-            rightArmBone = null;
-            rightForeArmBone = null;
-            leftArmBone = null;
-            mixer = null;
+            scene.add(object);
 
-            loader.load(fullPath, (object) => {
-                alert('Success: Model Parse Complete (' + fullPath + ')');
-                console.log('Model loaded:', fullPath);
-                currentObject = object;
+            const box = new THREE.Box3().setFromObject(object);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
 
-                // Traverse to find bones
-                object.traverse((child) => {
-                    if (child.isBone) {
-                        const name = child.name.toLowerCase();
-                        if (!rightArmBone && (name === 'upper_armr' || name.includes('upper_armr') || name.includes('rightarm') || name.includes('arm_r'))) rightArmBone = child;
-                        if (!rightForeArmBone && (name === 'lower_armr' || name.includes('lower_armr') || name.includes('rightforearm') || name.includes('forearm_r'))) rightForeArmBone = child;
-                        if (!leftArmBone && (name === 'upper_arml' || name.includes('upper_arml') || name.includes('leftarm') || name.includes('arm_l'))) leftArmBone = child;
-                    }
-                });
-
-                if (object.animations && object.animations.length > 0) {
-                    mixer = new THREE.AnimationMixer(object);
-                    const action = mixer.clipAction(object.animations[0]);
-                    action.play();
-                }
-
-                scene.add(object);
-
-                const box = new THREE.Box3().setFromObject(object);
-                const size = box.getSize(new THREE.Vector3());
-                const center = box.getCenter(new THREE.Vector3());
-                const maxDim = Math.max(size.x, size.y, size.z);
-
-                console.log('[Debug] Model Size:', size);
-                console.log('[Debug] Model Center:', center);
-                console.log('[Debug] Max Dim:', maxDim);
-
-                if (maxDim > 0) {
-                    const scale = 2 / maxDim;
-                    console.log('[Debug] Calculated Scale:', scale);
-                    object.scale.setScalar(scale);
-                    const newBox = new THREE.Box3().setFromObject(object);
-                    const newSize = newBox.getSize(new THREE.Vector3());
-                    newBox.getCenter(center);
-                    object.position.sub(center);
-                    object.position.y += (newSize.y / 2) - 0.5;
-                } else {
-                    console.error('[Debug] Max Dim is 0 or invalid!');
-                    alert('Error: Max Dim is 0! Model may be empty or corrupted.');
-                }
-            }, (xhr) => {
-                // Progress
-            }, (error) => {
-                const errMsg = 'Error loading model (' + fullPath + '): ' + error.message;
-                console.error('[Debug] ' + errMsg, error);
-                alert(errMsg);
-            });
-        } catch (e) {
-            console.error('[Critical] LoadModel Crash:', e);
-            alert('CRITICAL ERROR: ' + e.message);
-        }
+            if (maxDim > 0) {
+                const scale = 2 / maxDim;
+                object.scale.setScalar(scale);
+                const newBox = new THREE.Box3().setFromObject(object);
+                const newSize = newBox.getSize(new THREE.Vector3());
+                newBox.getCenter(center);
+                object.position.sub(center);
+                object.position.y += (newSize.y / 2) - 0.5;
+            }
+        }, (xhr) => {
+            // Progress
+        }, (error) => {
+            console.error('An error happened loading the FBX:', error);
+            container.innerHTML = `<p style="color:red; background:white; padding:10px; border-radius:5px;">モデルの読み込みに失敗しました。</p>`;
+        });
     };
 
     // Initial load based on theme
@@ -221,11 +199,6 @@ const init3DViewer = () => {
         renderer.render(scene, camera);
     }
     animate();
-
-    // Final check for container size on mobile
-    if (container.clientHeight === 0) {
-        console.warn('Canvas container has 0 height. Check CSS layout.');
-    }
 
     // Trigger explicit resize after a short delay to handle mobile layout shifts
     setTimeout(() => {
@@ -314,14 +287,14 @@ const translations = {
         "license-title": "使用条款",
         "license-item1": "个人使用 OK",
         "license-item3": "禁止二次分发",
-        "license-item4": "禁止违反公共秩序和道德的使用",
+        "license-item4": "禁止違反公共秩序和道德的使用",
         "download-btn": "下载 VRM"
     },
     ko: {
         "title": "포테토군 VRM 무료 배포 중!",
         "description": "Cluster에서 사용할 수 있는 오리지널 아바타 '포테토군'의 무료 배포 페이지입니다! 감자튀김을 모티브로 한 활기찬 캐릭터!",
         "nav-details": "배포 데이터",
-        "hero-title": "감자 요정<br>'포테토군'",
+        "hero-title": "감자 요정<br>'포テト군'",
         "hero-desc": "Cluster에서 쓸 수 있는 오리지널 VRM 아바타 무료 배포 중!<br>감자튀김을 모티브로 한 활기찬 캐릭터입니다.",
         "hero-btn": "지금 다운로드",
         "details-title": "🎁 배포 데이터 정보",
