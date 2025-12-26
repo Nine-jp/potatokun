@@ -193,7 +193,6 @@ const translations = {
         "details-platform": "ClusterなどのVRM対応プラットフォーム",
         "license-title": "利用規約",
         "license-item1": "個人利用OK",
-        "license-item2": "改変OK",
         "license-item3": "再配布NG",
         "license-item4": "公序良俗に反する利用NG",
         "download-btn": "VRMをダウンロード"
@@ -213,7 +212,6 @@ const translations = {
         "details-platform": "VRM compatible platforms such as Cluster",
         "license-title": "Terms of Use",
         "license-item1": "Personal use OK",
-        "license-item2": "Modification OK",
         "license-item3": "Redistribution prohibited",
         "license-item4": "Use against public order prohibited",
         "download-btn": "Download VRM"
@@ -253,7 +251,6 @@ const translations = {
         "details-platform": "Cluster 等 VRM 兼容平台",
         "license-title": "使用条款",
         "license-item1": "个人使用 OK",
-        "license-item2": "允许修改",
         "license-item3": "禁止二次分发",
         "license-item4": "禁止违反公共秩序和道德的使用",
         "download-btn": "下载 VRM"
@@ -273,7 +270,6 @@ const translations = {
         "details-platform": "Cluster 등 VRM 대응 플랫폼",
         "license-title": "이용 약관",
         "license-item1": "개인 이용 OK",
-        "license-item2": "개조 OK",
         "license-item3": "재배포 금지",
         "license-item4": "공서양속에 반하는 이용 금지",
         "download-btn": "VRM 다운로드"
