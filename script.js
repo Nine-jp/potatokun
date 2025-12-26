@@ -180,29 +180,19 @@ const init3DViewer = () => {
             scene.add(object);
 
             // Scaling and Positioning
-            // Custom scale for Skull model
-            const isSkull = fullPath.includes('スカル');
-
-            // If Skull, use specific small scale, otherwise use auto-bounding box or default
-            if (isSkull) {
-                const manualScale = 0.0084;
-                object.scale.set(manualScale, manualScale, manualScale);
-                object.position.set(0, -0.5, 0);
-            } else {
-                // Auto-scale logic for other models (PotatoKun standard)
-                const box = new THREE.Box3().setFromObject(object);
-                const size = box.getSize(new THREE.Vector3());
-                const center = box.getCenter(new THREE.Vector3());
-                const maxDim = Math.max(size.x, size.y, size.z);
-                if (maxDim > 0) {
-                    const scale = 2 / maxDim;
-                    object.scale.setScalar(scale);
-                    const newBox = new THREE.Box3().setFromObject(object);
-                    const newSize = newBox.getSize(new THREE.Vector3());
-                    newBox.getCenter(center);
-                    object.position.sub(center);
-                    object.position.y += (newSize.y / 2) - 0.5;
-                }
+            // Auto-scale logic for all models (Standardized)
+            const box = new THREE.Box3().setFromObject(object);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            if (maxDim > 0) {
+                const scale = 2 / maxDim;
+                object.scale.setScalar(scale);
+                const newBox = new THREE.Box3().setFromObject(object);
+                const newSize = newBox.getSize(new THREE.Vector3());
+                newBox.getCenter(center);
+                object.position.sub(center);
+                object.position.y += (newSize.y / 2) - 0.5;
             }
         }, (xhr) => {
             // Progress
