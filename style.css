@@ -140,6 +140,30 @@ body {
     }
 }
 
+/* Social Links */
+.social-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.social-link {
+    display: flex;
+    align-items: center;
+    color: var(--text-color);
+    transition: color 0.3s;
+}
+
+.social-link:hover {
+    color: var(--secondary-color);
+}
+
+.social-icon {
+    width: 20px;
+    height: 20px;
+}
+
+
 /* Hero Section */
 .hero {
     background: linear-gradient(135deg, var(--primary-color) 0%, #FFF 100%);
