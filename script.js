@@ -114,13 +114,9 @@ const init3DViewer = () => {
     // Populate dropdown
     const modelSelect = document.getElementById('model-select');
     if (modelSelect) {
-        models.forEach((m) => {
+        models.forEach((m, index) => {
             const opt = document.createElement('option');
-            // Use encodeURIComponent to safely handle Japanese filenames in URLs
-            const safePath = `models/${encodeURIComponent(m.file)}`;
-            opt.value = safePath;
-
-            // Use filename without extension as the display name
+            opt.value = index; // Use index to avoid URL encoding issues in attribute
             const displayName = m.file.split('.')[0];
             opt.textContent = displayName;
             if (m.file === 'ポテトくん(2026年午年).fbx') opt.selected = true;
@@ -128,7 +124,11 @@ const init3DViewer = () => {
         });
 
         modelSelect.addEventListener('change', (e) => {
-            loadModel(e.target.value);
+            const config = models[e.target.value];
+            if (config) {
+                alert('Model selector changed: ' + config.file);
+                loadModel(`models/${encodeURIComponent(config.file)}`);
+            }
         });
     }
 
