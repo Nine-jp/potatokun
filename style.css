@@ -9,6 +9,10 @@
     --white: #ffffff;
 }
 
+* {
+    box-sizing: border-box;
+}
+
 body {
     font-family: 'M PLUS Rounded 1c', sans-serif;
     color: var(--text-color);
@@ -173,16 +177,23 @@ body {
 }
 
 .hero-content {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+        "text image"
+        "action image";
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
+    gap: 20px;
 }
 
 .hero-text {
-    flex: 1;
-    min-width: 300px;
+    grid-area: text;
     padding-right: 20px;
+}
+
+.hero-action {
+    grid-area: action;
+    padding-bottom: 20px;
 }
 
 .hero-text h2 {
@@ -200,7 +211,7 @@ body {
 }
 
 .hero-image {
-    flex: 1;
+    grid-area: image;
     min-width: 300px;
     text-align: center;
     height: 400px;
@@ -403,18 +414,53 @@ dd {
 
 /* Responsive */
 @media (max-width: 768px) {
+    .header .container {
+        padding: 0 15px;
+    }
+
+    .header nav>ul {
+        gap: 10px;
+    }
+
     .hero-content {
-        flex-direction: column-reverse;
+        display: flex;
+        flex-direction: column;
         text-align: center;
+        padding: 40px 15px;
+        gap: 0;
     }
 
     .hero-text {
         padding-right: 0;
-        margin-top: 30px;
+        margin-top: 0;
+    }
+
+    .hero-action {
+        padding-top: 20px;
+        padding-bottom: 0;
+        width: 100%;
+        display: flex;
+        justify-content: center;
     }
 
     .hero-text h2 {
-        font-size: 2rem;
+        font-size: 1.8rem;
+    }
+
+    .hero-text p {
+        font-size: 1rem;
+    }
+
+    .hero-image {
+        height: 350px;
+        width: 100%;
+        flex: none;
+        margin-bottom: 20px;
+    }
+
+    .btn-primary {
+        width: 100%;
+        max-width: 320px;
     }
 
     dl {
@@ -425,6 +471,40 @@ dd {
     dt {
         text-align: center;
         margin-bottom: -10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header .logo {
+        font-size: 1.2rem;
+    }
+
+    .globe-icon,
+    .social-icon {
+        width: 20px;
+        height: 20px;
+    }
+
+    .header nav>ul {
+        gap: 8px;
+    }
+
+    .hero-text h2 {
+        font-size: 1.5rem;
+    }
+
+    .hero-image {
+        height: 280px;
+        width: 100%;
+        flex: none;
+    }
+
+    .details-card {
+        padding: 20px;
+    }
+
+    .license-info ul {
+        gap: 10px;
     }
 }
 

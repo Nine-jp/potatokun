@@ -39,6 +39,12 @@ const init3DViewer = () => {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
+    controls.rotateSpeed = 0.8; // Slightly slower for better control on touch
+    controls.minDistance = 2;   // Prevent zooming too close
+    controls.maxDistance = 6;   // Prevent zooming too far
+    controls.enablePan = false;  // Keep the model centered for simplicity on mobile
+    controls.maxPolarAngle = Math.PI / 1.5; // Prevent looking from directly underneath
+
 
     // Helpers
     // GridHelper(size, divisions, colorCenterLine, colorGrid)
@@ -174,6 +180,22 @@ const init3DViewer = () => {
     }
 
     animate();
+
+    // Final check for container size on mobile
+    if (container.clientHeight === 0) {
+        console.warn('Canvas container has 0 height. Check CSS layout.');
+    }
+
+    // Trigger explicit resize after a short delay to handle mobile layout shifts
+    setTimeout(() => {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        if (width > 0 && height > 0) {
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+    }, 500);
 };
 
 // i18n Translation Data
