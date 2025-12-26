@@ -176,5 +176,152 @@ const init3DViewer = () => {
     animate();
 };
 
+// i18n Translation Data
+const translations = {
+    ja: {
+        "title": "ポテトくん VRM無料配布中！",
+        "description": "Clusterで使えるオリジナルアバター「ポテトくん」の無料配布ページです。フライドポテトがモチーフの元気なキャラクター！",
+        "nav-details": "配布データ",
+        "hero-title": "🎄 メリークリスマス! 🎅<br>ポテトの妖精「ポテトくん」",
+        "hero-desc": "Clusterで使えるVRMアバターを無料配布中!<br>🐴 今だけ来年の干支「午」の着ぐるみを着たポテトくんを配布中!",
+        "hero-btn": "今すぐダウンロード",
+        "details-title": "🎁 配布データについて",
+        "details-format": "形式",
+        "details-price": "価格",
+        "details-free": "無料",
+        "details-usage": "利用想定",
+        "details-platform": "ClusterなどのVRM対応プラットフォーム",
+        "license-title": "利用規約",
+        "license-item1": "個人利用OK",
+        "license-item2": "改変OK",
+        "license-item3": "再配布NG",
+        "license-item4": "公序良俗に反する利用NG",
+        "download-btn": "VRMをダウンロード"
+    },
+    en: {
+        "title": "PotatoKun VRM Free Distribution!",
+        "description": "Free distribution page for 'PotatoKun', an original avatar for Cluster! A cheerful character based on French fries!",
+        "nav-details": "Distribution Data",
+        "hero-title": "🎄 Merry Christmas! 🎅<br>Potato Fairy 'PotatoKun'",
+        "hero-desc": "VRM avatar for Cluster now free!<br>🐴 Horse costume version for next year's zodiac also available now!",
+        "hero-btn": "Download Now",
+        "details-title": "🎁 Distribution Data",
+        "details-format": "Format",
+        "details-price": "Price",
+        "details-free": "Free",
+        "details-usage": "Intended Use",
+        "details-platform": "VRM compatible platforms such as Cluster",
+        "license-title": "Terms of Use",
+        "license-item1": "Personal use OK",
+        "license-item2": "Modification OK",
+        "license-item3": "Redistribution prohibited",
+        "license-item4": "Use against public order prohibited",
+        "download-btn": "Download VRM"
+    },
+    es: {
+        "title": "¡Distribución gratuita de PotatoKun VRM!",
+        "description": "¡Página de distribución gratuita de 'PotatoKun', un avatar original para Cluster! ¡Un personaje alegre basado en las patatas fritas!",
+        "nav-details": "Datos de Distribución",
+        "hero-title": "🎄 ¡Feliz Navidad! 🎅<br>Hada de la Patata 'PotatoKun'",
+        "hero-desc": "¡Avatar VRM para Cluster gratis!<br>🐴 ¡Versión con disfraz de caballo para el zodiaco del próximo año disponible ahora!",
+        "hero-btn": "Descargar Ahora",
+        "details-title": "🎁 Datos de Distribución",
+        "details-format": "Formato",
+        "details-price": "Precio",
+        "details-free": "Gratis",
+        "details-usage": "Uso previsto",
+        "details-platform": "Plataformas compatibles con VRM como Cluster",
+        "license-title": "Términos de Uso",
+        "license-item1": "Uso personal OK",
+        "license-item2": "Modificación OK",
+        "license-item3": "Redistribución prohibida",
+        "license-item4": "Prohibido uso contra orden público",
+        "download-btn": "Descargar VRM"
+    },
+    zh: {
+        "title": "PotatoKun VRM 免费发放中！",
+        "description": "Cluster 原创化身“PotatoKun”的免费发放页面！基于炸薯条的充满活力的角色！",
+        "nav-details": "发放数据",
+        "hero-title": "🎄 圣诞快乐! 🎅<br>土豆精灵“PotatoKun”",
+        "hero-desc": "Cluster 可用 VRM 化身免费发放中！<br>🐴 穿有明年属相“午”着装的 PotatoKun 也在发放中！",
+        "hero-btn": "立即下载",
+        "details-title": "🎁 关于发放数据",
+        "details-format": "格式",
+        "details-price": "价格",
+        "details-free": "免费",
+        "details-usage": "预期用途",
+        "details-platform": "Cluster 等 VRM 兼容平台",
+        "license-title": "使用条款",
+        "license-item1": "个人使用 OK",
+        "license-item2": "允许修改",
+        "license-item3": "禁止二次分发",
+        "license-item4": "禁止违反公共秩序和道德的使用",
+        "download-btn": "下载 VRM"
+    },
+    ko: {
+        "title": "포테토군 VRM 무료 배포 중!",
+        "description": "Cluster에서 사용할 수 있는 오리지널 아바타 '포테토군'의 무료 배포 페이지입니다! 감자튀김을 모티브로 한 활기찬 캐릭터!",
+        "nav-details": "배포 데이터",
+        "hero-title": "🎄 메리 크리스마스! 🎅<br>감자 요정 '포테토군'",
+        "hero-desc": "Cluster에서 쓸 수 있는 VRM 아바타 무료 배포 중!<br>🐴 지금만 내년 간지 '오'의 코스튬을 입은 포테토군 배포 중!",
+        "hero-btn": "지금 다운로드",
+        "details-title": "🎁 배포 데이터 정보",
+        "details-format": "형식",
+        "details-price": "가격",
+        "details-free": "무료",
+        "details-usage": "사용 용도",
+        "details-platform": "Cluster 등 VRM 대응 플랫폼",
+        "license-title": "이용 약관",
+        "license-item1": "개인 이용 OK",
+        "license-item2": "개조 OK",
+        "license-item3": "재배포 금지",
+        "license-item4": "공서양속에 반하는 이용 금지",
+        "download-btn": "VRM 다운로드"
+    }
+};
+
+const updateLanguage = (lang) => {
+    const data = translations[lang] || translations.ja;
+
+    // Update elements with data-i18n attribute
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (data[key]) {
+            el.innerHTML = data[key];
+        }
+    });
+
+    // Update elements with data-i18n-attr attribute
+    document.querySelectorAll('[data-i18n-attr]').forEach(el => {
+        const attrMapping = el.getAttribute('data-i18n-attr');
+        const [attr, key] = attrMapping.split(':');
+        if (data[key]) {
+            el.setAttribute(attr, data[key]);
+        }
+    });
+
+    // Save language preference
+    localStorage.setItem('preferredLang', lang);
+};
+
+// Initialize i18n functionality
+const initI18n = () => {
+    const langSelectors = document.querySelectorAll('.lang-dropdown a');
+    langSelectors.forEach(selector => {
+        selector.addEventListener('click', (e) => {
+            e.preventDefault();
+            const lang = selector.getAttribute('data-lang');
+            updateLanguage(lang);
+        });
+    });
+
+    // Load preferred or default language
+    const savedLang = localStorage.getItem('preferredLang') || 'ja';
+    updateLanguage(savedLang);
+};
+
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', init3DViewer);
+document.addEventListener('DOMContentLoaded', () => {
+    init3DViewer();
+    initI18n();
+});

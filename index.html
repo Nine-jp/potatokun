@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ポテトくん VRM無料配布中！</title>
-    <meta name="description" content="Clusterで使えるオリジナルアバター「ポテトくん」の無料配布ページです。フライドポテトがモチーフの元気なキャラクター！">
+    <title data-i18n="title">ポテトくん VRM無料配布中！</title>
+    <meta name="description" data-i18n-attr="content:description"
+        content="Clusterで使えるオリジナルアバター「ポテトくん」の無料配布ページです。フライドポテトがモチーフの元気なキャラクター！">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap"
@@ -34,7 +35,26 @@
             <nav>
                 <ul>
 
-                    <li><a href="#details">配布データ</a></li>
+                    <li><a href="#details" data-i18n="nav-details">配布データ</a></li>
+                    <li class="lang-selector">
+                        <button class="lang-btn" aria-label="Select Language">
+                            <svg class="globe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <path
+                                    d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                </path>
+                            </svg>
+                        </button>
+                        <ul class="lang-dropdown">
+                            <li><a href="#" data-lang="ja">日本語</a></li>
+                            <li><a href="#" data-lang="en">English</a></li>
+                            <li><a href="#" data-lang="es">Español</a></li>
+                            <li><a href="#" data-lang="zh">简体中文</a></li>
+                            <li><a href="#" data-lang="ko">한국어</a></li>
+                        </ul>
+                    </li>
                 </ul>
             </nav>
         </div>
@@ -44,9 +64,9 @@
         <section class="hero">
             <div class="container hero-content">
                 <div class="hero-text">
-                    <h2>🎄 メリークリスマス! 🎅<br>ポテトの妖精「ポテトくん」</h2>
-                    <p>Clusterで使えるVRMアバターを無料配布中!<br>🐴 今だけ来年の干支「午」の着ぐるみを着たポテトくんを配布中!</p>
-                    <a href="#download" class="btn btn-primary">今すぐダウンロード</a>
+                    <h2 data-i18n="hero-title">🎄 メリークリスマス! 🎅<br>ポテトの妖精「ポテトくん」</h2>
+                    <p data-i18n="hero-desc">Clusterで使えるVRMアバターを無料配布中!<br>🐴 今だけ来年の干支「午」の着ぐるみを着たポテトくんを配布中!</p>
+                    <a href="#download" class="btn btn-primary" data-i18n="hero-btn">今すぐダウンロード</a>
                 </div>
                 <div class="hero-image" id="canvas-container">
                     <!-- 3D Model will be rendered here -->
@@ -58,28 +78,28 @@
 
         <section id="details" class="section details">
             <div class="container">
-                <h2 class="section-title">🎁 配布データについて</h2>
+                <h2 class="section-title" data-i18n="details-title">🎁 配布データについて</h2>
                 <div class="details-card">
                     <dl>
-                        <dt>形式</dt>
+                        <dt data-i18n="details-format">形式</dt>
                         <dd>VRM</dd>
-                        <dt>価格</dt>
-                        <dd class="price">無料</dd>
-                        <dt>利用想定</dt>
-                        <dd>ClusterなどのVRM対応プラットフォーム</dd>
+                        <dt data-i18n="details-price">価格</dt>
+                        <dd class="price" data-i18n="details-free">無料</dd>
+                        <dt data-i18n="details-usage">利用想定</dt>
+                        <dd data-i18n="details-platform">ClusterなどのVRM対応プラットフォーム</dd>
                     </dl>
                     <div class="license-info">
-                        <h3>利用規約</h3>
+                        <h3 data-i18n="license-title">利用規約</h3>
                         <ul>
-                            <li>個人利用OK</li>
-                            <li>改変OK</li>
-                            <li>再配布NG</li>
-                            <li>公序良俗に反する利用NG</li>
+                            <li data-i18n="license-item1">個人利用OK</li>
+                            <li data-i18n="license-item2">改変OK</li>
+                            <li data-i18n="license-item3">再配布NG</li>
+                            <li data-i18n="license-item4">公序良俗に反する利用NG</li>
                         </ul>
                     </div>
                     <div id="download" class="download-area">
                         <a href="https://drive.google.com/file/d/1aCOSdKp_398Cfhfl84JzhEScdX0vSTb_/view?usp=drive_link"
-                            class="btn btn-large" target="_blank">VRMをダウンロード</a>
+                            class="btn btn-large" target="_blank" data-i18n="download-btn">VRMをダウンロード</a>
                     </div>
                 </div>
             </div>

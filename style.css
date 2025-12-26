@@ -46,7 +46,7 @@ body {
     margin: 0;
 }
 
-.header nav ul {
+.header nav>ul {
     display: flex;
     list-style: none;
     margin: 0;
@@ -63,6 +63,81 @@ body {
 
 .header nav a:hover {
     color: var(--secondary-color);
+}
+
+/* Language Selector */
+.lang-selector {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.lang-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-color);
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    transition: color 0.3s;
+}
+
+.lang-btn:hover {
+    color: var(--secondary-color);
+}
+
+.globe-icon {
+    width: 24px;
+    height: 24px;
+}
+
+.lang-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: var(--white);
+    list-style: none;
+    padding: 10px 0;
+    margin: 0;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    min-width: 120px;
+    display: none;
+    z-index: 1000;
+    border: 2px solid var(--primary-color);
+}
+
+.lang-selector:hover .lang-dropdown {
+    display: block;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.lang-dropdown li a {
+    display: block;
+    padding: 8px 15px;
+    text-decoration: none;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    font-weight: 700;
+    transition: background 0.2s, color 0.2s;
+}
+
+.lang-dropdown li a:hover {
+    background-color: var(--bg-color);
+    color: var(--secondary-color);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Hero Section */
