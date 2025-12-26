@@ -231,7 +231,6 @@ const translations = {
         "details-platform": "Plataformas compatibles con VRM como Cluster",
         "license-title": "Términos de Uso",
         "license-item1": "Uso personal OK",
-        "license-item2": "Modificación OK",
         "license-item3": "Redistribución prohibida",
         "license-item4": "Prohibido uso contra orden público",
         "download-btn": "Descargar VRM"
