@@ -1,12 +1,46 @@
 :root {
-    --primary-color: #FFD700;
-    /* Potato Yellow */
-    --secondary-color: #FF4500;
-    /* Ketchup Red */
+    /* Default Base Colors */
     --text-color: #333;
-    --bg-color: #FFFBE6;
-    /* Light Cream */
     --white: #ffffff;
+    --primary-color: #FFD700;
+    --secondary-color: #FF4500;
+    --bg-color: #FFFBE6;
+
+    /* UI Element Defaults (Auto-ensured visibility) */
+    --ui-select-bg: rgba(255, 255, 255, 0.1);
+    --ui-select-text: #ffffff;
+    --ui-dropdown-bg: #1e3a5f;
+    --ui-dropdown-text: #ffffff;
+}
+
+/* Theme: Christmas */
+.theme-christmas {
+    --primary-color: #FFD700;
+    --secondary-color: #FF4500;
+    --bg-color: #FFFBE6;
+    --theme-accent: #228B22;
+    --hero-bg: linear-gradient(to bottom, #0a1128 0%, #1e3a5f 50%, #2d1b4e 100%);
+
+    --ui-select-bg: rgba(255, 255, 255, 0.1);
+    --ui-select-text: #ffffff;
+    --ui-dropdown-bg: #1e3a5f;
+}
+
+/* Theme: New Year (Oshogatsu) */
+.theme-newyear {
+    --primary-color: #D4AF37;
+    --secondary-color: #B22222;
+    --bg-color: #fdf5e6;
+    --theme-accent: #1a1a1a;
+    --hero-bg: linear-gradient(to bottom, #2b0000 0%, #4d0000 50%, #1a0000 100%);
+
+    /* Ensure visibility for dark red background */
+    --ui-select-bg: rgba(0, 0, 0, 0.3);
+    /* Slightly darker for better contrast if needed */
+    --ui-select-text: #ffffff;
+    --ui-dropdown-bg: #4d0000;
+    /* Matching the theme's dark red */
+    --ui-dropdown-text: #ffffff;
 }
 
 * {
@@ -218,8 +252,8 @@ body {
     /* Fixed height for 3D viewer */
     position: relative;
     /* For absolute positioning of canvas if needed */
-    background: linear-gradient(to bottom, #0a1128 0%, #1e3a5f 50%, #2d1b4e 100%);
-    border: 4px solid var(--primary-color);
+    background: var(--hero-bg);
+    border: 4px solid var(--theme-accent, var(--primary-color));
     border-radius: 20px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
     overflow: hidden;
@@ -245,6 +279,50 @@ body {
     100% {
         transform: translateY(0);
     }
+}
+
+/* Model Switcher */
+.model-switcher-wrap {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    width: 80%;
+    max-width: 250px;
+}
+
+.model-select-ui {
+    width: 100%;
+    padding: 10px 15px;
+    border-radius: 12px;
+    background: var(--ui-select-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--ui-select-text);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.model-select-ui:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--primary-color);
+}
+
+.model-select-ui option {
+    background-color: var(--ui-dropdown-bg);
+    color: var(--ui-dropdown-text);
 }
 
 /* Buttons */
@@ -508,10 +586,18 @@ dd {
     }
 }
 
-/* ===== CHRISTMAS THEME ===== */
+/* ===== THEME STYLES ===== */
 
-/* Snowflakes */
-.snowflakes {
+/* Christmas Specifics */
+.theme-christmas {
+    --primary-color: #FFD700;
+    --secondary-color: #FF4500;
+    --bg-color: #FFFBE6;
+    --theme-accent: #228B22;
+    --hero-bg: linear-gradient(to bottom, #0a1128 0%, #1e3a5f 50%, #2d1b4e 100%);
+}
+
+.theme-christmas .page-effect {
     position: fixed;
     top: 0;
     left: 0;
@@ -519,101 +605,17 @@ dd {
     height: 100%;
     pointer-events: none;
     z-index: 9999;
-    overflow: hidden;
 }
 
-.snowflake {
-    position: absolute;
-    top: -10%;
-    color: #fff;
-    font-size: 1.5em;
-    user-select: none;
-    animation: snowfall linear infinite;
-    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
-}
-
-@keyframes snowfall {
-    0% {
-        transform: translateY(0) rotate(0deg);
-        opacity: 1;
-    }
-
-    100% {
-        transform: translateY(100vh) rotate(360deg);
-        opacity: 0.3;
-    }
-}
-
-/* Distribute snowflakes across the screen */
-.snowflake:nth-child(1) {
-    left: 10%;
-    animation-duration: 10s;
-    animation-delay: 0s;
-}
-
-.snowflake:nth-child(2) {
-    left: 20%;
-    animation-duration: 12s;
-    animation-delay: 2s;
-    font-size: 1.2em;
-}
-
-.snowflake:nth-child(3) {
-    left: 30%;
-    animation-duration: 8s;
-    animation-delay: 4s;
-    font-size: 1.8em;
-}
-
-.snowflake:nth-child(4) {
-    left: 40%;
-    animation-duration: 14s;
-    animation-delay: 1s;
-}
-
-.snowflake:nth-child(5) {
-    left: 50%;
-    animation-duration: 11s;
-    animation-delay: 3s;
-    font-size: 1.4em;
-}
-
-.snowflake:nth-child(6) {
-    left: 60%;
-    animation-duration: 9s;
-    animation-delay: 5s;
-}
-
-.snowflake:nth-child(7) {
-    left: 70%;
-    animation-duration: 13s;
-    animation-delay: 0.5s;
-    font-size: 1.6em;
-}
-
-.snowflake:nth-child(8) {
-    left: 80%;
-    animation-duration: 10s;
-    animation-delay: 2.5s;
-}
-
-.snowflake:nth-child(9) {
-    left: 90%;
-    animation-duration: 12s;
-    animation-delay: 1.5s;
-    font-size: 1.3em;
-}
-
-.snowflake:nth-child(10) {
-    left: 15%;
-    animation-duration: 11s;
-    animation-delay: 4.5s;
-}
-
-/* Christmas Button Effects */
-.btn-primary {
+.theme-christmas .btn-primary {
     box-shadow: 0 4px 0 #cc3700, 0 0 20px rgba(255, 69, 0, 0.5);
     animation: christmasGlow 2s ease-in-out infinite;
+}
+
+.theme-christmas .details-card,
+.theme-christmas .hero-image {
+    border: 4px solid var(--theme-accent);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1), 0 0 30px rgba(34, 139, 34, 0.4);
 }
 
 @keyframes christmasGlow {
@@ -628,39 +630,154 @@ dd {
     }
 }
 
-.btn-large {
-    box-shadow: 0 4px 0 #e6c200, 0 0 20px rgba(255, 215, 0, 0.5);
+/* New Year Specifics (Oshogatsu) */
+.theme-newyear {
+    --primary-color: #D4AF37;
+    --secondary-color: #B22222;
+    --bg-color: #fdf5e6;
+    --theme-accent: #1a1a1a;
+    --hero-bg: linear-gradient(to bottom, #2b0000 0%, #4d0000 50%, #1a0000 100%);
 }
 
-.btn-large:hover {
-    box-shadow: 0 2px 0 #e6c200, 0 0 30px rgba(255, 215, 0, 0.8);
+.theme-newyear .btn-primary {
+    background: var(--secondary-color);
+    border-bottom: 4px solid #800000;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
 }
 
-/* Christmas Card Borders */
-.details-card {
-    border: 4px solid #228B22;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05), 0 0 20px rgba(34, 139, 34, 0.3);
+.theme-newyear .btn-primary:hover {
+    background: #d42424;
+    box-shadow: 0 0 25px rgba(212, 175, 55, 0.6);
+    transform: translateY(-2px);
 }
 
-/* Hero Image Christmas Border */
-.hero-image {
-    border: 4px solid #228B22;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1), 0 0 30px rgba(34, 139, 34, 0.4);
+.theme-newyear .details-card,
+.theme-newyear .hero-image {
+    border: 4px solid var(--primary-color);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), inset 0 0 50px rgba(212, 175, 55, 0.1);
 }
 
-/* Section Title Christmas Sparkle */
-.section-title::after {
-    background: linear-gradient(90deg, #FF4500, #FFD700, #228B22, #FFD700, #FF4500);
+.theme-newyear .section-title::after {
+    background: linear-gradient(90deg, transparent, var(--secondary-color), var(--primary-color), var(--secondary-color), transparent);
     background-size: 200% 100%;
-    animation: christmasShine 3s linear infinite;
+    animation: oshogatsuShine 4s linear infinite;
 }
 
-@keyframes christmasShine {
+@keyframes oshogatsuShine {
     0% {
-        background-position: 0% 0%;
+        background-position: -200% 0%;
     }
 
     100% {
         background-position: 200% 0%;
     }
+}
+
+/* Snowflake/Effect item - Base */
+.effect-item {
+    position: absolute;
+    top: -10%;
+    user-select: none;
+    pointer-events: none;
+    z-index: 9999;
+    animation: itemFall linear infinite;
+}
+
+@keyframes itemFall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+/* Christmas Snowflakes */
+.theme-christmas .effect-item::before {
+    content: '❄';
+    color: #fff;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+}
+
+/* New Year Petals/Gold */
+.theme-newyear .effect-item::before {
+    content: '🌸';
+    /* Plum petal */
+    color: #ffb7c5;
+}
+
+.theme-newyear .effect-item:nth-child(even)::before {
+    content: '✨';
+    /* Gold spark */
+    color: #D4AF37;
+}
+
+/* Distribute effect items across the screen */
+.effect-item:nth-child(1) {
+    left: 5%;
+    animation-duration: 10s;
+    animation-delay: 0s;
+}
+
+.effect-item:nth-child(2) {
+    left: 15%;
+    animation-duration: 12s;
+    animation-delay: 2s;
+    font-size: 1.2em;
+}
+
+.effect-item:nth-child(3) {
+    left: 25%;
+    animation-duration: 8s;
+    animation-delay: 4s;
+    font-size: 1.8em;
+}
+
+.effect-item:nth-child(4) {
+    left: 35%;
+    animation-duration: 14s;
+    animation-delay: 1s;
+}
+
+.effect-item:nth-child(5) {
+    left: 45%;
+    animation-duration: 11s;
+    animation-delay: 3s;
+    font-size: 1.4em;
+}
+
+.effect-item:nth-child(6) {
+    left: 55%;
+    animation-duration: 9s;
+    animation-delay: 5s;
+}
+
+.effect-item:nth-child(7) {
+    left: 65%;
+    animation-duration: 13s;
+    animation-delay: 0.5s;
+    font-size: 1.6em;
+}
+
+.effect-item:nth-child(8) {
+    left: 75%;
+    animation-duration: 10s;
+    animation-delay: 2.5s;
+}
+
+.effect-item:nth-child(9) {
+    left: 85%;
+    animation-duration: 12s;
+    animation-delay: 1.5s;
+    font-size: 1.3em;
+}
+
+.effect-item:nth-child(10) {
+    left: 95%;
+    animation-duration: 11s;
+    animation-delay: 4.5s;
 }

@@ -14,24 +14,24 @@
     <link rel="stylesheet" href="style.css">
 </head>
 
-<body>
-    <!-- Christmas Snowflakes -->
-    <div class="snowflakes" aria-hidden="true">
-        <div class="snowflake">❅</div>
-        <div class="snowflake">❆</div>
-        <div class="snowflake">❅</div>
-        <div class="snowflake">❆</div>
-        <div class="snowflake">❅</div>
-        <div class="snowflake">❆</div>
-        <div class="snowflake">❅</div>
-        <div class="snowflake">❆</div>
-        <div class="snowflake">❅</div>
-        <div class="snowflake">❆</div>
+<body class="theme-newyear">
+    <!-- Animated Effects Background -->
+    <div class="page-effect" aria-hidden="true">
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
     </div>
 
     <header class="header">
         <div class="container">
-            <h1 class="logo">🎄 PotatoKun 🎅</h1>
+            <h1 class="logo">PotatoKun</h1>
             <nav>
                 <ul>
 
@@ -89,6 +89,11 @@
                 </div>
                 <div class="hero-image" id="canvas-container">
                     <!-- 3D Model will be rendered here -->
+                    <div class="model-switcher-wrap">
+                        <select id="model-select" class="model-select-ui" aria-label="Select Avatar">
+                            <!-- Options will be populated by JS -->
+                        </select>
+                    </div>
                 </div>
                 <div class="hero-action">
                     <a href="#download" class="btn btn-primary" data-i18n="hero-btn">今すぐダウンロード</a>
