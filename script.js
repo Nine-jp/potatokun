@@ -51,8 +51,9 @@ const init3DViewer = () => {
 
     // Helpers
     // GridHelper(size, divisions, colorCenterLine, colorGrid)
-    const gridColorNormal = isNewYear ? 0xD4AF37 : 0x00AA00; // Gold for New Year, Green for Christmas
-    const gridColorCenter = isNewYear ? 0xB22222 : 0xFF4500; // Deep Red for New Year, Ketchup Red for Christmas
+    // Default: Red Cross (Center), Black Grid
+    const gridColorNormal = isNewYear ? 0xD4AF37 : 0x000000;
+    const gridColorCenter = isNewYear ? 0xB22222 : 0xFF0000;
     const gridHelper = new THREE.GridHelper(10, 10, gridColorCenter, gridColorNormal);
     gridHelper.position.y = -0.5;
     scene.add(gridHelper);
@@ -179,18 +180,29 @@ const init3DViewer = () => {
             scene.add(object);
 
             // Scaling and Positioning
-            const box = new THREE.Box3().setFromObject(object);
-            const size = box.getSize(new THREE.Vector3());
-            const center = box.getCenter(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if (maxDim > 0) {
-                const scale = 2 / maxDim;
-                object.scale.setScalar(scale);
-                const newBox = new THREE.Box3().setFromObject(object);
-                const newSize = newBox.getSize(new THREE.Vector3());
-                newBox.getCenter(center);
-                object.position.sub(center);
-                object.position.y += (newSize.y / 2) - 0.5;
+            // Custom scale for Skull model
+            const isSkull = fullPath.includes('スカル');
+
+            // If Skull, use specific small scale, otherwise use auto-bounding box or default
+            if (isSkull) {
+                const manualScale = 0.0084;
+                object.scale.set(manualScale, manualScale, manualScale);
+                object.position.set(0, -0.5, 0);
+            } else {
+                // Auto-scale logic for other models (PotatoKun standard)
+                const box = new THREE.Box3().setFromObject(object);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim > 0) {
+                    const scale = 2 / maxDim;
+                    object.scale.setScalar(scale);
+                    const newBox = new THREE.Box3().setFromObject(object);
+                    const newSize = newBox.getSize(new THREE.Vector3());
+                    newBox.getCenter(center);
+                    object.position.sub(center);
+                    object.position.y += (newSize.y / 2) - 0.5;
+                }
             }
         }, (xhr) => {
             // Progress

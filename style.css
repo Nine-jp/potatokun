@@ -252,7 +252,7 @@ body {
     /* Fixed height for 3D viewer */
     position: relative;
     /* For absolute positioning of canvas if needed */
-    background: var(--hero-bg);
+    background: linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 100%);
     border: 4px solid var(--theme-accent, var(--primary-color));
     border-radius: 20px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
