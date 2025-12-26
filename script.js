@@ -135,6 +135,7 @@ const init3DViewer = () => {
     const loader = new FBXLoader();
     const loadModel = (fullPath) => {
         // fullPath should already be encoded via the dropdown value or passed directly
+        console.log('[Debug] Start loading:', fullPath);
         if (currentObject) {
             scene.remove(currentObject);
         }
