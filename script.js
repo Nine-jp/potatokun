@@ -219,7 +219,7 @@ const translations = {
         "description": "Clusterで使えるオリジナルアバター「ポテトくん」の無料配布ページです。",
         "nav-details": "配布データ",
         "hero-title": "ポテトの妖精<br>「ポテトくん」",
-        "hero-desc": "Clusterで使えるオリジナルVRMアバターを無料配布中！",
+        "hero-desc": "Clusterで使えるオリジナルVRMアバターを無料配布中！<br>🐴 今だけ来年の干支「午」の着ぐるみを着たポテトくんを配布中！",
         "hero-btn": "今すぐダウンロード",
         "details-title": "🎁 配布データについて",
         "details-format": "形式",
