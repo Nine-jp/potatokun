@@ -185,14 +185,22 @@ const init3DViewer = () => {
             const size = box.getSize(new THREE.Vector3());
             const center = box.getCenter(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z);
+
+            console.log('[Debug] Model Size:', size);
+            console.log('[Debug] Max Dim:', maxDim);
+
             if (maxDim > 0) {
                 const scale = 2 / maxDim;
+                console.log('[Debug] Calculated Scale:', scale);
+
                 object.scale.setScalar(scale);
                 const newBox = new THREE.Box3().setFromObject(object);
                 const newSize = newBox.getSize(new THREE.Vector3());
                 newBox.getCenter(center);
                 object.position.sub(center);
                 object.position.y += (newSize.y / 2) - 0.5;
+            } else {
+                console.error('[Debug] Max Dim is 0 or invalid!');
             }
         }, (xhr) => {
             // Progress
