@@ -17,13 +17,12 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 
 // 3D Model Viewer
 const init3DViewer = () => {
-    alert('System Check: Version V5 Active');
+    alert('System Check: Version V6 Active');
     const container = document.getElementById('canvas-container');
     if (!container) return;
 
     // Scene setup
     const scene = new THREE.Scene();
-    // Background will be handled by CSS (Sky gradient)
 
     // Camera setup
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
@@ -40,19 +39,16 @@ const init3DViewer = () => {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.rotateSpeed = 0.8; // Slightly slower for better control on touch
-    controls.minDistance = 2;   // Prevent zooming too close
-    controls.maxDistance = 6;   // Prevent zooming too far
-    controls.enablePan = false;  // Keep the model centered for simplicity on mobile
-    controls.maxPolarAngle = Math.PI / 1.5; // Prevent looking from directly underneath
-
+    controls.rotateSpeed = 0.8;
+    controls.minDistance = 2;
+    controls.maxDistance = 6;
+    controls.enablePan = false;
+    controls.maxPolarAngle = Math.PI / 1.5;
 
     // Theme detection
     const isNewYear = document.body.classList.contains('theme-newyear');
 
-    // Helpers
-    // GridHelper(size, divisions, colorCenterLine, colorGrid)
-    // Default: Red Cross (Center), Black Grid
+    // Grid Helpers
     const gridColorNormal = isNewYear ? 0xD4AF37 : 0x000000;
     const gridColorCenter = isNewYear ? 0xB22222 : 0xFF0000;
     const gridHelper = new THREE.GridHelper(10, 10, gridColorCenter, gridColorNormal);
@@ -60,13 +56,11 @@ const init3DViewer = () => {
     scene.add(gridHelper);
 
     // Lighting
-    // Ambient light - warmer for New Year
     const ambientColor = isNewYear ? 0xFFFBE6 : 0x404040;
     const ambientLight = new THREE.AmbientLight(ambientColor, 1.2);
     scene.add(ambientLight);
 
-    // Spotlight A
-    const spotColor1 = isNewYear ? 0xFFD700 : 0xff3333; // Gold sparkle for NY
+    const spotColor1 = isNewYear ? 0xFFD700 : 0xff3333;
     const spotLight1 = new THREE.SpotLight(spotColor1, isNewYear ? 8 : 6);
     spotLight1.position.set(5, 6, 0);
     spotLight1.angle = Math.PI / 5;
@@ -78,8 +72,7 @@ const init3DViewer = () => {
     scene.add(spotLight1);
     scene.add(spotLight1.target);
 
-    // Spotlight B
-    const spotColor2 = isNewYear ? 0xB22222 : 0x33ff33; // Red accent for NY
+    const spotColor2 = isNewYear ? 0xB22222 : 0x33ff33;
     const spotLight2 = new THREE.SpotLight(spotColor2, isNewYear ? 8 : 6);
     spotLight2.position.set(-5, 6, 0);
     spotLight2.angle = Math.PI / 5;
@@ -91,7 +84,6 @@ const init3DViewer = () => {
     scene.add(spotLight2);
     scene.add(spotLight2.target);
 
-    // Fill light from front
     const fillLight = new THREE.DirectionalLight(0xffffff, 1.5);
     fillLight.position.set(0, 5, 10);
     scene.add(fillLight);
@@ -116,10 +108,10 @@ const init3DViewer = () => {
     if (modelSelect) {
         models.forEach((m, index) => {
             const opt = document.createElement('option');
-            opt.value = index; // Use index to avoid URL encoding issues in attribute
+            opt.value = index;
             const displayName = m.file.split('.')[0];
             opt.textContent = displayName;
-            if (m.file === 'ポテトくん(2026年午年).fbx') opt.selected = true;
+            if (m.file === (isNewYear ? 'ポテトくん(2026年午年).fbx' : 'ポテトくん(通常).fbx')) opt.selected = true;
             modelSelect.appendChild(opt);
         });
 
@@ -135,89 +127,81 @@ const init3DViewer = () => {
     // Load FBX Model Function
     const loader = new FBXLoader();
     const loadModel = (fullPath) => {
-        console.clear();
-        console.log('%c --- POTATO SYSTEM: RELOAD VERSION --- ', 'background: #222; color: #bada55; font-size: 20px;');
-        // fullPath should already be encoded via the dropdown value or passed directly
-        console.log('[Debug] Start loading:', fullPath);
-        if (currentObject) {
-            scene.remove(currentObject);
-        }
+        try {
+            console.clear();
+            console.log('%c --- POTATO SYSTEM: V6 ACTIVE --- ', 'background: #222; color: #bada55; font-size: 20px;');
+            alert('Starting load: ' + fullPath);
 
-        rightArmBone = null;
-        rightForeArmBone = null;
-        leftArmBone = null;
-        mixer = null;
+            if (currentObject) {
+                scene.remove(currentObject);
+            }
 
-        loader.load(fullPath, (object) => {
-            console.log('Model loaded:', fullPath);
-            currentObject = object;
+            rightArmBone = null;
+            rightForeArmBone = null;
+            leftArmBone = null;
+            mixer = null;
 
-            // Traverse to find bones
-            object.traverse((child) => {
-                if (child.isBone) {
-                    const name = child.name.toLowerCase();
+            loader.load(fullPath, (object) => {
+                alert('Success: Model Parse Complete (' + fullPath + ')');
+                console.log('Model loaded:', fullPath);
+                currentObject = object;
 
-                    // Find Right Arm (Upper)
-                    if (!rightArmBone && (name === 'upper_armr' || name.includes('upper_armr') || name.includes('rightarm') || name.includes('arm_r'))) {
-                        rightArmBone = child;
+                // Traverse to find bones
+                object.traverse((child) => {
+                    if (child.isBone) {
+                        const name = child.name.toLowerCase();
+                        if (!rightArmBone && (name === 'upper_armr' || name.includes('upper_armr') || name.includes('rightarm') || name.includes('arm_r'))) rightArmBone = child;
+                        if (!rightForeArmBone && (name === 'lower_armr' || name.includes('lower_armr') || name.includes('rightforearm') || name.includes('forearm_r'))) rightForeArmBone = child;
+                        if (!leftArmBone && (name === 'upper_arml' || name.includes('upper_arml') || name.includes('leftarm') || name.includes('arm_l'))) leftArmBone = child;
                     }
+                });
 
-                    // Find Right ForeArm (Lower)
-                    if (!rightForeArmBone && (name === 'lower_armr' || name.includes('lower_armr') || name.includes('rightforearm') || name.includes('forearm_r'))) {
-                        rightForeArmBone = child;
-                    }
-
-                    // Find Left Arm (Upper)
-                    if (!leftArmBone && (name === 'upper_arml' || name.includes('upper_arml') || name.includes('leftarm') || name.includes('arm_l'))) {
-                        leftArmBone = child;
-                    }
+                if (object.animations && object.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(object);
+                    const action = mixer.clipAction(object.animations[0]);
+                    action.play();
                 }
+
+                scene.add(object);
+
+                const box = new THREE.Box3().setFromObject(object);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+
+                console.log('[Debug] Model Size:', size);
+                console.log('[Debug] Model Center:', center);
+                console.log('[Debug] Max Dim:', maxDim);
+
+                if (maxDim > 0) {
+                    const scale = 2 / maxDim;
+                    console.log('[Debug] Calculated Scale:', scale);
+                    object.scale.setScalar(scale);
+                    const newBox = new THREE.Box3().setFromObject(object);
+                    const newSize = newBox.getSize(new THREE.Vector3());
+                    newBox.getCenter(center);
+                    object.position.sub(center);
+                    object.position.y += (newSize.y / 2) - 0.5;
+                } else {
+                    console.error('[Debug] Max Dim is 0 or invalid!');
+                    alert('Error: Max Dim is 0! Model may be empty or corrupted.');
+                }
+            }, (xhr) => {
+                // Progress
+            }, (error) => {
+                const errMsg = 'Error loading model (' + fullPath + '): ' + error.message;
+                console.error('[Debug] ' + errMsg, error);
+                alert(errMsg);
             });
-
-            // Setup Animation
-            if (object.animations && object.animations.length > 0) {
-                mixer = new THREE.AnimationMixer(object);
-                const action = mixer.clipAction(object.animations[0]);
-                action.play();
-            }
-
-            scene.add(object);
-
-            // Scaling and Positioning
-            // Auto-scale logic for all models (Standardized)
-            const box = new THREE.Box3().setFromObject(object);
-            const size = box.getSize(new THREE.Vector3());
-            const center = box.getCenter(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-
-            console.log('[Debug] Model Size:', size);
-            console.log('[Debug] Model Center:', center);
-            console.log('[Debug] Max Dim:', maxDim);
-
-            if (maxDim > 0) {
-                const scale = 2 / maxDim;
-                console.log('[Debug] Calculated Scale:', scale);
-
-                object.scale.setScalar(scale);
-                const newBox = new THREE.Box3().setFromObject(object);
-                const newSize = newBox.getSize(new THREE.Vector3());
-                newBox.getCenter(center);
-                object.position.sub(center);
-                object.position.y += (newSize.y / 2) - 0.5;
-            } else {
-                console.error('[Debug] Max Dim is 0 or invalid!');
-            }
-        }, (xhr) => {
-            // Progress
-        }, (error) => {
-            console.error('An error happened loading the FBX:', error);
-            container.innerHTML = `<p style="color:red; background:white; padding:10px; border-radius:5px;">モデルの読み込みに失敗しました。<br>${error.message}</p>`;
-        });
+        } catch (e) {
+            console.error('[Critical] LoadModel Crash:', e);
+            alert('CRITICAL ERROR: ' + e.message);
+        }
     };
 
     // Initial load based on theme
-    const defaultModel = isNewYear ? 'ポテトくん(2026年午年).fbx' : 'ポテトくん(通常).fbx';
-    loadModel(`models/${encodeURIComponent(defaultModel)}`);
+    const defaultModelName = isNewYear ? 'ポテトくん(2026年午年).fbx' : 'ポテトくん(通常).fbx';
+    loadModel(`models/${encodeURIComponent(defaultModelName)}`);
 
     // Handle window resize
     window.addEventListener('resize', () => {
@@ -231,17 +215,11 @@ const init3DViewer = () => {
     // Animation Loop
     function animate() {
         requestAnimationFrame(animate);
-        controls.update(); // Update controls
-
+        controls.update();
         const delta = clock.getDelta();
-        const time = clock.getElapsedTime();
-
         if (mixer) mixer.update(delta);
-
-
         renderer.render(scene, camera);
     }
-
     animate();
 
     // Final check for container size on mobile
@@ -362,29 +340,18 @@ const translations = {
 
 const updateLanguage = (lang) => {
     const data = translations[lang] || translations.ja;
-
-    // Update elements with data-i18n attribute
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        if (data[key]) {
-            el.innerHTML = data[key];
-        }
+        if (data[key]) el.innerHTML = data[key];
     });
-
-    // Update elements with data-i18n-attr attribute
     document.querySelectorAll('[data-i18n-attr]').forEach(el => {
         const attrMapping = el.getAttribute('data-i18n-attr');
         const [attr, key] = attrMapping.split(':');
-        if (data[key]) {
-            el.setAttribute(attr, data[key]);
-        }
+        if (data[key]) el.setAttribute(attr, data[key]);
     });
-
-    // Save language preference
     localStorage.setItem('preferredLang', lang);
 };
 
-// Initialize i18n functionality
 const initI18n = () => {
     const langSelectors = document.querySelectorAll('.lang-dropdown a');
     langSelectors.forEach(selector => {
@@ -394,13 +361,10 @@ const initI18n = () => {
             updateLanguage(lang);
         });
     });
-
-    // Load preferred or default language
     const savedLang = localStorage.getItem('preferredLang') || 'ja';
     updateLanguage(savedLang);
 };
 
-// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     init3DViewer();
     initI18n();
