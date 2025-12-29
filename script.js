@@ -32,6 +32,7 @@ const init3DViewer = () => {
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace; // Crucial for vivid colors
     container.appendChild(renderer.domElement);
 
     // Controls (OrbitControls)
@@ -55,8 +56,13 @@ const init3DViewer = () => {
     scene.add(gridHelper);
 
     // Lighting
+    // Soft global light (Hemisphere) - significantly brightens without glare
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
+
     const ambientColor = isNewYear ? 0xFFFBE6 : 0x404040;
-    const ambientLight = new THREE.AmbientLight(ambientColor, 1.2);
+    const ambientLight = new THREE.AmbientLight(ambientColor, 0.5); // Reduced ambient intensity as Hemi handles base brightness
     scene.add(ambientLight);
 
     const spotColor1 = isNewYear ? 0xFFD700 : 0xff3333;
@@ -83,9 +89,14 @@ const init3DViewer = () => {
     scene.add(spotLight2);
     scene.add(spotLight2.target);
 
-    const fillLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.5); // Reduced intensity to prevent blowout
     fillLight.position.set(0, 5, 10);
     scene.add(fillLight);
+
+    // Front Light (Targeted at model visibility)
+    const frontLight = new THREE.DirectionalLight(0xffffff, 1.0); // Boosted for brightness without emissive
+    frontLight.position.set(0, 2, 5);
+    scene.add(frontLight);
 
     // Animation variables
     let mixer;
@@ -144,6 +155,13 @@ const init3DViewer = () => {
                     if (!rightArmBone && (name === 'upper_armr' || name.includes('upper_armr') || name.includes('rightarm') || name.includes('arm_r'))) rightArmBone = child;
                     if (!rightForeArmBone && (name === 'lower_armr' || name.includes('lower_armr') || name.includes('rightforearm') || name.includes('forearm_r'))) rightForeArmBone = child;
                     if (!leftArmBone && (name === 'upper_arml' || name.includes('upper_arml') || name.includes('leftarm') || name.includes('arm_l'))) leftArmBone = child;
+                }
+
+                // Material fix for dark models
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    // Removed manual emissive boost to preserve vivid texture colors
                 }
             });
 
