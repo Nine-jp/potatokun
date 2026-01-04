@@ -746,47 +746,50 @@ body {
 }
 
 /* New Year Petals/Gold */
-.theme-newyear .effect-item::before {
-    content: '🌸';
-    /* Plum petal */
-    color: #ffb7c5;
+/* New Year Effects - 2 Pattern Cycle (Simple) */
+.theme-newyear .effect-item:nth-child(odd)::before {
+    content: '🎍';
+    color: #228B22;
+    /* Forest Green for Bamboo */
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
 }
 
 .theme-newyear .effect-item:nth-child(even)::before {
-    content: '✨';
-    /* Gold spark */
-    color: #D4AF37;
+    content: '🐎';
+    font-size: 1.1em;
+    /* Slightly larger for horse detail */
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
-/* Distribute effect items across the screen */
+/* Distribute effect items across the screen (5 items) */
 .effect-item:nth-child(1) {
-    left: 5%;
+    left: 10%;
     animation-duration: 10s;
     animation-delay: 0s;
 }
 
 .effect-item:nth-child(2) {
-    left: 15%;
+    left: 30%;
     animation-duration: 12s;
     animation-delay: 2s;
     font-size: 1.2em;
 }
 
 .effect-item:nth-child(3) {
-    left: 25%;
+    left: 50%;
     animation-duration: 8s;
     animation-delay: 4s;
     font-size: 1.8em;
 }
 
 .effect-item:nth-child(4) {
-    left: 35%;
+    left: 70%;
     animation-duration: 14s;
     animation-delay: 1s;
 }
 
 .effect-item:nth-child(5) {
-    left: 45%;
+    left: 90%;
     animation-duration: 11s;
     animation-delay: 3s;
     font-size: 1.4em;
