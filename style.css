@@ -795,11 +795,6 @@ body {
     font-size: 1.4em;
 }
 
-.effect-item:nth-child(6) {
-    left: 55%;
-    animation-duration: 9s;
-    animation-delay: 5s;
-}
 
 .effect-item:nth-child(7) {
     left: 65%;
