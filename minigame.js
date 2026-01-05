@@ -160,9 +160,9 @@ function showGameOver(score) {
     // Unlock condition: Special Rare Item collected OR Score >= 1000
     if (hasUnlockedPrize || score >= 1000) {
         prizeUI.classList.remove('hidden');
-        prizeLink.href = "#"; // Placeholder link
+        prizeLink.href = "https://drive.google.com/file/d/1nz9HWyO4Q3sMbPDmTLRZcGWkF6k1OjZf/view?usp=sharing";
         prizeLink.textContent = "Download Special VRM";
-        prizeStatus.textContent = "(Coming Soon)";
+        prizeStatus.textContent = "(Available Now!)";
     } else {
         prizeUI.classList.add('hidden');
     }
