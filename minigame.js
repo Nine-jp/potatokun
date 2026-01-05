@@ -168,14 +168,6 @@ function showGameOver(score) {
         prizeLink.rel = "noopener noreferrer";
         prizeLink.textContent = "Download Special VRM";
         prizeStatus.textContent = "(Available Now!)";
-
-        // iOS fallback: Direct click listener
-        prizeLink.onclick = (e) => {
-            // No e.preventDefault() to keep standard behavior as fallback, 
-            // but explicitly calling window.open for iOS Safari
-            window.open(driveUrl, '_blank');
-            return false;
-        };
     } else {
         prizeUI.classList.add('hidden');
     }
