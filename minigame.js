@@ -163,6 +163,8 @@ function showGameOver(score) {
     if (hasUnlockedPrize || score >= 1000) {
         prizeUI.classList.remove('hidden');
         prizeLink.href = "https://drive.google.com/file/d/1nz9HWyO4Q3sMbPDmTLRZcGWkF6k1OjZf/view?usp=sharing";
+        prizeLink.target = "_blank";
+        prizeLink.rel = "noopener noreferrer";
         prizeLink.textContent = "Download Special VRM";
         prizeStatus.textContent = "(Available Now!)";
     } else {
