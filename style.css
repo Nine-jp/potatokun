@@ -954,6 +954,18 @@ body {
     border-radius: 10px;
 }
 
+.beta-badge {
+    margin-top: 5px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    background: linear-gradient(135deg, #ff4d4d, #f9cb28);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 12px;
+    box-shadow: 0 0 10px rgba(255, 77, 77, 0.4);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 /* 2. Intro Screen */
 #game-intro {
     text-align: center;

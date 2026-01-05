@@ -7,6 +7,7 @@ const GameLibrary = {
         description: "降ってくる「🍟(5点)」と「🍔(10点)」を集めよう！「☠️」に当たるとゲームオーバー！",
         icon: "🥔",
         iconImage: "assets/potatokun-action.png", // Custom Image
+        isBeta: true, // Show Beta Badge
         init: (container) => PotatoAction.init(container),
         start: () => PotatoAction.start(),
         stop: () => PotatoAction.stop()
@@ -103,6 +104,7 @@ function renderGameMenu() {
         card.innerHTML = `
             ${iconHtml}
             <div class="game-title">${game.title}</div>
+            ${game.isBeta ? '<div class="beta-badge">β版</div>' : ''}
             ${game.isComingSoon ? '<div class="coming-soon-badge">Coming Soon</div>' : ''}
         `;
 
