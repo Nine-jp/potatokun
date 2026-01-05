@@ -162,11 +162,20 @@ function showGameOver(score) {
     // Unlock condition: Special Rare Item collected OR Score >= 1000
     if (hasUnlockedPrize || score >= 1000) {
         prizeUI.classList.remove('hidden');
-        prizeLink.href = "https://drive.google.com/file/d/1nz9HWyO4Q3sMbPDmTLRZcGWkF6k1OjZf/view?usp=sharing";
+        const driveUrl = "https://drive.google.com/file/d/1nz9HWyO4Q3sMbPDmTLRZcGWkF6k1OjZf/view?usp=sharing";
+        prizeLink.href = driveUrl;
         prizeLink.target = "_blank";
         prizeLink.rel = "noopener noreferrer";
         prizeLink.textContent = "Download Special VRM";
         prizeStatus.textContent = "(Available Now!)";
+
+        // iOS fallback: Direct click listener
+        prizeLink.onclick = (e) => {
+            // No e.preventDefault() to keep standard behavior as fallback, 
+            // but explicitly calling window.open for iOS Safari
+            window.open(driveUrl, '_blank');
+            return false;
+        };
     } else {
         prizeUI.classList.add('hidden');
     }

@@ -1038,6 +1038,10 @@ body {
     font-weight: bold;
     font-family: inherit;
     transition: transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    /* iOS optimization */
+    touch-action: manipulation;
+    /* Allow scrolling but prioritize taps */
 }
 
 .primary-btn {
@@ -1283,7 +1287,7 @@ body {
 
 /* 5. Common Game Over */
 #common-game-over {
-    position: absolute;
+    position: relative;
     text-align: center;
     background: white;
     color: #333;
@@ -1291,7 +1295,8 @@ body {
     border-radius: 20px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     pointer-events: auto;
-    /* Ensure events pass on iOS */
+    z-index: 10002;
+    margin: 20px;
 }
 
 #common-game-over.hidden {
