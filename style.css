@@ -820,4 +820,475 @@ body {
     left: 95%;
     animation-duration: 11s;
     animation-delay: 4.5s;
+
+}
+
+/* Mini Game Portal Styles */
+#fab-play-game {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    font-size: 30px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    z-index: 9000;
+    transition: transform 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+#fab-play-game:hover {
+    transform: scale(1.1);
+    background: var(--secondary-color);
+}
+
+#minigame-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(20, 20, 20, 0.95);
+    z-index: 10000;
+    overflow: hidden;
+    touch-action: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-family: "M PLUS Rounded 1c", sans-serif;
+}
+
+#minigame-container.hidden {
+    display: none;
+}
+
+#portal-close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 2.5rem;
+    cursor: pointer;
+    z-index: 10001;
+}
+
+/* 1. Game Menu */
+#game-menu {
+    width: 100%;
+    max-width: 800px;
+    padding: 20px;
+    text-align: center;
+}
+
+#game-menu.hidden {
+    display: none;
+}
+
+.portal-title {
+    font-size: 2rem;
+    margin-bottom: 30px;
+    color: var(--primary-color);
+}
+
+#game-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.game-card {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.2);
+    border-color: var(--primary-color);
+}
+
+.game-card.disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.game-card.disabled:hover {
+    transform: none;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.game-icon {
+    font-size: 4rem;
+    margin-bottom: 10px;
+}
+
+.game-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.coming-soon-badge {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    background: #555;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+/* 2. Intro Screen */
+#game-intro {
+    text-align: center;
+    max-width: 600px;
+    padding: 30px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+#game-intro.hidden {
+    display: none;
+}
+
+.large-icon {
+    font-size: 6rem;
+    margin-bottom: 20px;
+}
+
+/* Image Icons */
+.game-icon-img {
+    width: 8rem;
+    height: 8rem;
+    object-fit: contain;
+    margin-bottom: 10px;
+}
+
+.large-icon-img-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.large-icon-img {
+    width: 150px;
+    /* Matching player size */
+    height: 150px;
+    object-fit: contain;
+}
+
+#intro-title {
+    font-size: 2rem;
+    margin-bottom: 20px;
+    color: var(--primary-color);
+}
+
+#intro-desc {
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+    line-height: 1.6;
+}
+
+.intro-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+/* 3. Common Buttons */
+.primary-btn,
+.secondary-btn {
+    padding: 12px 30px;
+    font-size: 1.2rem;
+    border-radius: 50px;
+    cursor: pointer;
+    border: none;
+    font-weight: bold;
+    font-family: inherit;
+    transition: transform 0.1s;
+}
+
+.primary-btn {
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 4px 10px rgba(220, 20, 60, 0.3);
+}
+
+.primary-btn:hover {
+    background: var(--secondary-color);
+    transform: scale(1.05);
+}
+
+.secondary-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.secondary-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* 4. Active Game Container */
+#active-game-container {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+#active-game-container.hidden {
+    display: none;
+}
+
+/* Potato Action Specific Styles */
+#pa-ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    pointer-events: none;
+}
+
+#pa-player {
+    position: absolute;
+    bottom: 20px;
+    width: 150px;
+    height: 150px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+#pa-player img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.pa-item {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    font-size: 40px;
+    line-height: 40px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.pa-float-text {
+    position: absolute;
+    color: #FFD700;
+    font-weight: bold;
+    font-size: 1.5rem;
+    animation: floatUp 1s forwards;
+    text-shadow: 0 0 5px black;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.pa-particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: particleBurst 0.6s ease-out forwards;
+    z-index: 9;
+}
+
+@keyframes particleBurst {
+    0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(var(--tx), var(--ty)) scale(0);
+        opacity: 0;
+    }
+}
+
+/* Prize Box */
+#prize-container {
+    background: rgba(220, 20, 60, 0.05);
+    padding: 15px;
+    border-radius: 10px;
+    border: 2px dashed var(--primary-color);
+    margin: 15px 0;
+}
+
+#prize-container.hidden {
+    display: none;
+}
+
+.prize-msg {
+    font-weight: bold;
+    color: var(--primary-color);
+    margin: 0 0 15px 0 !important;
+    animation: flash 1s infinite alternate;
+}
+
+#prize-status {
+    font-size: 0.9rem;
+    color: #888;
+    margin-top: 10px !important;
+    font-style: italic;
+}
+
+@keyframes flash {
+    from {
+        opacity: 0.5;
+    }
+
+    to {
+        opacity: 1;
+        text-shadow: 0 0 10px rgba(220, 20, 60, 0.5);
+    }
+}
+
+/* Barrier Visuals (Stackable) */
+#pa-player.shield-1::after,
+#pa-player.shield-2::after,
+#pa-player.shield-3::after {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    border-radius: 50%;
+    animation: barrierPulse 2s infinite ease-in-out;
+    pointer-events: none;
+    transition: all 0.3s ease;
+}
+
+#pa-player.shield-1::after {
+    border: 3px solid rgba(0, 191, 255, 0.8);
+    box-shadow: 0 0 15px rgba(0, 191, 255, 0.6);
+}
+
+#pa-player.shield-2::after {
+    border: 4px solid rgba(135, 206, 250, 0.9);
+    box-shadow: 0 0 25px rgba(135, 206, 250, 0.8), inset 0 0 10px rgba(135, 206, 250, 0.4);
+}
+
+#pa-player.shield-3::after {
+    border: 5px solid rgba(240, 248, 255, 1);
+    box-shadow: 0 0 35px rgba(255, 255, 255, 0.9), inset 0 0 20px rgba(0, 191, 255, 0.6);
+}
+
+@keyframes barrierPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+
+    50% {
+        transform: scale(1.05);
+        opacity: 0.4;
+    }
+}
+
+/* Friendly Bomb Item */
+.pa-item.bomb {
+    text-shadow: 0 0 15px #fff, 0 0 25px var(--secondary-color);
+    animation: bombGlow 1.5s infinite alternate;
+}
+
+@keyframes bombGlow {
+    from {
+        filter: drop-shadow(0 0 5px #fff);
+    }
+
+    to {
+        filter: drop-shadow(0 0 15px var(--secondary-color));
+    }
+}
+
+/* Sacred Flash */
+#pa-sacred-flash {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.flash-active {
+    animation: sacredFlash 0.5s ease-out;
+}
+
+@keyframes sacredFlash {
+    0% {
+        opacity: 0.8;
+        background: #fff;
+    }
+
+    50% {
+        background: #e0faff;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+/* Heart Particle */
+.pa-heart {
+    position: absolute;
+    pointer-events: none;
+    z-index: 10;
+    animation: particleBurst 0.8s ease-out forwards;
+}
+
+/* 5. Common Game Over */
+#common-game-over {
+    position: absolute;
+    text-align: center;
+    background: white;
+    color: #333;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#common-game-over.hidden {
+    display: none;
+}
+
+#common-game-over h2 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.game-over-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 20px;
 }
