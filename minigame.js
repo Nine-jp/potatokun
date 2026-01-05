@@ -397,7 +397,7 @@ const PotatoAction = (() => {
                     hasUnlockedPrize = true;
                     rareSpawnWindowActive = false;
                     hasRareSpawnedThisWindow = true;
-                    showFloatText(item.el.offsetLeft, item.el.offsetTop, 'RARE GET!', '#FF1493');
+                    showFloatText(item.el.offsetLeft, item.el.offsetTop, 'Avatar Unlocked!', '#FF1493');
                     spawnHearts(item.el.offsetLeft + 40, item.el.offsetTop + 40);
                 } else if (item.type === 'barrier') {
                     addBarrier();

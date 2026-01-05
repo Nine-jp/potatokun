@@ -252,7 +252,8 @@ const translations = {
         "license-item1": "個人利用OK",
         "license-item3": "再配布NG",
         "license-item4": "公序良俗に反する利用NG",
-        "download-btn": "VRMをダウンロード"
+        "download-btn": "VRMをダウンロード",
+        "mini-game-guide": "右下の🎮️ボタンからミニゲームで遊べるよ！"
     },
     en: {
         "title": "PotatoKun VRM Free Distribution!",
@@ -271,7 +272,8 @@ const translations = {
         "license-item1": "Personal use OK",
         "license-item3": "Redistribution prohibited",
         "license-item4": "Use against public order prohibited",
-        "download-btn": "Download VRM"
+        "download-btn": "Download VRM",
+        "mini-game-guide": "Play mini-games from the 🎮️ button on the bottom right!"
     },
     es: {
         "title": "¡Distribución gratuita de PotatoKun VRM!",
@@ -290,7 +292,8 @@ const translations = {
         "license-item1": "Uso personal OK",
         "license-item3": "Redistribución prohibida",
         "license-item4": "Prohibido uso contra orden público",
-        "download-btn": "Descargar VRM"
+        "download-btn": "Descargar VRM",
+        "mini-game-guide": "¡Juega minijuegos desde el botón 🎮️ abajo a la derecha!"
     },
     zh: {
         "title": "PotatoKun VRM 免费发放中！",
@@ -309,7 +312,8 @@ const translations = {
         "license-item1": "个人使用 OK",
         "license-item3": "禁止二次分发",
         "license-item4": "禁止違反公共秩序和道德的使用",
-        "download-btn": "下载 VRM"
+        "download-btn": "下载 VRM",
+        "mini-game-guide": "点击右下角的🎮️按钮玩小游戏！"
     },
     ko: {
         "title": "포테토군 VRM 무료 배포 중!",
@@ -328,7 +332,8 @@ const translations = {
         "license-item1": "개인 이용 OK",
         "license-item3": "재배포 금지",
         "license-item4": "공서양속에 반하는 이용 금지",
-        "download-btn": "VRM 다운로드"
+        "download-btn": "VRM 다운로드",
+        "mini-game-guide": "오른쪽 하단의 🎮️ 버튼에서 미니 게임을 즐길 수 있어요!"
     }
 };
 

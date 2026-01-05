@@ -103,6 +103,14 @@ body {
     color: var(--secondary-color);
 }
 
+.mini-game-guide {
+    font-size: 1.2rem;
+    color: orange;
+    margin-top: 10px;
+    margin-bottom: 0px;
+    font-weight: 700;
+}
+
 /* Language Selector */
 .lang-selector {
     position: relative;
