@@ -859,7 +859,6 @@ body {
     background: rgba(20, 20, 20, 0.95);
     z-index: 10000;
     overflow: hidden;
-    touch-action: none;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -890,6 +889,8 @@ body {
     max-width: 800px;
     padding: 20px;
     text-align: center;
+    pointer-events: auto;
+    /* Ensure events pass on iOS */
 }
 
 #game-menu.hidden {
@@ -1027,6 +1028,8 @@ body {
 /* 3. Common Buttons */
 .primary-btn,
 .secondary-btn {
+    display: inline-block;
+    text-decoration: none;
     padding: 12px 30px;
     font-size: 1.2rem;
     border-radius: 50px;
@@ -1064,6 +1067,7 @@ body {
     position: absolute;
     top: 0;
     left: 0;
+    touch-action: none;
 }
 
 #active-game-container.hidden {
@@ -1286,6 +1290,8 @@ body {
     padding: 40px;
     border-radius: 20px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+    /* Ensure events pass on iOS */
 }
 
 #common-game-over.hidden {
