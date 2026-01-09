@@ -8,8 +8,8 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 const GameLibrary = {
     'potato-action': {
-        title: "ポテトくんアクション",
-        shortTitle: "ポテアク",
+        title: "ポテトくんパクパク",
+        shortTitle: "ポテパク",
         description: "降ってくる「🍟(5点)」と「🍔(10点)」を集めよう！「☠️」に当たるとゲームオーバー！",
         icon: "🥔",
         iconImage: "assets/potatokun-action.png", // Custom Image
@@ -28,10 +28,10 @@ const GameLibrary = {
         isComingSoon: true
     },
     '3d-search': {
-        title: "ポテトくんゲーム③",
-        shortTitle: "3D探索",
-        description: "10体のポテトくんの中から、1体だけ違うポテトくんを探し出そう！",
-        icon: "🔍",
+        title: "ポテコイン",
+        shortTitle: "ポテコイン",
+        description: "のどが渇いたポテトくんのために、公園に散らばったコインを10枚集めてジュースを買ってあげよう！",
+        icon: "🪙",
         init: (container) => SearchGame.init(container),
         start: () => SearchGame.start(),
         stop: () => SearchGame.stop()
@@ -666,8 +666,8 @@ const SearchGame = (() => {
     function setupGameUI() {
         container.innerHTML = `
             <div id="sg-ui" style="position:absolute; top:20px; left:20px; color:#fff; z-index:100; font-family:sans-serif; pointer-events:none; text-shadow: 2px 2px 4px #000000; font-size: 1.2rem; font-weight: bold;">
-                <div>🥔 ポテトくん探検隊</div>
-                <div style="margin-top:8px;">🍅 ケチャップ: <span id="sg-ketchup">0</span>/10</div>
+                <div>🪙 ポテコイン</div>
+                <div style="margin-top:8px;">🪙 コイン: <span id="sg-ketchup">0</span>/10</div>
                 <div>Score: <span id="sg-score">0</span></div>
             </div>
             <div id="sg-canvas-container" style="width:100%; height:100%; background: #1a1a1a;"></div>
@@ -754,7 +754,7 @@ const SearchGame = (() => {
             <div id="sg-instructions" style="position:absolute; bottom:20px; left:20px; color:#fff; z-index:100; font-family:sans-serif; text-shadow: 1px 1px 2px #000; font-size: 0.85rem; opacity:0.8; pointer-events:none;">
                 <div>🎮 移動: WASD / D-Pad</div>
                 <div>👁️ 視点: 画面スワイプ</div>
-                <div>🎯 ケチャップに近づくとGETボタン出現！</div>
+                <div>🎯 コインに近づくとGETボタン出現！</div>
             </div>
 
 
@@ -1665,6 +1665,198 @@ const SearchGame = (() => {
             }
         );
 
+        // === LOAD FBX MODEL: Vending Machine ===
+        const VENDING_TARGET_HEIGHT = 2.0; // Target height: 2m (typical vending machine)
+
+        loader.load(
+            'models/vending_machine.fbx',
+            (vendingFbx) => {
+                console.log('FBX Loaded: vending_machine.fbx');
+
+                // === AUTO-SIZE NORMALIZATION using Box3 ===
+                const vendingBox = new THREE.Box3().setFromObject(vendingFbx);
+                const vendingSize = new THREE.Vector3();
+                vendingBox.getSize(vendingSize);
+
+                const vendingOriginalHeight = vendingSize.y;
+                console.log('Vending Machine Original Height:', vendingOriginalHeight.toFixed(3));
+
+                // Calculate scale factor
+                const vendingScaleFactor = VENDING_TARGET_HEIGHT / vendingOriginalHeight;
+                vendingFbx.scale.setScalar(vendingScaleFactor);
+                console.log('Vending Machine Applied Scale:', vendingScaleFactor.toFixed(6));
+
+                // Recalculate bounding box for ground contact
+                const scaledVendingBox = new THREE.Box3().setFromObject(vendingFbx);
+                const vendingOffsetY = -scaledVendingBox.min.y;
+
+                // Position next to slide (left side)
+                vendingFbx.position.set(-11, vendingOffsetY, -8);
+                // Face toward player/slide (rotated 90° clockwise)
+                vendingFbx.rotation.y = 0;
+                console.log('Vending machine placed at (-11, 0, -8)');
+
+                // === Material, Shadow, and Special Effects ===
+                vendingFbx.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+
+                        const childName = child.name.toLowerCase();
+
+                        // Water/Glass: Transparency
+                        if (childName.includes('water') || childName.includes('glass')) {
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(m => {
+                                m.transparent = true;
+                                m.opacity = 0.5;
+                                m.depthWrite = false;
+                            });
+                            child.userData.skipOutline = true;
+                            console.log('Vending: Transparency applied to:', child.name);
+                        }
+
+                        // Light: Emission
+                        if (childName.includes('light')) {
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(m => {
+                                if (m.emissive) {
+                                    m.emissive.setHex(0xFFFFFF);
+                                    m.emissiveIntensity = 2.0;
+                                }
+                            });
+                            console.log('Vending: Emission applied to:', child.name);
+                        }
+                    }
+                });
+
+                scene.add(vendingFbx);
+
+                // Add edge outlines
+                addEdgesOutline(vendingFbx, 15, 0x000000);
+                console.log('Vending machine: Edge outlines applied');
+
+                // Add collision data
+                if (!window.sgVendingCollision) {
+                    window.sgVendingCollision = [];
+                }
+                window.sgVendingCollision.push({
+                    x: -11,
+                    z: -8,
+                    radius: 0.8
+                });
+            },
+            (progress) => {
+                if (progress.total > 0) {
+                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
+                    console.log(`Loading vending_machine.fbx: ${percent}%`);
+                }
+            },
+            (error) => {
+                console.error('Error loading vending_machine.fbx:', error);
+            }
+        );
+
+        // === LOAD FBX MODEL: Coin (collectible game items) ===
+        const COIN_TARGET_SIZE = 0.5; // Target diameter: 50cm
+
+        loader.load(
+            'models/coin.fbx',
+            (masterCoin) => {
+                console.log('FBX Loaded: coin.fbx (master for cloning)');
+
+                // === AUTO-SIZE NORMALIZATION using Box3 ===
+                const coinBox = new THREE.Box3().setFromObject(masterCoin);
+                const coinSize = new THREE.Vector3();
+                coinBox.getSize(coinSize);
+
+                const coinMaxDim = Math.max(coinSize.x, coinSize.y, coinSize.z);
+                console.log('Coin Original Size:', coinMaxDim.toFixed(3));
+
+                // Calculate scale factor
+                const coinScaleFactor = COIN_TARGET_SIZE / coinMaxDim;
+                masterCoin.scale.setScalar(coinScaleFactor);
+                console.log('Coin Applied Scale:', coinScaleFactor.toFixed(6));
+
+                // === Material: Keep original FBX settings, only add shadows ===
+                masterCoin.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        // DO NOT modify metalness/roughness - keep original FBX material
+                    }
+                });
+
+                // === Game coin positions (10 coins spread around park) ===
+                const coinPositions = [
+                    { x: -15, z: -15 }, { x: 15, z: -15 }, { x: -15, z: 15 },
+                    { x: 15, z: 15 }, { x: -20, z: 0 }, { x: 20, z: 0 },
+                    { x: 0, z: -20 }, { x: 8, z: 18 }, { x: -10, z: -20 }, { x: 12, z: -18 }
+                ];
+
+                window.sgGameCoins = []; // For rotation animation
+                const gameItems = []; // For collection tracking
+
+                coinPositions.forEach((pos, index) => {
+                    const coin = masterCoin.clone();
+                    coin.position.set(pos.x, 1.0, pos.z); // Float 1m above ground
+
+                    // Collection flag
+                    coin.userData.isCoin = true;
+                    coin.userData.coinIndex = index;
+                    coin.userData.collected = false;
+
+                    // Re-apply shadows to cloned meshes
+                    coin.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+
+                    // Add edge outlines
+                    addEdgesOutline(coin, 15, 0x000000);
+
+                    scene.add(coin);
+                    window.sgGameCoins.push(coin);
+                    gameItems.push(coin);
+                });
+
+                // Store collection data globally
+                window.sgCoinData = {
+                    items: gameItems,
+                    collected: 0,
+                    total: coinPositions.length
+                };
+
+                console.log(`${coinPositions.length} collectible coins placed!`);
+
+                // Update UI text
+                const ketchupLabel = document.getElementById('sg-ketchup');
+                if (ketchupLabel) {
+                    ketchupLabel.textContent = '0';
+                    // Update label text
+                    const parent = ketchupLabel.parentNode;
+                    if (parent) {
+                        parent.childNodes.forEach(node => {
+                            if (node.nodeType === 3 && node.textContent.includes('ケチャップ')) {
+                                node.textContent = '🪙 コイン: ';
+                            }
+                        });
+                    }
+                }
+            },
+            (progress) => {
+                if (progress.total > 0) {
+                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
+                    console.log(`Loading coin.fbx: ${percent}%`);
+                }
+            },
+            (error) => {
+                console.error('Error loading coin.fbx:', error);
+            }
+        );
+
         // === LOAD FBX MODEL: Tree_test (Forest of trees around park edges) ===
 
         const TREE_TARGET_HEIGHT = 5.0; // Base target height for trees: 5 meters
@@ -2562,6 +2754,15 @@ const SearchGame = (() => {
 
         // FPS movement update
         if (window.sgUpdateMovement) window.sgUpdateMovement();
+
+        // Coin rotation animation (all game coins)
+        if (window.sgGameCoins) {
+            window.sgGameCoins.forEach(coin => {
+                if (coin.visible) {
+                    coin.rotation.y += 0.05;
+                }
+            });
+        }
 
         // Render scene (using standard renderer, edges are physical LineSegments)
         renderer.render(scene, camera);
