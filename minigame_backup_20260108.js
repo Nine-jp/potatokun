@@ -3,6 +3,13 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
+// Post-processing modules for outline effect
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+
 
 /* Mini-Game System Controller */
 
@@ -786,40 +793,39 @@ const SearchGame = (() => {
         renderer.shadowMap.enabled = true;
         canvasContainer.appendChild(renderer.domElement);
 
-        // === EdgesGeometry Outline Function ===
-        /**
-         * オブジェクトにエッジライン（輪郭線）を追加する関数
-         * @param {THREE.Object3D} object - 対象のオブジェクト
-         * @param {number} thresholdAngle - エッジを検出する角度（デフォルト15度）
-         * @param {number} color - 線の色（デフォルト黒）
-         */
-        function addEdgesOutline(object, thresholdAngle = 15, color = 0x000000) {
-            object.traverse((child) => {
-                if (child.isMesh && child.geometry) {
-                    // Skip if flagged (e.g., water, transparent objects)
-                    if (child.userData.skipOutline) return;
+        // === POST-PROCESSING: EffectComposer Setup ===
+        const composer = new EffectComposer(renderer);
 
-                    // Skip if already has edges
-                    const existingEdges = child.children.find(c => c.isLineSegments);
-                    if (existingEdges) return;
+        // Pass 1: Normal scene rendering
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
 
-                    try {
-                        const edgesGeometry = new THREE.EdgesGeometry(child.geometry, thresholdAngle);
-                        const lineMaterial = new THREE.LineBasicMaterial({
-                            color: color,
-                            linewidth: 2
-                        });
-                        const edges = new THREE.LineSegments(edgesGeometry, lineMaterial);
-                        child.add(edges);
-                    } catch (e) {
-                        console.warn('EdgesGeometry failed for', child.name, e);
-                    }
-                }
-            });
-        }
+        // Pass 2: Outline rendering (MagicaVoxel-style black outlines)
+        const outlinePass = new OutlinePass(
+            new THREE.Vector2(width, height),
+            scene,
+            camera
+        );
+        outlinePass.visibleEdgeColor.set(0x000000); // Black outline (comic/toon style)
+        outlinePass.hiddenEdgeColor.set(0x000000); // Hidden edges also black
+        outlinePass.edgeThickness = 12.0; // Line thickness (THICK for visibility)
+        outlinePass.edgeStrength = 20.0; // Line intensity (STRONG for black edges)
+        outlinePass.edgeGlow = 0.5; // Some glow to ensure line visibility
+        outlinePass.pulsePeriod = 0; // No pulsing (static lines)
+        composer.addPass(outlinePass);
 
-        // Store addEdgesOutline globally for use in asset loaders
-        window.addEdgesOutline = addEdgesOutline;
+        // Pass 3: Anti-aliasing (FXAA) to smooth jagged lines
+        const fxaaPass = new ShaderPass(FXAAShader);
+        fxaaPass.uniforms['resolution'].value.set(1 / width, 1 / height);
+        composer.addPass(fxaaPass);
+
+        // Store references for later use
+        window.sgComposer = composer;
+        window.sgOutlinePass = outlinePass;
+
+        // Array to track objects that should have outlines
+        const outlineObjects = [];
+        window.sgOutlineObjects = outlineObjects;
 
 
         // === FPS Camera Variables (POTATO PERSPECTIVE) ===
@@ -1334,23 +1340,13 @@ const SearchGame = (() => {
 
 
 
-        // Brighter ambient light for cheerful atmosphere
+        // Brighter ambient light for cheerful atmosphere (increased for post-processing)
         scene.add(new THREE.AmbientLight(0xffffff, 1.2));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
         dirLight.position.set(20, 40, 20);
         dirLight.castShadow = true;
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
-
-        // Expand shadow camera to cover entire park (-30 to 30)
-        dirLight.shadow.camera.left = -30;
-        dirLight.shadow.camera.right = 30;
-        dirLight.shadow.camera.top = 30;
-        dirLight.shadow.camera.bottom = -30;
-        dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 100;
-        dirLight.shadow.bias = -0.0005; // Prevent shadow acne
-
         scene.add(dirLight);
 
         // Pastel green grass ground
@@ -1557,9 +1553,17 @@ const SearchGame = (() => {
                 // Add to scene
                 scene.add(fbx);
 
-                // Add edge outlines (EdgesGeometry method)
-                addEdgesOutline(fbx, 15, 0x000000);
-                console.log('Potatokun: Edge outlines applied');
+                // Add to outline objects for post-processing outline effect
+                if (window.sgOutlineObjects) {
+                    let meshCount = 0;
+                    fbx.traverse((child) => {
+                        if (child.isMesh) {
+                            window.sgOutlineObjects.push(child);
+                            meshCount++;
+                        }
+                    });
+                    console.log(`Potatokun: ${meshCount} meshes added to outline. Total: ${window.sgOutlineObjects.length}`);
+                }
 
 
                 // Set up animation if available
@@ -1615,24 +1619,11 @@ const SearchGame = (() => {
                 // Face toward center/player
                 fountainFbx.rotation.y = -Math.PI / 4;
 
-                // Set up shadows for all meshes and handle water transparency
+                // Set up shadows for all meshes
                 fountainFbx.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
-
-                        // Water transparency check
-                        if (child.name.toLowerCase().includes('water')) {
-                            const materials = Array.isArray(child.material) ? child.material : [child.material];
-                            materials.forEach(mat => {
-                                mat.transparent = true;
-                                mat.opacity = 0.6;
-                                mat.depthWrite = false;
-                            });
-                            // Skip outline for water
-                            child.userData.skipOutline = true;
-                            console.log('Water transparency applied to:', child.name);
-                        }
                     }
                 });
 
@@ -1640,9 +1631,15 @@ const SearchGame = (() => {
                 scene.add(fountainFbx);
                 console.log('Elephant fountain placed at (3, 0, 3)');
 
-                // Add edge outlines (EdgesGeometry method)
-                addEdgesOutline(fountainFbx, 15, 0x000000);
-                console.log('Elephant fountain: Edge outlines applied');
+                // Add to outline objects for post-processing outline effect
+                if (window.sgOutlineObjects) {
+                    fountainFbx.traverse((child) => {
+                        if (child.isMesh) {
+                            window.sgOutlineObjects.push(child);
+                        }
+                    });
+                    console.log('Elephant fountain added to outline objects');
+                }
 
                 // Add collision data for the fountain
                 if (!window.sgFountainCollision) {
@@ -1789,8 +1786,14 @@ const SearchGame = (() => {
                     // Add to scene
                     scene.add(treeClone);
 
-                    // Add edge outlines (EdgesGeometry method)
-                    addEdgesOutline(treeClone, 15, 0x000000);
+                    // Add to outline objects for post-processing outline effect
+                    if (window.sgOutlineObjects) {
+                        treeClone.traverse((child) => {
+                            if (child.isMesh) {
+                                window.sgOutlineObjects.push(child);
+                            }
+                        });
+                    }
                 });
 
 
@@ -1834,8 +1837,14 @@ const SearchGame = (() => {
                     // Add to scene (no collision for exterior trees)
                     scene.add(exteriorTree);
 
-                    // Add edge outlines (EdgesGeometry method)
-                    addEdgesOutline(exteriorTree, 15, 0x000000);
+                    // Add to outline objects for post-processing outline effect
+                    if (window.sgOutlineObjects) {
+                        exteriorTree.traverse((child) => {
+                            if (child.isMesh) {
+                                window.sgOutlineObjects.push(child);
+                            }
+                        });
+                    }
                 }
 
 
@@ -2047,8 +2056,6 @@ const SearchGame = (() => {
         slideGroup.add(slope);
         slideGroup.position.set(-8, 0, -8);
         scene.add(slideGroup);
-        slideGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-        addEdgesOutline(slideGroup, 20, 0x000000);
 
         // === ジャングルジム (Jungle Gym) at (5, 0, -5) - Pastel Yellow wireframe ===
         const gymGroup = new THREE.Group();
@@ -2061,8 +2068,6 @@ const SearchGame = (() => {
         gymGroup.add(gymFrame);
         gymGroup.position.set(5, 0, -5);
         scene.add(gymGroup);
-        gymGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-        addEdgesOutline(gymGroup, 20, 0x000000);
 
         // === ベンチ (Bench) at (10, 0, 8) - Pastel Brown ===
         const benchGroup = new THREE.Group();
@@ -2093,8 +2098,6 @@ const SearchGame = (() => {
         }
         benchGroup.position.set(10, 0, 8);
         scene.add(benchGroup);
-        benchGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-        addEdgesOutline(benchGroup, 20, 0x000000);
 
         // === 大きな木 (Big Tree) - REMOVED, now using Tree_test.fbx ===
         // Old primitive tree deleted - all trees are now FBX models
@@ -2158,8 +2161,6 @@ const SearchGame = (() => {
         }
         fountainGroup.position.set(0, 0, -12);
         scene.add(fountainGroup);
-        fountainGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-        addEdgesOutline(fountainGroup, 20, 0x000000);
 
         // === 茂み (Bushes) - Voxel style (cubes) ===
         const bushMaterial = new THREE.MeshLambertMaterial({ color: 0x98FB98 }); // Pale green
@@ -2178,7 +2179,6 @@ const SearchGame = (() => {
             });
             bushGroup.position.set(x, 0, z);
             scene.add(bushGroup);
-            bushGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         });
     }
 
@@ -2400,12 +2400,6 @@ const SearchGame = (() => {
             mouth.position.set(0, 1.6, 0.43);
             potatoGroup.add(mouth);
 
-            // Apply shadow settings to all potato meshes
-            potatoGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-
-            // Apply edge outlines to potato
-            addEdgesOutline(potatoGroup, 15, 0x000000);
-
             return potatoGroup;
         }
 
@@ -2563,11 +2557,19 @@ const SearchGame = (() => {
         // FPS movement update
         if (window.sgUpdateMovement) window.sgUpdateMovement();
 
-        // Render scene (using standard renderer, edges are physical LineSegments)
-        renderer.render(scene, camera);
+        // Update outline pass with selected objects
+        if (window.sgOutlinePass && window.sgOutlineObjects) {
+            window.sgOutlinePass.selectedObjects = window.sgOutlineObjects;
+        }
+
+        // Render with post-processing (composer) instead of direct renderer
+        if (window.sgComposer) {
+            window.sgComposer.render();
+        } else {
+            renderer.render(scene, camera);
+        }
         animationId = requestAnimationFrame(loop);
     }
-
 
 
 

@@ -55,6 +55,12 @@ body {
     line-height: 1.6;
 }
 
+body.modal-open {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+}
+
 .container {
     max-width: 1000px;
     margin: 0 auto;
