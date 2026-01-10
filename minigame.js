@@ -661,11 +661,11 @@ const SearchGame = (() => {
         const sweatGeo = new THREE.SphereGeometry(0.03, 8, 8); // Smaller
         const sweatMat = new THREE.MeshBasicMaterial({ color: 0x87CEFA }); // Light Blue
 
-        // 3 drops around head
+        // 3 drops on forehead (centered, front of face)
         const positions = [
-            { x: 0.15, y: 1.4, z: 0.2 },
-            { x: -0.15, y: 1.3, z: 0.25 },
-            { x: 0, y: 1.35, z: 0.3 }
+            { x: 0.05, y: 1.55, z: 0.35 },   // Right forehead
+            { x: -0.05, y: 1.6, z: 0.35 },   // Left forehead
+            { x: 0, y: 1.5, z: 0.4 }         // Between eyebrows
         ];
 
         positions.forEach(pos => {
@@ -713,9 +713,10 @@ const SearchGame = (() => {
             window.sgPlayer.visible = true;
         }
 
-        // 3. Camera to gameplay position
+        // 3. Camera to gameplay position (natural TPS view from behind)
         if (window.sgPlayer) {
-            camera.position.set(-11, 4, 0);
+            // Player at (-11, 0, -5), camera behind and above
+            camera.position.set(-11, 2.5, 2);
             camera.lookAt(window.sgPlayer.position);
         }
 
@@ -726,9 +727,9 @@ const SearchGame = (() => {
         if (skipBtn) skipBtn.style.display = 'none';
         if (dpad) dpad.style.display = 'grid';
 
-        // 5. Sync player position
+        // 5. Sync player position (shifted left to avoid slide collision)
         if (typeof playerPosition !== 'undefined') {
-            playerPosition.set(-11, 0.6, -5);
+            playerPosition.set(-13, 0.6, -5);
         }
 
         // 6. Start game
@@ -765,7 +766,7 @@ const SearchGame = (() => {
         // --- Acting Setup ---
         player.position.set(-11, 0, -5);
         player.rotation.y = 0;
-        player.rotation.x = 0.5;
+        player.rotation.x = 0; // Standing upright (was 0.5 for bowing)
         player.visible = true;
         createSweatEffects(player);
 
@@ -773,6 +774,12 @@ const SearchGame = (() => {
         const baseCamPos = new THREE.Vector3(-11, 1.2, -3);
         camera.position.copy(baseCamPos);
         camera.lookAt(-11, 1.0, -5);
+
+        // --- Hide Loading Overlay (scene is now ready) ---
+        setTimeout(() => {
+            const overlay = document.getElementById('sg-loading-overlay');
+            if (overlay) overlay.style.display = 'none';
+        }, 100);
 
         // --- Dialog: Scene 1 (0s) ---
         showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'ポテトくん「はぁ... 暑い... のどが渇いた...」', '#FFFFFF');
@@ -787,20 +794,25 @@ const SearchGame = (() => {
             updateSweatEffects();
         }, 16);
 
-        // --- Dialog: Scene 2 (4s) ---
+        // --- Dialog: Scene 2 (4s) - Notice ---
         openingTimers.push(setTimeout(() => {
             showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'おや？ ポテトくんが困っているみたいだ', '#87CEFA');
         }, 4000));
 
-        // --- Dialog: Scene 3 (8s) ---
+        // --- Dialog: Scene 3 (7s) - Sympathy ---
         openingTimers.push(setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'そうだ！ 公園のコインを集めて\nジュースを買ってあげよう！', '#FFD700');
-        }, 8000));
+            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'すごく暑そう... 何か冷たいものを...', '#87CEFA');
+        }, 7000));
 
-        // --- End: Scene 4 (12s) ---
+        // --- Dialog: Scene 4 (10s) - Decision ---
+        openingTimers.push(setTimeout(() => {
+            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'よし！ 公園に落ちているコインを集めて\nジュースを買ってあげよう！', '#FFD700');
+        }, 10000));
+
+        // --- End: (13s) ---
         openingTimers.push(setTimeout(() => {
             finishOpening();
-        }, 12000));
+        }, 13000));
     }
 
     function startEndingSequence() {
@@ -891,6 +903,25 @@ const SearchGame = (() => {
 
     function setupGameUI() {
         container.innerHTML = `
+            <!-- Loading Overlay (prevents initial flicker) -->
+            <div id="sg-loading-overlay" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: #87CEEB;
+                z-index: 9999;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                color: white;
+                font-family: 'Courier New', monospace;
+                font-size: 24px;
+                font-weight: bold;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            ">Now Loading...</div>
+            
             <div id="sg-ui" style="position:absolute; top:20px; left:20px; color:#fff; z-index:100; font-family:sans-serif; pointer-events:none; text-shadow: 2px 2px 4px #000000; font-size: 1.2rem; font-weight: bold;">
                 <div>🪙 ポテコイン</div>
                 <div style="margin-top:8px;">🪙 コイン: <span id="sg-coin-counter">0</span>/10</div>
