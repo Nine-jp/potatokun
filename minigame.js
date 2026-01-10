@@ -3075,6 +3075,13 @@ const SearchGame = (() => {
         // Gameplay Update
         if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
 
+        // Coin Rotation (3.0 rad/sec)
+        if (window.sgGameCoins) {
+            window.sgGameCoins.forEach(coin => {
+                if (coin.visible) coin.rotation.y += 3.0 * dt;
+            });
+        }
+
         // Aim Detection (Moved from loop)
         updateAim();
     }
