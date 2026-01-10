@@ -1317,12 +1317,12 @@ const SearchGame = (() => {
 
             // === AABB Collision Detection for Structures ===
             const COLLISION_MARGIN = 0.5; // Player radius
-            // Collision obstacles (slide removed - it's now walkable!)
+            // Collision obstacles (slide and old tree REMOVED - now using FBX trees with sgTreeCollisions)
             const obstacles = [
                 // { name: 'slide', minX: -11, maxX: -5, minZ: -11, maxZ: -3 }, // REMOVED - can climb
                 { name: 'gym', minX: 2, maxX: 8, minZ: -8, maxZ: -2 },
                 { name: 'bench', minX: 8, maxX: 14, minZ: 6.5, maxZ: 9.5 },
-                { name: 'tree', minX: -15, maxX: -9, minZ: 2, maxZ: 8 },
+                // { name: 'tree', minX: -15, maxX: -9, minZ: 2, maxZ: 8 }, // REMOVED - now FBX trees
                 { name: 'sandbox', minX: -4, maxX: 4, minZ: 9, maxZ: 15 },
                 { name: 'fountain', minX: -4, maxX: 4, minZ: -15, maxZ: -9 }
             ];
@@ -1414,12 +1414,15 @@ const SearchGame = (() => {
             groundRaycaster.set(rayOrigin, rayDirection);
 
 
-            // Collect walkable meshes (EXCLUDE trees and ketchup)
+            // Collect walkable meshes (EXCLUDE trees, ketchup, invisible objects, and HitBoxes)
             const walkableMeshes = [];
             scene.traverse((child) => {
                 if (child.isMesh && child.geometry) {
-                    // Exclude trees from walkable surfaces
-                    if (!child.userData.isTree && !child.userData.isKetchup) {
+                    // Exclude trees, ketchup items, invisible objects, and vending machine HitBox
+                    if (!child.userData.isTree &&
+                        !child.userData.isKetchup &&
+                        !child.userData.isVendingMachine &&
+                        child.visible !== false) {
                         walkableMeshes.push(child);
                     }
                 }
