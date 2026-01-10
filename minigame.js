@@ -692,67 +692,115 @@ const SearchGame = (() => {
         });
     }
 
+    // Timer management for opening sequence
+    let openingTimers = [];
+    let openingInterval = null;
+
+    // Finish/Skip Opening - Common cleanup function
+    function finishOpening() {
+        // 1. Clear all timers
+        openingTimers.forEach(id => clearTimeout(id));
+        openingTimers = [];
+        if (openingInterval) {
+            clearInterval(openingInterval);
+            openingInterval = null;
+        }
+
+        // 2. Reset effects and pose
+        clearSweatEffects();
+        if (window.sgPlayer) {
+            window.sgPlayer.rotation.x = 0;
+            window.sgPlayer.visible = true;
+        }
+
+        // 3. Camera to gameplay position
+        if (window.sgPlayer) {
+            camera.position.set(-11, 4, 0);
+            camera.lookAt(window.sgPlayer.position);
+        }
+
+        // 4. UI toggle (hide SKIP, show D-pad)
+        const skipBtn = document.getElementById('sg-skip-btn');
+        const dpad = document.getElementById('sg-dpad');
+
+        if (skipBtn) skipBtn.style.display = 'none';
+        if (dpad) dpad.style.display = 'grid';
+
+        // 5. Sync player position
+        if (typeof playerPosition !== 'undefined') {
+            playerPosition.set(-11, 0.6, -5);
+        }
+
+        // 6. Start game
+        isCinematic = false;
+        showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+    }
+
     function startOpeningSequence() {
         console.log("Starting Opening Sequence...");
-        isCinematic = true; // Lock controls
+        isCinematic = true;
         const player = window.sgPlayer;
         if (!player) {
             console.error("Player model not found for opening!");
             return;
         }
 
-        // --- 1. Positioning & Acting ---
-        // In front of vending machine (x: -11, z: -5)
+        // --- UI Toggle ---
+        const skipBtn = document.getElementById('sg-skip-btn');
+        const dpad = document.getElementById('sg-dpad');
+
+        // Hide D-pad during cinematic
+        if (dpad) dpad.style.display = 'none';
+
+        // Show SKIP button and set handler
+        if (skipBtn) {
+            skipBtn.style.display = 'block';
+            skipBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                finishOpening();
+            };
+        }
+
+        // --- Acting Setup ---
         player.position.set(-11, 0, -5);
-        player.rotation.y = 0; // Face camera
-        player.rotation.x = 0.5; // Bow head
-
-        player.visible = true; // Show model
-
+        player.rotation.y = 0;
+        player.rotation.x = 0.5;
+        player.visible = true;
         createSweatEffects(player);
 
-        // --- 2. Camera Work ---
-        // Face Close-up
-        const targetPos = new THREE.Vector3(-11, 1.1, -5);
-        // Camera position: slightly front and below
-        camera.position.set(-11, 1.0, -3.5);
-        camera.lookAt(targetPos);
+        // --- Camera Work ---
+        const baseCamPos = new THREE.Vector3(-11, 1.2, -3);
+        camera.position.copy(baseCamPos);
+        camera.lookAt(-11, 1.0, -5);
 
-        // --- 3. Dialog Sequence ---
-        // Scene 1: Potatokun (0s)
+        // --- Dialog: Scene 1 (0s) ---
         showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'ポテトくん「はぁ... 暑い... のどが渇いた...」', '#FFFFFF');
 
-        // Scene 2: Narrator (4s)
-        setTimeout(() => {
+        // --- Animation Loop ---
+        let frame = 0;
+        if (openingInterval) clearInterval(openingInterval);
+        openingInterval = setInterval(() => {
+            frame++;
+            camera.position.x = baseCamPos.x + Math.sin(frame * 0.02) * 0.05;
+            camera.position.y = baseCamPos.y + Math.cos(frame * 0.03) * 0.05;
+            updateSweatEffects();
+        }, 16);
+
+        // --- Dialog: Scene 2 (4s) ---
+        openingTimers.push(setTimeout(() => {
             showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'おや？ ポテトくんが困っているみたいだ', '#87CEFA');
-        }, 4000);
+        }, 4000));
 
-        // Scene 3: Solution (8s)
-        setTimeout(() => {
+        // --- Dialog: Scene 3 (8s) ---
+        openingTimers.push(setTimeout(() => {
             showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'そうだ！ 公園のコインを集めて\nジュースを買ってあげよう！', '#FFD700');
-        }, 8000);
+        }, 8000));
 
-        // Scene 4: Game Start (12s)
-        setTimeout(() => {
-            // End Sequence
-            isCinematic = false;
-            if (player) player.rotation.x = 0; // Reset pose
-            clearSweatEffects();
-
-            // Camera Reset (TPS View)
-            camera.position.set(-11, 4, 0);
-            if (player) camera.lookAt(player.position);
-
-            // Sync Control Target if exists
-            if (controls) controls.target.copy(player.position);
-
-            // Sync Player Logic Position (important for FPS movement)
-            if (typeof playerPosition !== 'undefined') {
-                playerPosition.set(-11, 0.6, -5);
-            }
-
-            showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
-        }, 12000);
+        // --- End: Scene 4 (12s) ---
+        openingTimers.push(setTimeout(() => {
+            finishOpening();
+        }, 12000));
     }
 
     function startEndingSequence() {
@@ -847,6 +895,27 @@ const SearchGame = (() => {
                 <div>🪙 ポテコイン</div>
                 <div style="margin-top:8px;">🪙 コイン: <span id="sg-coin-counter">0</span>/10</div>
             </div>
+            
+            <!-- SKIP Button for Opening Cinematic -->
+            <div id="sg-skip-btn" style="
+                position: absolute;
+                top: 80px;
+                right: 20px;
+                z-index: 250;
+                color: white;
+                font-family: 'Courier New', monospace;
+                font-weight: bold;
+                font-size: 18px;
+                border: 2px solid white;
+                background: rgba(0, 0, 0, 0.5);
+                padding: 8px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                display: none;
+                user-select: none;
+                -webkit-tap-highlight-color: transparent;
+            ">SKIP ▶</div>
+            
             <div id="sg-canvas-container" style="width:100%; height:100%; background: #1a1a1a;"></div>
             
             <!-- Crosshair for aiming - color changes based on target -->
