@@ -2235,11 +2235,11 @@ const SearchGame = (() => {
                     // Random Y rotation (0 to 360 degrees)
                     treeClone.rotation.y = Math.random() * Math.PI * 2;
 
-                    // Add collision data for this tree (trunk radius ~0.8m)
+                    // Add collision data for this tree (trunk radius ~0.25m + margin)
                     window.sgTreeCollisions.push({
                         x: pos.x,
                         z: pos.z,
-                        radius: 0.8
+                        radius: 0.25
                     });
 
                     // Add to scene
