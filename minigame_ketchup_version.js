@@ -8,8 +8,8 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 const GameLibrary = {
     'potato-action': {
-        title: "ポテトくんパクパク",
-        shortTitle: "ポテパク",
+        title: "ポテトくんアクション",
+        shortTitle: "ポテアク",
         description: "降ってくる「🍟(5点)」と「🍔(10点)」を集めよう！「☠️」に当たるとゲームオーバー！",
         icon: "🥔",
         iconImage: "assets/potatokun-action.png", // Custom Image
@@ -28,13 +28,10 @@ const GameLibrary = {
         isComingSoon: true
     },
     '3d-search': {
-        title: "ポテトくんコイン",
-        shortTitle: "ポテコイン",
-        description: "のどが渇いたポテトくんのために、公園に散らばったコインを10枚集めてジュースを買ってあげよう！",
-        icon: "🪙",
-        iconImage: "assets/coin_pic.png",
-        iconScale: 0.7,
-        isBeta: true,
+        title: "ポテトくんゲーム③",
+        shortTitle: "3D探索",
+        description: "10体のポテトくんの中から、1体だけ違うポテトくんを探し出そう！",
+        icon: "🔍",
         init: (container) => SearchGame.init(container),
         start: () => SearchGame.start(),
         stop: () => SearchGame.stop()
@@ -131,9 +128,8 @@ function renderGameMenu() {
         card.className = `game-card ${game.isComingSoon ? 'disabled' : ''}`;
         card.style.zIndex = "11000"; // Ensure on top
 
-        const scaleStyle = game.iconScale ? `style="transform: scale(${game.iconScale});"` : '';
         const iconHtml = game.iconImage
-            ? `<img src="${game.iconImage}" class="game-icon-img" ${scaleStyle} alt="${game.title}">`
+            ? `<img src="${game.iconImage}" class="game-icon-img" alt="${game.title}">`
             : `<div class="game-icon">${game.icon}</div>`;
 
         card.innerHTML = `
@@ -590,126 +586,7 @@ const SearchGame = (() => {
     let raycaster = new THREE.Raycaster();
     let mouse = new THREE.Vector2();
 
-    // Cinematic State
-    let isCinematic = false;
-    let cinematicTimer = 0;
-
-    // Player Position (Module Scope)
-    let playerPosition = new THREE.Vector3(0, 0.6, 0);
-
     const loader = new FBXLoader();
-
-    // === Input Manager Class ===
-    class InputManager {
-        constructor(targetElement) {
-            this.el = targetElement;
-            this.lookPointerId = null;
-            this.lastX = 0; this.lastY = 0;
-            this.lookDX = 0; this.lookDY = 0;
-            this.LOOK_SENSITIVITY = 0.003;
-            this._bind();
-        }
-
-        consumeLookDelta() {
-            const dx = this.lookDX; const dy = this.lookDY;
-            this.lookDX = 0; this.lookDY = 0;
-            return { dx, dy };
-        }
-
-        _bind() {
-            this.el.style.touchAction = 'none'; // ブラウザのジェスチャーを無効化
-            this.el.addEventListener('mousedown', this._onPointerDown);
-            this.el.addEventListener('mousemove', this._onPointerMove);
-            this.el.addEventListener('mouseup', this._onPointerUp);
-            this.el.addEventListener('mouseleave', this._onPointerUp);
-
-            // passive: false でピンチズーム等を確実にブロック
-            this.el.addEventListener('touchstart', this._onPointerDown, { passive: false });
-            this.el.addEventListener('touchmove', this._onPointerMove, { passive: false });
-            this.el.addEventListener('touchend', this._onPointerUp);
-            this.el.addEventListener('touchcancel', this._onPointerUp);
-        }
-
-        _onPointerDown = (e) => {
-            // UI操作（D-Pad等）はInputManagerとしては無視
-            // ※D-Pad側のイベントリスナーで処理されるため
-            if (e.target.closest('#sg-dpad') || e.target.closest('.dpad-btn')) return;
-
-            if (e.type === 'mousedown') {
-                this.lookPointerId = 'mouse';
-                this.lastX = e.clientX;
-                this.lastY = e.clientY;
-                return; // ここでreturnしないとtouchstartの判定に入ってしまう可能性があるため修正
-            }
-
-            if (e.type === 'touchstart') {
-                // 【修正ポイント】
-                // 「指が1本だけの時(e.touches.length === 1)」という制限を撤廃します。
-                // 代わりに、「新しい指が視点用として有効か」を個別に判定します。
-
-                for (const t of e.changedTouches) {
-                    // すでに視点操作中の指(lookPointerId)が存在する場合、
-                    // 新たな指は「2本目の視点指（ピンチ操作）」とみなして無視します。
-                    if (this.lookPointerId !== null) continue;
-
-                    // D-Padエリア外の指であれば、これを「視点操作用の指」として登録します。
-                    // (移動用の指があっても、lookPointerIdがnullなら登録されます)
-                    this.lookPointerId = t.identifier;
-                    this.lastX = t.clientX;
-                    this.lastY = t.clientY;
-
-                    // 視点指が決まったらループを抜けます
-                    break;
-                }
-
-                // 視点指として登録された場合のみ、デフォルト動作を防ぎます
-                if (this.lookPointerId !== null) {
-                    e.preventDefault();
-                }
-            }
-        };
-
-        _onPointerMove = (e) => {
-            if (this.lookPointerId === null) return;
-            let x, y;
-
-            if (e.type === 'mousemove' && this.lookPointerId === 'mouse') {
-                x = e.clientX; y = e.clientY;
-            } else if (e.type === 'touchmove') {
-                const t = [...e.changedTouches].find(t => t.identifier === this.lookPointerId);
-                if (!t) return;
-                x = t.clientX; y = t.clientY;
-                e.preventDefault();
-            } else { return; }
-
-            this.lookDX += (x - this.lastX) * this.LOOK_SENSITIVITY;
-            this.lookDY += (y - this.lastY) * this.LOOK_SENSITIVITY;
-            this.lastX = x; this.lastY = y;
-        };
-
-        _onPointerUp = (e) => {
-            if (this.lookPointerId === 'mouse' && (e.type === 'mouseup' || e.type === 'mouseleave')) {
-                this.lookPointerId = null;
-            } else if (e.type.startsWith('touch')) {
-                for (const t of e.changedTouches) {
-                    if (t.identifier === this.lookPointerId) {
-                        this.lookPointerId = null; break;
-                    }
-                }
-            }
-        };
-
-        dispose() {
-            this.el.removeEventListener('mousedown', this._onPointerDown);
-            this.el.removeEventListener('mousemove', this._onPointerMove);
-            this.el.removeEventListener('mouseup', this._onPointerUp);
-            this.el.removeEventListener('mouseleave', this._onPointerUp);
-            this.el.removeEventListener('touchstart', this._onPointerDown);
-            this.el.removeEventListener('touchmove', this._onPointerMove);
-            this.el.removeEventListener('touchend', this._onPointerUp);
-            this.el.removeEventListener('touchcancel', this._onPointerUp);
-        }
-    }
 
     function setup(parentContainer) {
         container = parentContainer;
@@ -737,246 +614,20 @@ const SearchGame = (() => {
             // Potato characters removed - player IS the potato!
             // await spawnClonesSequential();
 
-            // Setup GET!/BUY button click handler
+            // Setup GET! button click handler (replaces screen tap)
             const getBtn = document.getElementById('sg-get-btn');
             if (getBtn) {
-                // Remove old listeners to avoid duplicates if restarted
-                const newBtn = getBtn.cloneNode(true);
-                getBtn.parentNode.replaceChild(newBtn, getBtn);
-
-                newBtn.addEventListener('click', (e) => {
+                getBtn.addEventListener('click', collectKetchup);
+                getBtn.addEventListener('touchstart', (e) => {
                     e.preventDefault();
-                    e.stopPropagation();
-                    handleInteraction();
-                });
-                newBtn.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleInteraction();
+                    collectKetchup();
                 });
             }
 
             // Timer disabled for testing
             // startTimer();
-
-            // Start Opening Cinematic
-            startOpeningSequence();
         }, 100);
     }
-
-    // === CINEMATIC SEQUENCES ===
-    let sweatParticles = [];
-
-    function createSweatEffects(model) {
-        clearSweatEffects(); // Clear existing
-
-        const sweatGeo = new THREE.SphereGeometry(0.03, 8, 8); // Smaller
-        const sweatMat = new THREE.MeshBasicMaterial({ color: 0x87CEFA }); // Light Blue
-
-        // 3 drops on forehead (centered, front of face)
-        const positions = [
-            { x: 0.05, y: 1.55, z: 0.35 },   // Right forehead
-            { x: -0.05, y: 1.6, z: 0.35 },   // Left forehead
-            { x: 0, y: 1.5, z: 0.4 }         // Between eyebrows
-        ];
-
-        positions.forEach(pos => {
-            const mesh = new THREE.Mesh(sweatGeo, sweatMat);
-            // Position relative to model world position
-            mesh.position.copy(model.position).add(new THREE.Vector3(pos.x, pos.y, pos.z));
-            scene.add(mesh);
-            sweatParticles.push({ mesh: mesh, startY: mesh.position.y, speed: 0.005 + Math.random() * 0.005 });
-        });
-    }
-
-    function clearSweatEffects() {
-        sweatParticles.forEach(p => scene.remove(p.mesh));
-        sweatParticles = [];
-    }
-
-    // Helper for sweat animation
-    function updateSweatEffects() {
-        sweatParticles.forEach(p => {
-            p.mesh.position.y -= p.speed;
-            if (p.mesh.position.y < p.startY - 0.4) {
-                p.mesh.position.y = p.startY; // Loop
-            }
-        });
-    }
-
-    // Timer management for opening sequence
-    let openingTimers = [];
-    let openingInterval = null;
-
-    // Finish/Skip Opening - Common cleanup function
-    function finishOpening() {
-        // 1. Clear all timers
-        openingTimers.forEach(id => clearTimeout(id));
-        openingTimers = [];
-        if (openingInterval) {
-            clearInterval(openingInterval);
-            openingInterval = null;
-        }
-
-        // 2. Reset effects and pose
-        clearSweatEffects();
-        if (window.sgPlayer) {
-            window.sgPlayer.rotation.x = 0;
-            window.sgPlayer.visible = true;
-        }
-
-        // 3. Camera to gameplay position (natural TPS view from behind)
-        if (window.sgPlayer) {
-            // Player at (-11, 0, -5), camera behind and above
-            camera.position.set(-11, 2.5, 2);
-            camera.lookAt(window.sgPlayer.position);
-        }
-
-        // 4. UI toggle (hide SKIP, show D-pad)
-        const skipBtn = document.getElementById('sg-skip-btn');
-        const dpad = document.getElementById('sg-dpad');
-
-        if (skipBtn) skipBtn.style.display = 'none';
-        if (dpad) dpad.style.display = 'grid';
-
-        // 5. Sync player position (shifted left to avoid slide collision)
-        if (typeof playerPosition !== 'undefined') {
-            playerPosition.set(-13, 0.6, -5);
-        }
-
-        // 6. Start game
-        isCinematic = false;
-        showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
-    }
-
-    function startOpeningSequence() {
-        console.log("Starting Opening Sequence...");
-        isCinematic = true;
-        const player = window.sgPlayer;
-        if (!player) {
-            console.error("Player model not found for opening!");
-            return;
-        }
-
-        // --- UI Toggle ---
-        const skipBtn = document.getElementById('sg-skip-btn');
-        const dpad = document.getElementById('sg-dpad');
-
-        // Hide D-pad during cinematic
-        if (dpad) dpad.style.display = 'none';
-
-        // Show SKIP button and set handler
-        if (skipBtn) {
-            skipBtn.style.display = 'block';
-            skipBtn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                finishOpening();
-            };
-        }
-
-        // --- Acting Setup ---
-        player.position.set(-11, 0, -5);
-        player.rotation.y = 0;
-        player.rotation.x = 0; // Standing upright (was 0.5 for bowing)
-        player.visible = true;
-        createSweatEffects(player);
-
-        // --- Camera Work ---
-        const baseCamPos = new THREE.Vector3(-11, 1.2, -3);
-        camera.position.copy(baseCamPos);
-        camera.lookAt(-11, 1.0, -5);
-
-        // --- Hide Loading Overlay (scene is now ready) ---
-        setTimeout(() => {
-            const overlay = document.getElementById('sg-loading-overlay');
-            if (overlay) overlay.style.display = 'none';
-        }, 100);
-
-        // --- Dialog: Scene 1 (0s) ---
-        showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'ポテトくん「はぁ... 暑い... のどが渇いた...」', '#FFFFFF');
-
-        // --- Animation Loop ---
-        let frame = 0;
-        if (openingInterval) clearInterval(openingInterval);
-        openingInterval = setInterval(() => {
-            frame++;
-            camera.position.x = baseCamPos.x + Math.sin(frame * 0.02) * 0.05;
-            camera.position.y = baseCamPos.y + Math.cos(frame * 0.03) * 0.05;
-            updateSweatEffects();
-        }, 16);
-
-        // --- Dialog: Scene 2 (4s) - Notice ---
-        openingTimers.push(setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'おや？ ポテトくんが困っているみたいだ', '#87CEFA');
-        }, 4000));
-
-        // --- Dialog: Scene 3 (7s) - Sympathy ---
-        openingTimers.push(setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'すごく暑そう... 何か冷たいものを...', '#87CEFA');
-        }, 7000));
-
-        // --- Dialog: Scene 4 (10s) - Decision ---
-        openingTimers.push(setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'よし！ 公園に落ちているコインを集めて\nジュースを買ってあげよう！', '#FFD700');
-        }, 10000));
-
-        // --- End: (13s) ---
-        openingTimers.push(setTimeout(() => {
-            finishOpening();
-        }, 13000));
-    }
-
-    function startEndingSequence() {
-        isCinematic = true;
-
-        // UI
-        showTapText(window.innerWidth / 2, window.innerHeight / 2, '🎉 ジュース買えたよ！やったね！', '#00FF00');
-
-        // Camera: Vending Machine view
-        if (camera) {
-            camera.position.set(-8, 3, -4);
-            camera.lookAt(-11, 2, -8);
-        }
-
-        // Dance: Rotate Main Character (using sgGameCoins[0] as proxy if player model hidden? 
-        // Actually player is camera in FPS... user said "Rotate Potatokun". 
-        // In FPS mode, Potatokun is hidden or is the camera.
-        // But for cinematic, we might want to see him. 
-        // Assuming there is a visible potato model or we rotate the vending machine? 
-        // User said: "Rotate Potatokun (window.sgCoin)". 
-        // Wait, window.sgCoin was single decorative coin. Now we have sgGameCoins.
-        // Maybe the user meant "Rotate the vending machine" or "Rotate a coin"?
-        // The user request code said: "if(window.sgCoin) window.sgCoin.rotation.y += 0.5;"
-        // Existing code removed single sgCoin. 
-        // I will attempt to rotate the last collected coin or just skip rotation if model missing.
-        // Actually, let's rotate the Camera around the vending machine for effect?
-        // Or better: Re-enable player model visibility for cutscene?
-        // Let's stick to user request code but adapt: 
-        // "window.sgCoin" likely refers to the single decorative coin they thought existed.
-        // I will assume they want a celebration effect. I'll rotate the vending machine instead?
-        // No, user said "Potatokun".
-        // Use camera rotation around target.
-
-        const danceInterval = setInterval(() => {
-            // Camera orbit effect
-            const time = Date.now() * 0.002;
-            camera.position.x = -11 + Math.cos(time) * 5;
-            camera.position.z = -8 + Math.sin(time) * 5;
-            camera.lookAt(-11, 2, -8);
-        }, 16);
-
-        setTimeout(() => {
-            clearInterval(danceInterval);
-            stop(); // Game End
-
-            // Show Game Over (Clear)
-            const collected = window.sgItemData ? window.sgItemData.collected : 10;
-            showGameOver(collected * 100);
-
-        }, 5000);
-    }
-
 
 
 
@@ -989,8 +640,7 @@ const SearchGame = (() => {
             if (timerEl) timerEl.textContent = timeLeft;
             if (timeLeft <= 0) {
                 stop();
-                const collected = window.sgItemData ? window.sgItemData.collected : 0;
-                showGameOver(collected * 100);
+                showGameOver(score);
             }
         }, 1000);
     }
@@ -1015,50 +665,11 @@ const SearchGame = (() => {
 
     function setupGameUI() {
         container.innerHTML = `
-            <!-- Loading Overlay (prevents initial flicker) -->
-            <div id="sg-loading-overlay" style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: #87CEEB;
-                z-index: 9999;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                color: white;
-                font-family: 'Courier New', monospace;
-                font-size: 24px;
-                font-weight: bold;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            ">Now Loading...</div>
-            
             <div id="sg-ui" style="position:absolute; top:20px; left:20px; color:#fff; z-index:100; font-family:sans-serif; pointer-events:none; text-shadow: 2px 2px 4px #000000; font-size: 1.2rem; font-weight: bold;">
-                <div>🪙 ポテコイン</div>
-                <div style="margin-top:8px;">🪙 コイン: <span id="sg-coin-counter">0</span>/10</div>
+                <div>🥔 ポテトくん探検隊</div>
+                <div style="margin-top:8px;">🍅 ケチャップ: <span id="sg-ketchup">0</span>/10</div>
+                <div>Score: <span id="sg-score">0</span></div>
             </div>
-            
-            <!-- SKIP Button for Opening Cinematic -->
-            <div id="sg-skip-btn" style="
-                position: absolute;
-                top: 80px;
-                right: 20px;
-                z-index: 250;
-                color: white;
-                font-family: 'Courier New', monospace;
-                font-weight: bold;
-                font-size: 18px;
-                border: 2px solid white;
-                background: rgba(0, 0, 0, 0.5);
-                padding: 8px 16px;
-                border-radius: 6px;
-                cursor: pointer;
-                display: none;
-                user-select: none;
-                -webkit-tap-highlight-color: transparent;
-            ">SKIP ▶</div>
-            
             <div id="sg-canvas-container" style="width:100%; height:100%; background: #1a1a1a;"></div>
             
             <!-- Crosshair for aiming - color changes based on target -->
@@ -1075,8 +686,8 @@ const SearchGame = (() => {
             </div>
 
             
-            <!-- D-Pad Controller (Grid Layout 3x3) -->
-            <div id="sg-dpad" style="position:absolute; bottom:calc(120px + env(safe-area-inset-bottom)); left:calc(20px + env(safe-area-inset-left)); z-index:200; user-select:none;">
+            <!-- D-Pad Controller (GET button moved outside) -->
+            <div id="sg-dpad" style="position:absolute; bottom:20px; right:20px; z-index:200; user-select:none;">
                 <style>
                     .dpad-btn {
                         width: 70px;
@@ -1092,34 +703,25 @@ const SearchGame = (() => {
                         cursor: pointer;
                         touch-action: manipulation;
                         transition: background 0.1s;
-                        user-select: none;
                     }
                     .dpad-btn:active, .dpad-btn.active {
                         background: rgba(255,255,255,0.6);
-                    }
-                    /* 視点ボタン専用スタイル */
-                    #dpad-view {
-                        font-size: 24px;
-                        background: rgba(0,0,0,0.4); 
-                        border-color: rgba(255,255,255,0.8);
                     }
                 </style>
                 <div style="display:grid; grid-template-columns: 70px 70px 70px; grid-template-rows: 70px 70px 70px; gap:5px;">
                     <div></div>
                     <button class="dpad-btn" id="dpad-up">▲</button>
                     <div></div>
-                    
                     <button class="dpad-btn" id="dpad-left">◀</button>
-                    <button class="dpad-btn" id="dpad-view">🦅</button>
+                    <div style="width:70px;height:70px;"></div>
                     <button class="dpad-btn" id="dpad-right">▶</button>
-                    
                     <div></div>
                     <button class="dpad-btn" id="dpad-down">▼</button>
                     <div></div>
                 </div>
             </div>
             
-            <!-- GET! button (floats above target coin) -->
+            <!-- GET! button (floats above target ketchup) -->
             <button id="sg-get-btn" style="
                 display: none;
                 position: fixed;
@@ -1152,7 +754,7 @@ const SearchGame = (() => {
             <div id="sg-instructions" style="position:absolute; bottom:20px; left:20px; color:#fff; z-index:100; font-family:sans-serif; text-shadow: 1px 1px 2px #000; font-size: 0.85rem; opacity:0.8; pointer-events:none;">
                 <div>🎮 移動: WASD / D-Pad</div>
                 <div>👁️ 視点: 画面スワイプ</div>
-                <div>🎯 コインに近づくとGETボタン出現！</div>
+                <div>🎯 ケチャップに近づくとGETボタン出現！</div>
             </div>
 
 
@@ -1231,7 +833,10 @@ const SearchGame = (() => {
         const BOUNDS = { min: -28, max: 28 };
         const PLAYER_HEIGHT = 0.6; // POTATO HEIGHT (60cm)
 
-        // (Ketchup tracking REMOVED - now using Coin system via window.sgCoinData)
+        // Ketchup collection tracking
+        const ketchupItems = [];
+        let ketchupCollected = 0;
+        const TOTAL_KETCHUP = 10;
 
         // === CAMERA ZOOM (FPS to TPS) ===
         let cameraDistance = 0; // 0 = FPS, 10 = max TPS
@@ -1244,8 +849,7 @@ const SearchGame = (() => {
         let cameraPitch = 0; // Vertical look angle (for FPS mode)
 
         // Player position tracking (separate from camera)
-        // playerPosition is now Module Scope
-        playerPosition.set(0, 0.6, 25);
+        const playerPosition = new THREE.Vector3(0, 0.6, 0);
         let playerFacing = Math.PI; // Direction player is facing
 
         // Pinch zoom tracking
@@ -1260,22 +864,136 @@ const SearchGame = (() => {
         camera.rotation.x = cameraPitch;
 
 
-        // InputManagerの初期化
-        const inputManager = new InputManager(renderer.domElement);
+        // === Multi-touch Drag-to-Look Controls ===
+        // Track look touch separately from D-pad touches
+        let lookTouchId = null;
+        let lastX = 0, lastY = 0;
 
-        // 視点切替ボタンの設定（ピンチ操作の代わり）
-        const viewBtn = document.getElementById('dpad-view');
-        if (viewBtn) {
-            let isTPS = false;
-            const toggleView = (e) => {
-                e.preventDefault(); e.stopPropagation();
-                isTPS = !isTPS;
-                cameraDistance = isTPS ? 8.0 : 0.0; // 距離切り替え
-                viewBtn.style.background = isTPS ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)";
-            };
-            viewBtn.addEventListener('touchstart', toggleView, { passive: false });
-            viewBtn.addEventListener('click', toggleView); // PC対応
-        }
+        const onPointerDown = (e) => {
+            // Ignore if clicking on D-pad
+            if (e.target.closest('#sg-dpad')) return;
+
+            if (e.type === 'mousedown') {
+                lookTouchId = 'mouse';
+                lastX = e.clientX;
+                lastY = e.clientY;
+            } else if (e.type === 'touchstart') {
+                // Find a touch that's NOT on the D-pad
+                for (const touch of e.changedTouches) {
+                    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+                    if (!elem || !elem.closest('#sg-dpad')) {
+                        lookTouchId = touch.identifier;
+                        lastX = touch.clientX;
+                        lastY = touch.clientY;
+                        break;
+                    }
+                }
+            }
+        };
+
+        const onPointerMove = (e) => {
+            if (lookTouchId === null) return;
+
+            let clientX, clientY;
+
+            if (e.type === 'mousemove' && lookTouchId === 'mouse') {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            } else if (e.type === 'touchmove') {
+                // Find the touch with matching ID
+                let foundTouch = null;
+                for (const touch of e.changedTouches) {
+                    if (touch.identifier === lookTouchId) {
+                        foundTouch = touch;
+                        break;
+                    }
+                }
+                if (!foundTouch) return;
+                clientX = foundTouch.clientX;
+                clientY = foundTouch.clientY;
+            } else {
+                return;
+            }
+
+            const deltaX = clientX - lastX;
+            const deltaY = clientY - lastY;
+
+            // Update orbit angle (horizontal) and pitch (vertical)
+            cameraAngle -= deltaX * lookSpeed;
+            cameraPitch -= deltaY * lookSpeed;
+
+            // Clamp pitch to prevent flipping (±80 degrees)
+            const MAX_PITCH = 80 * Math.PI / 180;
+            cameraPitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, cameraPitch));
+
+            // NaN safety
+            if (isNaN(cameraAngle)) cameraAngle = Math.PI;
+            if (isNaN(cameraPitch)) cameraPitch = 0;
+
+            // Note: Camera rotation is now applied in the update loop, not here
+
+            lastX = clientX;
+            lastY = clientY;
+        };
+
+
+        const onPointerUp = (e) => {
+            if (e.type === 'mouseup' || e.type === 'mouseleave') {
+                if (lookTouchId === 'mouse') lookTouchId = null;
+            } else if (e.type === 'touchend' || e.type === 'touchcancel') {
+                for (const touch of e.changedTouches) {
+                    if (touch.identifier === lookTouchId) {
+                        lookTouchId = null;
+                        break;
+                    }
+                }
+            }
+        };
+
+        renderer.domElement.addEventListener('mousedown', onPointerDown);
+        renderer.domElement.addEventListener('mousemove', onPointerMove);
+        renderer.domElement.addEventListener('mouseup', onPointerUp);
+        renderer.domElement.addEventListener('mouseleave', onPointerUp);
+        renderer.domElement.addEventListener('touchstart', onPointerDown, { passive: true });
+        renderer.domElement.addEventListener('touchmove', onPointerMove, { passive: true });
+        renderer.domElement.addEventListener('touchend', onPointerUp);
+        renderer.domElement.addEventListener('touchcancel', onPointerUp);
+
+        // === ZOOM CONTROLS ===
+        // Mouse wheel zoom
+        const onWheel = (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? ZOOM_SPEED : -ZOOM_SPEED;
+            cameraDistance = Math.max(CAMERA_DISTANCE_MIN, Math.min(CAMERA_DISTANCE_MAX, cameraDistance + delta));
+        };
+        renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
+
+        // Pinch zoom for mobile
+        const onPinchMove = (e) => {
+            if (e.touches.length === 2) {
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                const dx = t2.clientX - t1.clientX;
+                const dy = t2.clientY - t1.clientY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (lastPinchDistance > 0) {
+                    const pinchDelta = lastPinchDistance - distance;
+                    const zoomChange = pinchDelta * 0.02; // Sensitivity
+                    cameraDistance = Math.max(CAMERA_DISTANCE_MIN, Math.min(CAMERA_DISTANCE_MAX, cameraDistance + zoomChange));
+                }
+                lastPinchDistance = distance;
+            }
+        };
+
+        const onPinchEnd = (e) => {
+            if (e.touches.length < 2) {
+                lastPinchDistance = 0;
+            }
+        };
+
+        renderer.domElement.addEventListener('touchmove', onPinchMove, { passive: true });
+        renderer.domElement.addEventListener('touchend', onPinchEnd);
 
 
         // === Keyboard Controls ===
@@ -1322,17 +1040,6 @@ const SearchGame = (() => {
 
         // === Movement Update Function (called in loop) ===
         window.sgUpdateMovement = () => {
-            // カメラ回転 (InputManager)
-            if (typeof inputManager !== 'undefined') {
-                const { dx, dy } = inputManager.consumeLookDelta();
-                cameraAngle -= dx;
-                cameraPitch -= dy;
-                // 上下の角度制限
-                const MAX_PITCH = Math.PI * 0.45;
-                cameraPitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, cameraPitch));
-            }
-
-            if (isCinematic) return; // Disable movement during cinematic
             const direction = new THREE.Vector3();
 
             // Forward/backward (along camera direction)
@@ -1365,12 +1072,12 @@ const SearchGame = (() => {
 
             // === AABB Collision Detection for Structures ===
             const COLLISION_MARGIN = 0.5; // Player radius
-            // Collision obstacles (slide and old tree REMOVED - now using FBX trees with sgTreeCollisions)
+            // Collision obstacles (slide removed - it's now walkable!)
             const obstacles = [
                 // { name: 'slide', minX: -11, maxX: -5, minZ: -11, maxZ: -3 }, // REMOVED - can climb
                 { name: 'gym', minX: 2, maxX: 8, minZ: -8, maxZ: -2 },
                 { name: 'bench', minX: 8, maxX: 14, minZ: 6.5, maxZ: 9.5 },
-                // { name: 'tree', minX: -15, maxX: -9, minZ: 2, maxZ: 8 }, // REMOVED - now FBX trees
+                { name: 'tree', minX: -15, maxX: -9, minZ: 2, maxZ: 8 },
                 { name: 'sandbox', minX: -4, maxX: 4, minZ: 9, maxZ: 15 },
                 { name: 'fountain', minX: -4, maxX: 4, minZ: -15, maxZ: -9 }
             ];
@@ -1462,15 +1169,12 @@ const SearchGame = (() => {
             groundRaycaster.set(rayOrigin, rayDirection);
 
 
-            // Collect walkable meshes (EXCLUDE trees, ketchup, invisible objects, and HitBoxes)
+            // Collect walkable meshes (EXCLUDE trees and ketchup)
             const walkableMeshes = [];
             scene.traverse((child) => {
                 if (child.isMesh && child.geometry) {
-                    // Exclude trees, ketchup items, invisible objects, and vending machine HitBox
-                    if (!child.userData.isTree &&
-                        !child.userData.isKetchup &&
-                        !child.userData.isVendingMachine &&
-                        child.visible !== false) {
+                    // Exclude trees from walkable surfaces
+                    if (!child.userData.isTree && !child.userData.isKetchup) {
                         walkableMeshes.push(child);
                     }
                 }
@@ -1542,7 +1246,87 @@ const SearchGame = (() => {
 
 
 
-            // (Old ketchup hover detection REMOVED - now using coin proximity in loop())
+            // === HOVER DETECTION: Check if ketchup is in crosshair ===
+            const hoverRaycaster = new THREE.Raycaster();
+            hoverRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            const data = window.sgKetchupData;
+            const crosshair = document.getElementById('sg-crosshair');
+
+            // Reset target lock
+            window.sgCurrentTarget = null;
+
+            if (data && data.items && data.items.length > 0 && crosshair) {
+                // Get all ketchup meshes
+                const ketchupMeshes = [];
+                data.items.forEach(k => {
+                    k.traverse(child => {
+                        if (child.isMesh) {
+                            child.userData.parentKetchup = k;
+                            ketchupMeshes.push(child);
+                        }
+                    });
+                });
+
+                const intersects = hoverRaycaster.intersectObjects(ketchupMeshes, false);
+
+                // Loop through intersects to find ketchup within range
+                for (const hit of intersects) {
+                    let ketchupGroup = hit.object.userData.parentKetchup || hit.object;
+                    while (ketchupGroup.parent && !ketchupGroup.userData.isKetchup) {
+                        ketchupGroup = ketchupGroup.parent;
+                    }
+
+                    if (ketchupGroup.userData.isKetchup && hit.distance <= 3.5) {
+                        // Target locked!
+                        window.sgCurrentTarget = ketchupGroup;
+                        crosshair.classList.add('target-locked');
+                        break;
+                    }
+                }
+
+                // Show/hide GET button and position above target
+                const getBtn = document.getElementById('sg-get-btn');
+                if (window.sgCurrentTarget && getBtn) {
+                    // Target found - show GET button and position above target
+                    getBtn.style.display = 'block';
+
+                    // Get target's 3D position (above the ketchup)
+                    const targetPos = new THREE.Vector3();
+                    window.sgCurrentTarget.getWorldPosition(targetPos);
+                    targetPos.y += 1.2; // Position above the ketchup
+
+                    // Project 3D position to 2D screen coordinates
+                    const screenPos = targetPos.clone().project(camera);
+
+                    // Convert normalized device coordinates to pixels
+                    const widthHalf = window.innerWidth / 2;
+                    const heightHalf = window.innerHeight / 2;
+                    const screenX = (screenPos.x * widthHalf) + widthHalf;
+                    const screenY = -(screenPos.y * heightHalf) + heightHalf;
+
+                    // Check if target is in front of camera (not behind)
+                    if (screenPos.z < 1) {
+                        // Position button (centered on the point)
+                        getBtn.style.left = `${screenX - 32.5}px`;
+                        getBtn.style.top = `${screenY - 32.5}px`;
+                        getBtn.style.display = 'block';
+                    } else {
+                        // Target is behind camera
+                        getBtn.style.display = 'none';
+                    }
+                } else if (getBtn) {
+                    // No target - hide GET button and reset crosshair
+                    getBtn.style.display = 'none';
+                    crosshair.classList.remove('target-locked');
+                }
+            } else {
+                // No ketchup data - hide button and reset crosshair
+                const getBtn = document.getElementById('sg-get-btn');
+                if (getBtn) getBtn.style.display = 'none';
+                if (crosshair) crosshair.classList.remove('target-locked');
+            }
+
 
         };
 
@@ -1726,13 +1510,13 @@ const SearchGame = (() => {
         createParkAssets();
 
 
-        // === LOAD FBX MODEL: Normal Potatokun ===
+        // === LOAD FBX MODEL: 2026 New Year Potatokun ===
         const TARGET_HEIGHT = 1.5; // Target height in meters
 
         loader.load(
-            'models/potatokun_normal.fbx',
+            'models/potatokun_newyear2026.fbx',
             (fbx) => {
-                console.log('FBX Model loaded: potatokun_normal.fbx');
+                console.log('FBX Model loaded: potatokun_newyear2026.fbx');
 
                 // === AUTO-SIZE NORMALIZATION using Box3 ===
                 // Get bounding box of the model
@@ -1771,13 +1555,12 @@ const SearchGame = (() => {
                 });
 
                 // Add to scene
-                fbx.visible = false; // Hide until cinematic starts
                 scene.add(fbx);
-                window.sgPlayer = fbx; // Store globally for cinematics
 
                 // Add edge outlines (EdgesGeometry method)
                 addEdgesOutline(fbx, 15, 0x000000);
                 console.log('Potatokun: Edge outlines applied');
+
 
                 // Set up animation if available
                 if (fbx.animations && fbx.animations.length > 0) {
@@ -1787,13 +1570,6 @@ const SearchGame = (() => {
                     action.play();
                     console.log('Animation started:', fbx.animations[0].name);
                 }
-
-                // ★ Trigger Opening Sequence
-                setTimeout(() => {
-                    if (typeof startOpeningSequence === 'function') {
-                        startOpeningSequence();
-                    }
-                }, 10);
             },
             (progress) => {
                 // Loading progress
@@ -1886,215 +1662,6 @@ const SearchGame = (() => {
             },
             (error) => {
                 console.error('Error loading elephant_fountain.fbx:', error);
-            }
-        );
-
-        // === LOAD FBX MODEL: Vending Machine ===
-        const VENDING_TARGET_HEIGHT = 2.0; // Target height: 2m (typical vending machine)
-
-        loader.load(
-            'models/vending_machine.fbx',
-            (vendingFbx) => {
-                console.log('FBX Loaded: vending_machine.fbx');
-
-                // === AUTO-SIZE NORMALIZATION using Box3 ===
-                const vendingBox = new THREE.Box3().setFromObject(vendingFbx);
-                const vendingSize = new THREE.Vector3();
-                vendingBox.getSize(vendingSize);
-
-                const vendingOriginalHeight = vendingSize.y;
-                console.log('Vending Machine Original Height:', vendingOriginalHeight.toFixed(3));
-
-                // Calculate scale factor
-                const vendingScaleFactor = VENDING_TARGET_HEIGHT / vendingOriginalHeight;
-                vendingFbx.scale.setScalar(vendingScaleFactor);
-                console.log('Vending Machine Applied Scale:', vendingScaleFactor.toFixed(6));
-
-                // Recalculate bounding box for ground contact
-                const scaledVendingBox = new THREE.Box3().setFromObject(vendingFbx);
-                const vendingOffsetY = -scaledVendingBox.min.y;
-
-                // Position next to slide (left side)
-                vendingFbx.position.set(-11, vendingOffsetY, -8);
-                // Face toward player/slide (rotated 90° clockwise)
-                vendingFbx.rotation.y = 0;
-                console.log('Vending machine placed at (-11, 0, -8)');
-
-                // === Material, Shadow, and Special Effects ===
-                vendingFbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-
-                        const childName = child.name.toLowerCase();
-
-                        // Water/Glass: Transparency
-                        if (childName.includes('water') || childName.includes('glass')) {
-                            const mats = Array.isArray(child.material) ? child.material : [child.material];
-                            mats.forEach(m => {
-                                m.transparent = true;
-                                m.opacity = 0.5;
-                                m.depthWrite = false;
-                            });
-                            child.userData.skipOutline = true;
-                            console.log('Vending: Transparency applied to:', child.name);
-                        }
-
-                        // Light: Emission
-                        if (childName.includes('light')) {
-                            const mats = Array.isArray(child.material) ? child.material : [child.material];
-                            mats.forEach(m => {
-                                if (m.emissive) {
-                                    m.emissive.setHex(0xFFFFFF);
-                                    m.emissiveIntensity = 2.0;
-                                }
-                            });
-                            console.log('Vending: Emission applied to:', child.name);
-                        }
-                    }
-                });
-
-                scene.add(vendingFbx);
-
-                // Add edge outlines
-                addEdgesOutline(vendingFbx, 15, 0x000000);
-                console.log('Vending machine: Edge outlines applied');
-
-                // ▼ Added: Transparent HitBox for Aim Interaction
-                const hitBoxGeo = new THREE.BoxGeometry(1.5, 2.5, 1.5);
-                const hitBoxMat = new THREE.MeshBasicMaterial({
-                    visible: false, // Transparent
-                    wireframe: true // Set true for debugging
-                });
-                const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
-
-                // Align with vending machine
-                hitBox.position.copy(vendingFbx.position);
-                hitBox.position.y += 1.0; // Raise center
-
-                // Identification flag
-                hitBox.userData.isVendingMachine = true;
-
-                scene.add(hitBox);
-
-                // Add collision data
-                if (!window.sgVendingCollision) {
-                    window.sgVendingCollision = [];
-                }
-                window.sgVendingCollision.push({
-                    x: -11,
-                    z: -8,
-                    radius: 0.8
-                });
-            },
-            (progress) => {
-                if (progress.total > 0) {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                    console.log(`Loading vending_machine.fbx: ${percent}%`);
-                }
-            },
-            (error) => {
-                console.error('Error loading vending_machine.fbx:', error);
-            }
-        );
-
-        // === LOAD FBX MODEL: Coin (collectible game items) ===
-        const COIN_TARGET_SIZE = 0.5; // Target diameter: 50cm
-
-        loader.load(
-            'models/coin.fbx',
-            (masterCoin) => {
-                console.log('FBX Loaded: coin.fbx (master for cloning)');
-
-                // === AUTO-SIZE NORMALIZATION using Box3 ===
-                const coinBox = new THREE.Box3().setFromObject(masterCoin);
-                const coinSize = new THREE.Vector3();
-                coinBox.getSize(coinSize);
-
-                const coinMaxDim = Math.max(coinSize.x, coinSize.y, coinSize.z);
-                console.log('Coin Original Size:', coinMaxDim.toFixed(3));
-
-                // Calculate scale factor
-                const coinScaleFactor = COIN_TARGET_SIZE / coinMaxDim;
-                masterCoin.scale.setScalar(coinScaleFactor);
-                console.log('Coin Applied Scale:', coinScaleFactor.toFixed(6));
-
-                // === Material: Keep original FBX settings, only add shadows ===
-                masterCoin.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        // DO NOT modify metalness/roughness - keep original FBX material
-                    }
-                });
-
-                // === Game coin positions (10 coins spread around park) ===
-                const coinPositions = [
-                    { x: -15, z: -15 }, { x: 15, z: -15 }, { x: -15, z: 15 },
-                    { x: 15, z: 15 }, { x: -20, z: 0 }, { x: 20, z: 0 },
-                    { x: 0, z: -20 }, { x: 8, z: 18 }, { x: -10, z: -20 }, { x: 12, z: -18 }
-                ];
-
-                window.sgGameCoins = []; // For rotation animation
-                const gameItems = []; // For collection tracking
-
-                coinPositions.forEach((pos, index) => {
-                    const coin = masterCoin.clone();
-                    coin.position.set(pos.x, 1.0, pos.z); // Float 1m above ground
-
-                    // Collection flag
-                    coin.userData.isCoin = true;
-                    coin.userData.coinIndex = index;
-                    coin.userData.collected = false;
-
-                    // Re-apply shadows to cloned meshes
-                    coin.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                        }
-                    });
-
-                    // Add edge outlines
-                    addEdgesOutline(coin, 15, 0x000000);
-
-                    scene.add(coin);
-                    window.sgGameCoins.push(coin);
-                    gameItems.push(coin);
-                });
-
-                // Store collection data globally
-                window.sgItemData = {
-                    items: gameItems,
-                    collected: 0,
-                    total: coinPositions.length
-                };
-
-                console.log(`${coinPositions.length} collectible coins placed!`);
-
-                // Update UI text
-                const ketchupLabel = document.getElementById('sg-ketchup');
-                if (ketchupLabel) {
-                    ketchupLabel.textContent = '0';
-                    // Update label text
-                    const parent = ketchupLabel.parentNode;
-                    if (parent) {
-                        parent.childNodes.forEach(node => {
-                            if (node.nodeType === 3 && node.textContent.includes('ケチャップ')) {
-                                node.textContent = '🪙 コイン: ';
-                            }
-                        });
-                    }
-                }
-            },
-            (progress) => {
-                if (progress.total > 0) {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                    console.log(`Loading coin.fbx: ${percent}%`);
-                }
-            },
-            (error) => {
-                console.error('Error loading coin.fbx:', error);
             }
         );
 
@@ -2315,12 +1882,11 @@ const SearchGame = (() => {
                 const nearSandbox = (Math.abs(x) < 5 && z > 8 && z < 16);
                 const nearFountain = (Math.abs(x) < 5 && z < -8 && z > -16);
                 const nearSpawn = (Math.abs(x) < 5 && z > 20); // Player spawn area
-                const nearVendingArea = (x > -14 && x < -8 && z > -10 && z < -2); // Vending & Cinematic area
 
                 // Random chance to skip (creates natural paths)
                 const randomSkip = Math.random() < 0.3;
 
-                if (nearSlide || nearGym || nearBench || nearTree || nearSandbox || nearFountain || nearSpawn || nearVendingArea || onMainPath || randomSkip) {
+                if (nearSlide || nearGym || nearBench || nearTree || nearSandbox || nearFountain || nearSpawn || onMainPath || randomSkip) {
                     continue;
                 }
 
@@ -2345,8 +1911,112 @@ const SearchGame = (() => {
             }
         }
 
-        // (Ketchup items REMOVED - now using Coins via FBX loader)
+        // === KETCHUP ITEMS ===
+        const ketchupPositions = [
+            { x: -15, z: -15 },
+            { x: 15, z: -15 },
+            { x: -15, z: 15 },
+            { x: 15, z: 15 },
+            { x: -20, z: 0 },
+            { x: 20, z: 0 },
+            { x: 0, z: -20 },
+            { x: 8, z: 18 },
+            { x: -10, z: -20 },
+            { x: 12, z: -18 }
+        ];
+
+        ketchupPositions.forEach(pos => {
+            const ketchupGroup = new THREE.Group();
+
+            // Bottle body (red)
+            const bottleMaterial = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
+            const bottle = new THREE.Mesh(
+                new THREE.BoxGeometry(0.3, 0.5, 0.3),
+                bottleMaterial
+            );
+            bottle.position.y = 0.25;
+            ketchupGroup.add(bottle);
+
+            // Cap (white)
+            const capMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+            const cap = new THREE.Mesh(
+                new THREE.BoxGeometry(0.15, 0.15, 0.15),
+                capMaterial
+            );
+            cap.position.y = 0.55;
+            ketchupGroup.add(cap);
+
+            // Label (yellow)
+            const labelMaterial = new THREE.MeshLambertMaterial({ color: 0xFFD700 });
+            const label = new THREE.Mesh(
+                new THREE.BoxGeometry(0.32, 0.2, 0.32),
+                labelMaterial
+            );
+            label.position.y = 0.25;
+            ketchupGroup.add(label);
+
+            ketchupGroup.position.set(pos.x + (Math.random() - 0.5) * 2, 0, pos.z + (Math.random() - 0.5) * 2);
+            ketchupGroup.userData.isKetchup = true;
+            scene.add(ketchupGroup);
+            ketchupItems.push(ketchupGroup);
+        });
+
+        // Store ketchup data for onSelect access
+        window.sgKetchupData = { items: ketchupItems, collected: ketchupCollected, scene, score };
     }
+
+    // === Collect Ketchup (called when GET! button is pressed) ===
+    function collectKetchup() {
+        if (!isPlaying || !scene) return;
+
+        // Check if we have a locked target from hover detection
+        const target = window.sgCurrentTarget;
+        if (!target) {
+            return;
+        }
+
+        // Get ketchup data
+        const data = window.sgKetchupData;
+        if (!data) return;
+
+        // Collect the target!
+        console.log('Hit Ketchup! Collecting via GET button...');
+        scene.remove(target);
+        const idx = data.items.indexOf(target);
+        if (idx > -1) data.items.splice(idx, 1);
+        data.collected++;
+        score += 50;
+
+        // Clear current target and hide button
+        window.sgCurrentTarget = null;
+        const crosshair = document.getElementById('sg-crosshair');
+        const getBtn = document.getElementById('sg-get-btn');
+        if (crosshair) crosshair.classList.remove('target-locked');
+        if (getBtn) getBtn.style.display = 'none';
+
+        // Update UI immediately
+        const ketchupEl = document.getElementById('sg-ketchup');
+        const scoreEl = document.getElementById('sg-score');
+        if (ketchupEl) {
+            ketchupEl.textContent = data.collected;
+            console.log('Ketchup UI updated:', data.collected);
+        }
+        if (scoreEl) {
+            scoreEl.textContent = score;
+            console.log('Score UI updated:', score);
+        }
+
+        // Flash effect at screen center
+        showTapText(window.innerWidth / 2, window.innerHeight / 2, '🍅 ケチャップ GET! +50', '#FF4500');
+
+        // Check for win condition
+        if (data.collected >= 10) {
+            setTimeout(() => {
+                showTapText(window.innerWidth / 2, window.innerHeight / 2 - 50, '🎉 全部集めた！ CLEAR!', '#00FF00');
+            }, 500);
+        }
+    }
+
 
 
 
@@ -2869,18 +2539,11 @@ const SearchGame = (() => {
         const el = document.createElement('div');
         el.className = 'sg-tap-text';
         el.textContent = text;
-        el.style.position = 'fixed'; // Changed from implicit static
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
-        el.style.transform = 'translate(-50%, -50%)'; // Center alignment
         el.style.color = color;
-        el.style.zIndex = '2000'; // High z-index to show above UI
-        el.style.fontWeight = 'bold';
-        el.style.fontSize = '1.5rem';
-        el.style.textShadow = '0 0 5px black';
-        el.style.pointerEvents = 'none';
         container.appendChild(el);
-        setTimeout(() => el.remove(), 1500); // Slightly longer display
+        setTimeout(() => el.remove(), 1000);
     }
 
     async function resetRound() {
@@ -2892,191 +2555,13 @@ const SearchGame = (() => {
         await spawnClonesSequential();
     }
 
-    function handleInteraction() {
-        // Ignore if not playing or no target
-        if (!isPlaying || !window.sgCurrentTarget) return;
-
-        const target = window.sgCurrentTarget;
-
-        // Get current coins
-        const currentCoins = window.sgItemData ? window.sgItemData.collected : 0;
-
-        // --- Case A: Vending Machine (BUY) ---
-        if (target.userData.isVendingMachine) {
-
-            if (currentCoins >= 10) {
-                // === Game Clear! ===
-                console.log("Juice Purchased! Game Clear!");
-
-                // Start Ending Cinematic
-                startEndingSequence();
-
-            } else {
-                // === Not Enough Coins ===
-                const missing = 10 - currentCoins;
-                showTapText(window.innerWidth / 2, window.innerHeight / 2, `あと ${missing} 枚足りないよ！`, '#FF4500');
-            }
-            return;
-        }
-
-        // --- Case B: Coin (GET) ---
-        if (target.userData.isCoin || target.userData.isTargetItem) {
-            // Coin collection
-            const parentGroup = target.parent && target.parent.type === 'Group' ? target.parent : target;
-            scene.remove(parentGroup); // Remove from scene
-            if (parentGroup !== target) scene.remove(target); // Ensure self is removed if not group
-
-            target.visible = false; // Just in case
-
-            // Update Data
-            if (window.sgItemData) {
-                window.sgItemData.collected++;
-                // Update UI
-                const counter = document.getElementById('sg-coin-counter');
-                if (counter) counter.innerText = window.sgItemData.collected;
-            }
-
-            // Update Score
-            score += 50;
-            const scoreEl = document.getElementById('sg-score');
-            if (scoreEl) scoreEl.textContent = score;
-
-            // Effect
-            showTapText(window.innerWidth / 2, window.innerHeight / 2, '🪙 コイン GET!', '#FFD700');
-
-            // Clear Target
-            window.sgCurrentTarget = null;
-            const getBtn = document.getElementById('sg-get-btn');
-            if (getBtn) getBtn.style.display = 'none';
-            const crosshair = document.getElementById('sg-crosshair');
-            if (crosshair) crosshair.classList.remove('target-locked');
-        }
-    }
-
     function loop() {
         if (!isPlaying) return;
-
-        // --- Cinematic Mode ---
-        if (isCinematic) {
-            const delta = clock.getDelta();
-            if (mixer) mixer.update(delta); // Keep animations running (idle etc)
-
-            // Sweat Animation
-            if (sweatParticles) {
-                sweatParticles.forEach(p => {
-                    p.mesh.position.y -= p.speed;
-                    if (p.mesh.position.y < p.startY - 0.4) p.mesh.position.y = p.startY;
-                });
-            }
-
-            // Camera Shake Effect
-            const time = Date.now() * 0.002;
-            // Base Shake on current position (assumes camera is set to cinematic pos)
-            // But we need to avoid drifting away. 
-            // Better to use offsets from a base, but since we don't store base per frame easily here without state,
-            // we'll use a subtle noise or just oscillate.
-            // User code: camera.position.x += Math.sin(time) * ...
-            // This causes drift if += is used. 
-            // User code probably meant oscillation around current point, but += is definitely drift.
-            // Let's assume startOpeningSequence set the camera to (-11, 1.0, -3.5).
-            // We should use set/copy or oscillate relative to a base.
-            // However, to follow user's "camera.position.x += ..." instruction strictly might cause flyaway.
-            // Let's implement oscillation: pos = base + offset.
-            // Since we don't have base in loop, strict replacement might be risky.
-            // But let's look at user code again: "camera.position.x += Math.sin(time) * 0.002; camera.position.y += ..."
-            // Math.sin changes sign, so it oscillates... BUT "+=" accumulates the value. Sum of sin is bounded? 
-            // Integral of sin is -cos. So it will drift in a cosine pattern but potentially far.
-            // Actually, if we add sin(t) every frame, position becomes Integral(sin(t)).
-            // It will wander.
-            // Let's use a safer shake using the sweat logic concept (looping) or just small randoms.
-            // OR use the base position if we knew it.
-            // Let's perform a lightweight shake:
-            camera.position.x += (Math.random() - 0.5) * 0.002;
-            camera.position.y += (Math.random() - 0.5) * 0.002;
-
-            renderer.render(scene, camera);
-            requestAnimationFrame(loop);
-            return;
-        }
-
         const delta = clock.getDelta();
         if (mixer) mixer.update(delta);
 
         // FPS movement update
         if (window.sgUpdateMovement) window.sgUpdateMovement();
-
-        // Coin rotation animation (all game coins)
-        if (window.sgGameCoins) {
-            window.sgGameCoins.forEach(coin => {
-                if (coin.visible) {
-                    coin.rotation.y += 0.05;
-                }
-            });
-        }
-
-        // === AIM DETECTION (Raycaster from center of screen) ===
-        const getBtn = document.getElementById('sg-get-btn');
-        const crosshair = document.getElementById('sg-crosshair');
-
-        if (getBtn && camera && crosshair) {
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-
-            // Objects to interact with: Coins + Scene Children (for Vending HitBox)
-            // Filtering scene.children efficiently is better, or use specific array.
-            // Using scene.children for Vending HitBox (userData.isVendingMachine)
-            const intersects = raycaster.intersectObjects(scene.children, true);
-
-            let targetFound = null;
-            let targetType = null; // 'coin' or 'vending'
-
-            for (const hit of intersects) {
-                const obj = hit.object;
-
-                // 1. Vending Machine HitBox
-                if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
-                    targetFound = obj;
-                    targetType = 'vending';
-                    break; // Priority
-                }
-
-                // 2. Coin (game items) - check parent group or mesh
-                // Coins are groups in sgGameCoins. Raycaster hits child mesh.
-                let coinGroup = obj;
-                while (coinGroup.parent && !coinGroup.userData.isCoin && coinGroup !== scene) {
-                    coinGroup = coinGroup.parent;
-                }
-
-                if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
-                    targetFound = coinGroup;
-                    targetType = 'coin';
-                    break;
-                }
-            }
-
-            if (targetFound) {
-                // Target locked
-                window.sgCurrentTarget = targetFound;
-                crosshair.classList.add('target-locked');
-                getBtn.style.display = 'block';
-
-                // Position button near crosshair
-                getBtn.style.left = '50%';
-                getBtn.style.top = '60%';
-                getBtn.style.transform = 'translate(-50%, -50%)';
-
-                if (targetType === 'vending') {
-                    getBtn.innerHTML = '🍹<br>BUY';
-                } else {
-                    getBtn.innerHTML = '🖐️<br>GET!';
-                }
-            } else {
-                // No target
-                window.sgCurrentTarget = null;
-                crosshair.classList.remove('target-locked');
-                getBtn.style.display = 'none';
-            }
-        }
 
         // Render scene (using standard renderer, edges are physical LineSegments)
         renderer.render(scene, camera);
