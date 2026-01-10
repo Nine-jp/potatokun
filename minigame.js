@@ -215,20 +215,29 @@ function showGameOver(score) {
 }
 
 /* =========================================
-   GAME MODULE: PotatoKun Action
+   GAME MODULE: PotatoAction (Pro Loop Ver)
    ========================================= */
 const PotatoAction = (() => {
     let container, player;
     let isPlaying = false;
     let score = 0;
     let items = [];
-    let frameCount = 0;
+
+    // === Game Loop Variables (DeltaTime) ===
+    let lastTime = 0;
+    const FIXED_STEP = 1 / 60; // 60FPS基準
+    let accumulator = 0;
     let animationId = null;
+
+    // Logic Timers
+    let spawnTimer = 0;
+    let difficultyTimer = 0;
 
     // Rare Item States
     let rareSpawnWindowActive = false;
     let hasRareSpawnedThisWindow = false;
     let rareWindowStartTime = 0;
+    let elapsedForRare = 0; // 時間計測用
 
     // Support Item States
     let barrierCount = 0;
@@ -237,7 +246,10 @@ const PotatoAction = (() => {
     let nextSpanThreshold = 50;
     let supportCycle = 0;
 
-    const Config = { spawnRate: 48 };
+    // Config (Spawn Rate in Seconds)
+    // 元が48フレーム(約0.8秒)だったので、秒数で管理
+    let currentSpawnInterval = 0.8;
+    const Config = { minSpawnInterval: 0.3 };
 
     function setup(parentContainer) {
         container = parentContainer;
@@ -249,11 +261,18 @@ const PotatoAction = (() => {
         isPlaying = true;
         score = 0;
         items = [];
-        frameCount = 0;
-        hasUnlockedPrize = false; // Reset for new run
-        rareSpawnWindowActive = false;
-        hasRareSpawnedThisWindow = false;
+
+        // Timer Reset
+        spawnTimer = 0;
+        difficultyTimer = 0;
+        elapsedForRare = 0;
         rareWindowStartTime = 0;
+
+        // Config Reset
+        currentSpawnInterval = 0.8;
+
+        hasRareSpawnedThisWindow = false;
+        rareSpawnWindowActive = false;
 
         barrierCount = 0;
         nextSpanThreshold = 50;
@@ -263,7 +282,11 @@ const PotatoAction = (() => {
         setupGameUI();
 
         if (animationId) cancelAnimationFrame(animationId);
-        animationId = requestAnimationFrame(loop);
+
+        // ★Loop Start (DeltaTime)
+        lastTime = performance.now();
+        accumulator = 0;
+        gameLoop(lastTime);
 
         window.addEventListener('mousemove', handleInput);
         window.addEventListener('touchmove', handleInput, { passive: false });
@@ -310,109 +333,80 @@ const PotatoAction = (() => {
         }
 
         const base = nextSpanThreshold - span;
-        // Ensure items spawn within the span (at least 5 points after base, 5 points before end)
         nextBarrierScore = base + Math.floor(Math.random() * (span - 10)) + 5;
         nextBombScore = base + Math.floor(Math.random() * (span - 10)) + 5;
         supportCycle++;
     }
 
-    function loop() {
+    // === Pro Game Loop ===
+    function gameLoop(now) {
         if (!isPlaying) return;
 
-        // breakthroughCheck to start timer
+        let delta = (now - lastTime) / 1000; // 秒単位
+        lastTime = now;
+
+        if (delta > 0.25) delta = 0.25; // 安全装置
+
+        accumulator += delta;
+
+        while (accumulator >= FIXED_STEP) {
+            update(FIXED_STEP);
+            accumulator -= FIXED_STEP;
+        }
+
+        render();
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+        // 1. レアアイテム出現判定 (時間ベース)
         if (score >= 300 && rareWindowStartTime === 0) {
-            rareWindowStartTime = frameCount;
+            rareWindowStartTime = 1; // フラグ代わり
+        }
+        if (rareWindowStartTime > 0) {
+            elapsedForRare += dt;
+            // 10秒〜20秒の間
+            if (elapsedForRare >= 10.0 && elapsedForRare <= 20.0 && !hasRareSpawnedThisWindow) {
+                rareSpawnWindowActive = true;
+            } else {
+                rareSpawnWindowActive = false;
+            }
         }
 
-        const elapsed = frameCount - rareWindowStartTime;
-        // Window is active between 10s (600 frames) and 20s (1200 frames) after breakthrough
-        if (rareWindowStartTime > 0 && elapsed >= 600 && elapsed <= 1200 && !hasRareSpawnedThisWindow) {
-            rareSpawnWindowActive = true;
-        } else {
-            rareSpawnWindowActive = false;
+        // 2. スポーン管理
+        spawnTimer += dt;
+        if (spawnTimer >= currentSpawnInterval) {
+            spawnItem();
+            spawnTimer = 0;
         }
 
-        // Support Item Spanning Logic
+        // 3. 難易度上昇 (10秒ごとに加速)
+        difficultyTimer += dt;
+        if (difficultyTimer >= 10.0) {
+            if (currentSpawnInterval > Config.minSpawnInterval) {
+                currentSpawnInterval -= 0.05; // 少しずつ速く
+            }
+            difficultyTimer = 0;
+        }
+
+        // 4. サポートアイテムロジック (スコア依存なのでそのまま)
         if (score >= nextSpanThreshold) {
             scheduleSupportItems();
         }
 
-        // Spawn
-        if (frameCount % Config.spawnRate === 0) spawnItem();
-
-        // Difficulty
-        if (frameCount % 600 === 0 && Config.spawnRate > 20) Config.spawnRate -= 2;
-
-        updateItems();
-        frameCount++;
-        animationId = requestAnimationFrame(loop);
+        // 5. アイテム移動更新
+        updateItems(dt);
     }
 
-    function spawnItem() {
-        const rand = Math.random();
-        let type;
-
-        // Priority 1: Scheduled Support Items
-        if (score >= nextBarrierScore && nextBarrierScore !== 0) {
-            type = 'barrier';
-            nextBarrierScore = 0; // Triggered
-        } else if (score >= nextBombScore && nextBombScore !== 0) {
-            type = 'bomb';
-            nextBombScore = 0; // Triggered
-        }
-        // Priority 2: Rare Item
-        else if (rareSpawnWindowActive && !hasRareSpawnedThisWindow) {
-            type = 'rare';
-            hasRareSpawnedThisWindow = true;
-        }
-        // Priority 3: Normal
-        else {
-            if (rand < 0.3) type = 'fry';
-            else if (rand < 0.9) type = 'skull';
-            else type = 'burger';
-        }
-
-        const el = document.createElement('div');
-        el.className = 'pa-item';
-
-        if (type === 'fry') el.textContent = '🍟';
-        else if (type === 'burger') {
-            el.textContent = '🍔';
-            el.style.transform = 'scale(1.3)';
-        }
-        else if (type === 'skull') el.textContent = '☠️';
-        else if (type === 'rare') {
-            el.innerHTML = `<img src="assets/potatokun-action.png" style="width:100%; height:100%; object-fit:contain;">`;
-            el.style.width = '80px';
-            el.style.height = '80px';
-        }
-        else if (type === 'barrier') {
-            el.textContent = '🫧';
-        }
-        else if (type === 'bomb') {
-            el.textContent = '💣';
-            el.classList.add('bomb'); // For CSS extra glow
-        }
-
-        // Constrain horizontal spawn to be within reachable area (playerHitBox.left/right limits)
-        // Window width - player margin - item width
-        const spawnX = 40 + Math.random() * (window.innerWidth - 120);
-        el.style.left = `${spawnX}px`;
-        el.style.top = '-80px';
-        container.appendChild(el);
-
-        items.push({
-            el: el,
-            y: -80,
-            type: type,
-            speed: type === 'skull' ? 5 + Math.random() * 2 : (type === 'burger' ? 6 + Math.random() * 2 : 3 + Math.random() * 2)
-        });
-    }
-
-    function updateItems() {
+    function updateItems(dt) {
         for (let i = items.length - 1; i >= 0; i--) {
             const item = items[i];
-            item.y += item.speed;
+
+            // 速度補正: 元のspeedはフレームあたり(約3px～8px)
+            // 秒速に換算 = speed * 60
+            const moveAmount = (item.speed * 60) * dt;
+
+            item.y += moveAmount;
             item.el.style.top = `${item.y}px`;
 
             const pRect = player.getBoundingClientRect();
@@ -422,50 +416,10 @@ const PotatoAction = (() => {
                 left: pRect.left + 35,
                 right: pRect.right - 35
             };
-
             const iRect = item.el.getBoundingClientRect();
 
             if (isColliding(playerHitBox, iRect)) {
-                if (item.type === 'fry') {
-                    score += 5;
-                    showFloatText(item.el.offsetLeft, item.el.offsetTop, '+5');
-                } else if (item.type === 'burger') {
-                    score += 10;
-                    showFloatText(item.el.offsetLeft, item.el.offsetTop, '+10', '#FF4500');
-                    spawnSparkles(item.el.offsetLeft + 20, item.el.offsetTop + 20);
-                } else if (item.type === 'rare') {
-                    score += 50;
-                    hasUnlockedPrize = true;
-                    rareSpawnWindowActive = false;
-                    hasRareSpawnedThisWindow = true;
-                    showFloatText(item.el.offsetLeft, item.el.offsetTop, 'Avatar Unlocked!', '#FF1493');
-                    spawnHearts(item.el.offsetLeft + 40, item.el.offsetTop + 40);
-                } else if (item.type === 'barrier') {
-                    addBarrier();
-                    showFloatText(item.el.offsetLeft, item.el.offsetTop, `BARRIER ${barrierCount}!`, '#00BFFF');
-                } else if (item.type === 'bomb') {
-                    activateBomb();
-                    showFloatText(item.el.offsetLeft, item.el.offsetTop, 'BOMB!', '#FFFFFF');
-                } else if (item.type === 'skull') {
-                    if (barrierCount > 0) {
-                        removeBarrier();
-                        showFloatText(item.el.offsetLeft, item.el.offsetTop, 'SHIELDED!', '#00BFFF');
-                        // Destroy just the skull
-                        item.el.remove();
-                        items.splice(i, 1);
-                        continue;
-                    } else {
-                        stop();
-                        showGameOver(score);
-                        return;
-                    }
-                }
-
-                if (item.type !== 'skull') {
-                    document.getElementById('pa-score').textContent = score;
-                    item.el.remove();
-                    items.splice(i, 1);
-                }
+                handleCollision(item, i);
             } else if (item.y > window.innerHeight) {
                 item.el.remove();
                 items.splice(i, 1);
@@ -473,55 +427,117 @@ const PotatoAction = (() => {
         }
     }
 
-    function addBarrier() {
-        if (barrierCount < 3) {
-            barrierCount++;
-            updateBarrierVisual();
-        }
-    }
+    function handleCollision(item, index) {
+        if (item.type === 'fry') {
+            score += 5;
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, '+5');
+        } else if (item.type === 'burger') {
+            score += 10;
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, '+10', '#FF4500');
+            spawnSparkles(item.el.offsetLeft + 20, item.el.offsetTop + 20);
+        } else if (item.type === 'rare') {
+            score += 50;
+            // Unlock Prize logic
+            rareSpawnWindowActive = false;
+            hasRareSpawnedThisWindow = true;
 
-    function removeBarrier() {
-        if (barrierCount > 0) {
-            barrierCount--;
-            updateBarrierVisual();
-            // Breaking effect
-            spawnParticles(player.offsetLeft + 75, player.offsetTop + 75, ['#00BFFF', '#FFFFFF'], 'pa-particle');
-        }
-    }
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, 'Avatar Unlocked!', '#FF1493');
+            spawnHearts(item.el.offsetLeft + 40, item.el.offsetTop + 40);
 
-    function updateBarrierVisual() {
-        // Remove all shield classes
-        player.classList.remove('shield-1', 'shield-2', 'shield-3');
-        // Add current shield class
-        if (barrierCount > 0) {
-            player.classList.add(`shield-${barrierCount}`);
-        }
-    }
-
-    function activateBomb() {
-        // Flash effect
-        const flash = document.getElementById('pa-sacred-flash');
-        flash.classList.remove('flash-active');
-        void flash.offsetWidth; // Trigger reflow
-        flash.classList.add('flash-active');
-
-        // Clear all skulls
-        for (let i = items.length - 1; i >= 0; i--) {
-            if (items[i].type === 'skull') {
-                items[i].el.remove();
-                items.splice(i, 1);
+            // ★ Unlock Special Prize (Persistent until game over)
+            hasUnlockedPrize = true;
+        } else if (item.type === 'barrier') {
+            addBarrier();
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, `BARRIER ${barrierCount}!`, '#00BFFF');
+        } else if (item.type === 'bomb') {
+            activateBomb();
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, 'BOMB!', '#FFFFFF');
+        } else if (item.type === 'skull') {
+            if (barrierCount > 0) {
+                removeBarrier();
+                showFloatText(item.el.offsetLeft, item.el.offsetTop, 'SHIELDED!', '#00BFFF');
+                item.el.remove();
+                items.splice(index, 1);
+                return;
+            } else {
+                stop();
+                showGameOver(score);
+                return;
             }
         }
+
+        if (item.type !== 'skull') {
+            document.getElementById('pa-score').textContent = score;
+            item.el.remove();
+            items.splice(index, 1);
+        }
     }
 
-    function spawnSparkles(x, y) {
-        spawnParticles(x, y, ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'], 'pa-particle');
+    function render() {
+        // DOM-based game, no canvas render needed
     }
 
-    function spawnHearts(x, y) {
-        spawnParticles(x, y, ['#FF1493', '#FF69B4', '#FFB6C1'], 'pa-heart', '💕');
+    // --- Spawn & Effect Helpers (Same logic) ---
+    function spawnItem() {
+        const rand = Math.random();
+        let type;
+
+        if (score >= nextBarrierScore && nextBarrierScore !== 0) {
+            type = 'barrier'; nextBarrierScore = 0;
+        } else if (score >= nextBombScore && nextBombScore !== 0) {
+            type = 'bomb'; nextBombScore = 0;
+        } else if (rareSpawnWindowActive && !hasRareSpawnedThisWindow) {
+            type = 'rare'; hasRareSpawnedThisWindow = true;
+        } else {
+            if (rand < 0.3) type = 'fry';
+            else if (rand < 0.9) type = 'skull';
+            else type = 'burger';
+        }
+
+        const el = document.createElement('div');
+        el.className = 'pa-item';
+
+        if (type === 'fry') el.textContent = '🍟';
+        else if (type === 'burger') { el.textContent = '🍔'; el.style.transform = 'scale(1.3)'; }
+        else if (type === 'skull') el.textContent = '☠️';
+        else if (type === 'rare') {
+            el.innerHTML = `<img src="assets/potatokun-action.png" style="width:100%; height:100%; object-fit:contain;">`;
+            el.style.width = '80px'; el.style.height = '80px';
+        }
+        else if (type === 'barrier') el.textContent = '🫧';
+        else if (type === 'bomb') { el.textContent = '💣'; el.classList.add('bomb'); }
+
+        const spawnX = 40 + Math.random() * (window.innerWidth - 120);
+        el.style.left = `${spawnX}px`;
+        el.style.top = '-80px';
+        container.appendChild(el);
+
+        items.push({
+            el: el,
+            y: -80,
+            type: type,
+            // 速度: ピクセル/フレーム だったものを維持
+            speed: type === 'skull' ? 5 + Math.random() * 2 : (type === 'burger' ? 6 + Math.random() * 2 : 3 + Math.random() * 2)
+        });
     }
 
+    function addBarrier() { if (barrierCount < 3) { barrierCount++; updateBarrierVisual(); } }
+    function removeBarrier() { if (barrierCount > 0) { barrierCount--; updateBarrierVisual(); spawnParticles(player.offsetLeft + 75, player.offsetTop + 75, ['#00BFFF', '#FFFFFF'], 'pa-particle'); } }
+    function updateBarrierVisual() {
+        player.classList.remove('shield-1', 'shield-2', 'shield-3');
+        if (barrierCount > 0) player.classList.add(`shield-${barrierCount}`);
+    }
+    function activateBomb() {
+        const flash = document.getElementById('pa-sacred-flash');
+        flash.classList.remove('flash-active');
+        void flash.offsetWidth;
+        flash.classList.add('flash-active');
+        for (let i = items.length - 1; i >= 0; i--) {
+            if (items[i].type === 'skull') { items[i].el.remove(); items.splice(i, 1); }
+        }
+    }
+    function spawnSparkles(x, y) { spawnParticles(x, y, ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'], 'pa-particle'); }
+    function spawnHearts(x, y) { spawnParticles(x, y, ['#FF1493', '#FF69B4', '#FFB6C1'], 'pa-heart', '💕'); }
     function spawnParticles(x, y, colors, className, text = null) {
         const count = text ? 12 : 10;
         for (let i = 0; i < count; i++) {
@@ -529,12 +545,8 @@ const PotatoAction = (() => {
             el.className = className;
             el.style.left = `${x}px`;
             el.style.top = `${y}px`;
-            if (text) {
-                el.textContent = text;
-                el.style.fontSize = `${10 + Math.random() * 10}px`;
-            } else {
-                el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            }
+            if (text) { el.textContent = text; el.style.fontSize = `${10 + Math.random() * 10}px`; }
+            else { el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)]; }
 
             const angle = Math.random() * Math.PI * 2;
             const velocity = 50 + Math.random() * 70;
@@ -547,23 +559,15 @@ const PotatoAction = (() => {
             setTimeout(() => el.remove(), 800);
         }
     }
-
     function isColliding(r1, r2) {
         const pad = 10;
-        return !(r1.right - pad < r2.left + pad ||
-            r1.left + pad > r2.right - pad ||
-            r1.bottom - pad < r2.top + pad ||
-            r1.top + pad > r2.bottom - pad);
+        return !(r1.right - pad < r2.left + pad || r1.left + pad > r2.right - pad || r1.bottom - pad < r2.top + pad || r1.top + pad > r2.bottom - pad);
     }
-
     function showFloatText(x, y, text, color = '#FFD700') {
         const el = document.createElement('div');
         el.className = 'pa-float-text';
         el.textContent = text;
-        el.style.left = `${x}px`;
-        el.style.top = `${y}px`;
-        el.style.color = color;
-        el.style.zIndex = '50';
+        el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.color = color; el.style.zIndex = '50';
         container.appendChild(el);
         setTimeout(() => el.remove(), 1000);
     }
@@ -584,6 +588,11 @@ const SearchGame = (() => {
     let animationId = null;
     let mixer;
     let clock = new THREE.Clock();
+
+    // === Game Loop Variables ===
+    let lastTime = performance.now();
+    const FIXED_STEP = 1 / 60; // 60FPS基準の固定ステップ
+    let accumulator = 0;
 
     let models = [];
     let targetIndex = -1;
@@ -720,11 +729,16 @@ const SearchGame = (() => {
     function start() {
         isPlaying = true;
         score = 0;
-        timeLeft = 60; // 60 seconds for maze exploration
+        timeLeft = 60; // 60 seconds
         models = [];
 
-
         setupGameUI();
+
+        // ★ Force Viewport for Game (Prevent Zoom)
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (meta) {
+            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+        }
 
         if (window.pauseBackgroundViewer) window.pauseBackgroundViewer(true);
 
@@ -732,10 +746,11 @@ const SearchGame = (() => {
             initThreeJS();
 
             if (animationId) cancelAnimationFrame(animationId);
-            animationId = requestAnimationFrame(loop);
 
-            // Potato characters removed - player IS the potato!
-            // await spawnClonesSequential();
+            // ★ Loop Start (DeltaTime)
+            lastTime = performance.now();
+            accumulator = 0;
+            requestAnimationFrame(gameLoop);
 
             // Setup GET!/BUY button click handler
             const getBtn = document.getElementById('sg-get-btn');
@@ -755,9 +770,6 @@ const SearchGame = (() => {
                     handleInteraction();
                 });
             }
-
-            // Timer disabled for testing
-            // startTimer();
 
             // Start Opening Cinematic
             startOpeningSequence();
@@ -997,6 +1009,13 @@ const SearchGame = (() => {
 
     function stop() {
         isPlaying = false;
+
+        // ★ Restore Viewport
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (meta) {
+            meta.content = 'width=device-width, initial-scale=1.0';
+        }
+
         clearInterval(timerId);
         if (animationId) cancelAnimationFrame(animationId);
         // Button handlers are removed when HTML is cleared
@@ -1321,7 +1340,7 @@ const SearchGame = (() => {
         setupDpadButton('dpad-right', 'right');
 
         // === Movement Update Function (called in loop) ===
-        window.sgUpdateMovement = () => {
+        window.sgUpdateMovement = (dt) => {
             // カメラ回転 (InputManager)
             if (typeof inputManager !== 'undefined') {
                 const { dx, dy } = inputManager.consumeLookDelta();
@@ -1335,20 +1354,24 @@ const SearchGame = (() => {
             if (isCinematic) return; // Disable movement during cinematic
             const direction = new THREE.Vector3();
 
+            // ★重要: 速度を「秒速」に変換して dt を掛ける
+            // moveSpeed(0.08) * 60FPS = 4.8 (秒速)
+            const speedFactor = (moveSpeed * 60) * dt;
+
             // Forward/backward (along camera direction)
             if (moveState.forward) {
-                direction.z -= moveSpeed;
+                direction.z -= speedFactor;
             }
             if (moveState.backward) {
-                direction.z += moveSpeed;
+                direction.z += speedFactor;
             }
 
             // Strafe left/right
             if (moveState.left) {
-                direction.x -= moveSpeed;
+                direction.x -= speedFactor;
             }
             if (moveState.right) {
-                direction.x += moveSpeed;
+                direction.x += speedFactor;
             }
 
             // Rotate direction by cameraAngle (camera-relative movement)
@@ -2953,67 +2976,110 @@ const SearchGame = (() => {
         }
     }
 
-    function loop() {
+    function gameLoop(now) {
         if (!isPlaying) return;
 
-        // --- Cinematic Mode ---
+        let delta = (now - lastTime) / 1000;
+        lastTime = now;
+        if (delta > 0.25) delta = 0.25;
+
+        accumulator += delta;
+
+        while (accumulator >= FIXED_STEP) {
+            update(FIXED_STEP);
+            accumulator -= FIXED_STEP;
+        }
+
+        render();
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+        // AnimationMixer更新
+        if (mixer) mixer.update(dt);
+
+        // プレイヤー移動 (dtを渡す)
+        if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
+
+        // コイン回転 (秒単位の回転数に変換: 0.05 rad/frame * 60 = 3.0 rad/sec)
+        if (window.sgGameCoins) {
+            window.sgGameCoins.forEach(coin => {
+                if (coin.visible) coin.rotation.y += 3.0 * dt;
+            });
+        }
+
+        // Cinematic Mode
         if (isCinematic) {
-            const delta = clock.getDelta();
-            if (mixer) mixer.update(delta); // Keep animations running (idle etc)
+            // Sway/Shake using dt
+            camera.position.x += (Math.random() - 0.5) * 0.12 * dt;
+            camera.position.y += (Math.random() - 0.5) * 0.12 * dt;
+
+            // Sweat Animation
+            if (window.sweatParticles) {
+                window.sweatParticles.forEach(p => {
+                    // speed was pixel/frame or similar? Need to check.
+                    // Assuming speed was defined in abstract units, we scale it.
+                    // Previous: p.mesh.position.y -= p.speed;
+                    // Let's assume p.speed needs to be scaled by 60 for per-second.
+                    p.mesh.position.y -= (p.speed * 60) * dt;
+                    if (p.mesh.position.y < p.startY - 0.4) p.mesh.position.y = p.startY;
+                });
+            }
+        }
+
+        // Aim Detection (Raycasting) is visual/input related, can often stay in render or be in update.
+        // Putting it in update (every logic tick) is safer for consistency.
+        updateAim();
+    }
+
+    // === Pro Game Loop ===
+    function gameLoop(now) {
+        if (!isPlaying) return;
+
+        // DeltaTime Calculation
+        let dt = (now - lastTime) / 1000;
+        lastTime = now;
+
+        // Cap dt to prevent spiral of death (max 0.1s)
+        if (dt > 0.1) dt = 0.1;
+
+        accumulator += dt;
+
+        while (accumulator >= FIXED_STEP) {
+            update(FIXED_STEP);
+            accumulator -= FIXED_STEP;
+        }
+
+        render();
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+        if (mixer) mixer.update(dt);
+
+        if (isCinematic) {
+            // Cinematic Shake
+            camera.position.x += (Math.random() - 0.5) * 0.12 * dt;
+            camera.position.y += (Math.random() - 0.5) * 0.12 * dt;
 
             // Sweat Animation
             if (sweatParticles) {
                 sweatParticles.forEach(p => {
-                    p.mesh.position.y -= p.speed;
+                    p.mesh.position.y -= (p.speed * 60) * dt;
                     if (p.mesh.position.y < p.startY - 0.4) p.mesh.position.y = p.startY;
                 });
             }
-
-            // Camera Shake Effect
-            const time = Date.now() * 0.002;
-            // Base Shake on current position (assumes camera is set to cinematic pos)
-            // But we need to avoid drifting away. 
-            // Better to use offsets from a base, but since we don't store base per frame easily here without state,
-            // we'll use a subtle noise or just oscillate.
-            // User code: camera.position.x += Math.sin(time) * ...
-            // This causes drift if += is used. 
-            // User code probably meant oscillation around current point, but += is definitely drift.
-            // Let's assume startOpeningSequence set the camera to (-11, 1.0, -3.5).
-            // We should use set/copy or oscillate relative to a base.
-            // However, to follow user's "camera.position.x += ..." instruction strictly might cause flyaway.
-            // Let's implement oscillation: pos = base + offset.
-            // Since we don't have base in loop, strict replacement might be risky.
-            // But let's look at user code again: "camera.position.x += Math.sin(time) * 0.002; camera.position.y += ..."
-            // Math.sin changes sign, so it oscillates... BUT "+=" accumulates the value. Sum of sin is bounded? 
-            // Integral of sin is -cos. So it will drift in a cosine pattern but potentially far.
-            // Actually, if we add sin(t) every frame, position becomes Integral(sin(t)).
-            // It will wander.
-            // Let's use a safer shake using the sweat logic concept (looping) or just small randoms.
-            // OR use the base position if we knew it.
-            // Let's perform a lightweight shake:
-            camera.position.x += (Math.random() - 0.5) * 0.002;
-            camera.position.y += (Math.random() - 0.5) * 0.002;
-
-            renderer.render(scene, camera);
-            requestAnimationFrame(loop);
             return;
         }
 
-        const delta = clock.getDelta();
-        if (mixer) mixer.update(delta);
+        // Gameplay Update
+        if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
 
-        // FPS movement update
-        if (window.sgUpdateMovement) window.sgUpdateMovement();
+        // Aim Detection (Moved from loop)
+        updateAim();
+    }
 
-        // Coin rotation animation (all game coins)
-        if (window.sgGameCoins) {
-            window.sgGameCoins.forEach(coin => {
-                if (coin.visible) {
-                    coin.rotation.y += 0.05;
-                }
-            });
-        }
-
+    function updateAim() {
         // === AIM DETECTION (Raycaster from center of screen) ===
         const getBtn = document.getElementById('sg-get-btn');
         const crosshair = document.getElementById('sg-crosshair');
@@ -3023,8 +3089,6 @@ const SearchGame = (() => {
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
             // Objects to interact with: Coins + Scene Children (for Vending HitBox)
-            // Filtering scene.children efficiently is better, or use specific array.
-            // Using scene.children for Vending HitBox (userData.isVendingMachine)
             const intersects = raycaster.intersectObjects(scene.children, true);
 
             let targetFound = null;
@@ -3041,7 +3105,6 @@ const SearchGame = (() => {
                 }
 
                 // 2. Coin (game items) - check parent group or mesh
-                // Coins are groups in sgGameCoins. Raycaster hits child mesh.
                 let coinGroup = obj;
                 while (coinGroup.parent && !coinGroup.userData.isCoin && coinGroup !== scene) {
                     coinGroup = coinGroup.parent;
@@ -3077,10 +3140,12 @@ const SearchGame = (() => {
                 getBtn.style.display = 'none';
             }
         }
+    }
 
-        // Render scene (using standard renderer, edges are physical LineSegments)
-        renderer.render(scene, camera);
-        animationId = requestAnimationFrame(loop);
+    function render() {
+        if (renderer && scene && camera) {
+            renderer.render(scene, camera);
+        }
     }
 
 
