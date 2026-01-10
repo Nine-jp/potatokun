@@ -800,8 +800,7 @@ const SearchGame = (() => {
 
             // Show Game Over (Clear)
             const collected = window.sgItemData ? window.sgItemData.collected : 10;
-            const scoreVal = score + (collected * 100);
-            showGameOver(scoreVal);
+            showGameOver(collected * 100);
 
         }, 5000);
     }
@@ -818,7 +817,8 @@ const SearchGame = (() => {
             if (timerEl) timerEl.textContent = timeLeft;
             if (timeLeft <= 0) {
                 stop();
-                showGameOver(score);
+                const collected = window.sgItemData ? window.sgItemData.collected : 0;
+                showGameOver(collected * 100);
             }
         }, 1000);
     }
@@ -846,7 +846,6 @@ const SearchGame = (() => {
             <div id="sg-ui" style="position:absolute; top:20px; left:20px; color:#fff; z-index:100; font-family:sans-serif; pointer-events:none; text-shadow: 2px 2px 4px #000000; font-size: 1.2rem; font-weight: bold;">
                 <div>🪙 ポテコイン</div>
                 <div style="margin-top:8px;">🪙 コイン: <span id="sg-coin-counter">0</span>/10</div>
-                <div>Score: <span id="sg-score">0</span></div>
             </div>
             <div id="sg-canvas-container" style="width:100%; height:100%; background: #1a1a1a;"></div>
             

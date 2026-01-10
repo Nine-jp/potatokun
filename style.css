@@ -904,7 +904,10 @@ body.modal-open {
     padding: 20px;
     text-align: center;
     pointer-events: auto;
-    /* Ensure events pass on iOS */
+    /* Mobile scrolling support */
+    max-height: 80vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 #game-menu.hidden {
