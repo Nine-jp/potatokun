@@ -590,13 +590,6 @@ const SearchGame = (() => {
     let raycaster = new THREE.Raycaster();
     let mouse = new THREE.Vector2();
 
-    // Cinematic State
-    let isCinematic = false;
-    let cinematicTimer = 0;
-
-    // Player Position (Module Scope)
-    let playerPosition = new THREE.Vector3(0, 0.6, 0);
-
     const loader = new FBXLoader();
 
     function setup(parentContainer) {
@@ -646,166 +639,8 @@ const SearchGame = (() => {
 
             // Timer disabled for testing
             // startTimer();
-
-            // Start Opening Cinematic
-            startOpeningSequence();
         }, 100);
     }
-
-    // === CINEMATIC SEQUENCES ===
-    let sweatParticles = [];
-
-    function createSweatEffects(model) {
-        clearSweatEffects(); // Clear existing
-
-        const sweatGeo = new THREE.SphereGeometry(0.03, 8, 8); // Smaller
-        const sweatMat = new THREE.MeshBasicMaterial({ color: 0x87CEFA }); // Light Blue
-
-        // 3 drops around head
-        const positions = [
-            { x: 0.15, y: 1.4, z: 0.2 },
-            { x: -0.15, y: 1.3, z: 0.25 },
-            { x: 0, y: 1.35, z: 0.3 }
-        ];
-
-        positions.forEach(pos => {
-            const mesh = new THREE.Mesh(sweatGeo, sweatMat);
-            // Position relative to model world position
-            mesh.position.copy(model.position).add(new THREE.Vector3(pos.x, pos.y, pos.z));
-            scene.add(mesh);
-            sweatParticles.push({ mesh: mesh, startY: mesh.position.y, speed: 0.005 + Math.random() * 0.005 });
-        });
-    }
-
-    function clearSweatEffects() {
-        sweatParticles.forEach(p => scene.remove(p.mesh));
-        sweatParticles = [];
-    }
-
-    // Helper for sweat animation
-    function updateSweatEffects() {
-        sweatParticles.forEach(p => {
-            p.mesh.position.y -= p.speed;
-            if (p.mesh.position.y < p.startY - 0.4) {
-                p.mesh.position.y = p.startY; // Loop
-            }
-        });
-    }
-
-    function startOpeningSequence() {
-        console.log("Starting Opening Sequence...");
-        isCinematic = true; // Lock controls
-        const player = window.sgPlayer;
-        if (!player) {
-            console.error("Player model not found for opening!");
-            return;
-        }
-
-        // --- 1. Positioning & Acting ---
-        // In front of vending machine (x: -11, z: -5)
-        player.position.set(-11, 0, -5);
-        player.rotation.y = 0; // Face camera
-        player.rotation.x = 0.5; // Bow head
-
-        player.visible = true; // Show model
-
-        createSweatEffects(player);
-
-        // --- 2. Camera Work ---
-        // Face Close-up
-        const targetPos = new THREE.Vector3(-11, 1.1, -5);
-        // Camera position: slightly front and below
-        camera.position.set(-11, 1.0, -3.5);
-        camera.lookAt(targetPos);
-
-        // --- 3. Dialog Sequence ---
-        // Scene 1: Potatokun (0s)
-        showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'ポテトくん「はぁ... 暑い... のどが渇いた...」', '#FFFFFF');
-
-        // Scene 2: Narrator (4s)
-        setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'おや？ ポテトくんが困っているみたいだ', '#87CEFA');
-        }, 4000);
-
-        // Scene 3: Solution (8s)
-        setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'そうだ！ 公園のコインを集めて\nジュースを買ってあげよう！', '#FFD700');
-        }, 8000);
-
-        // Scene 4: Game Start (12s)
-        setTimeout(() => {
-            // End Sequence
-            isCinematic = false;
-            if (player) player.rotation.x = 0; // Reset pose
-            clearSweatEffects();
-
-            // Camera Reset (TPS View)
-            camera.position.set(-11, 4, 0);
-            if (player) camera.lookAt(player.position);
-
-            // Sync Control Target if exists
-            if (controls) controls.target.copy(player.position);
-
-            // Sync Player Logic Position (important for FPS movement)
-            if (typeof playerPosition !== 'undefined') {
-                playerPosition.set(-11, 0.6, -5);
-            }
-
-            showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
-        }, 12000);
-    }
-
-    function startEndingSequence() {
-        isCinematic = true;
-
-        // UI
-        showTapText(window.innerWidth / 2, window.innerHeight / 2, '🎉 ジュース買えたよ！やったね！', '#00FF00');
-
-        // Camera: Vending Machine view
-        if (camera) {
-            camera.position.set(-8, 3, -4);
-            camera.lookAt(-11, 2, -8);
-        }
-
-        // Dance: Rotate Main Character (using sgGameCoins[0] as proxy if player model hidden? 
-        // Actually player is camera in FPS... user said "Rotate Potatokun". 
-        // In FPS mode, Potatokun is hidden or is the camera.
-        // But for cinematic, we might want to see him. 
-        // Assuming there is a visible potato model or we rotate the vending machine? 
-        // User said: "Rotate Potatokun (window.sgCoin)". 
-        // Wait, window.sgCoin was single decorative coin. Now we have sgGameCoins.
-        // Maybe the user meant "Rotate the vending machine" or "Rotate a coin"?
-        // The user request code said: "if(window.sgCoin) window.sgCoin.rotation.y += 0.5;"
-        // Existing code removed single sgCoin. 
-        // I will attempt to rotate the last collected coin or just skip rotation if model missing.
-        // Actually, let's rotate the Camera around the vending machine for effect?
-        // Or better: Re-enable player model visibility for cutscene?
-        // Let's stick to user request code but adapt: 
-        // "window.sgCoin" likely refers to the single decorative coin they thought existed.
-        // I will assume they want a celebration effect. I'll rotate the vending machine instead?
-        // No, user said "Potatokun".
-        // Use camera rotation around target.
-
-        const danceInterval = setInterval(() => {
-            // Camera orbit effect
-            const time = Date.now() * 0.002;
-            camera.position.x = -11 + Math.cos(time) * 5;
-            camera.position.z = -8 + Math.sin(time) * 5;
-            camera.lookAt(-11, 2, -8);
-        }, 16);
-
-        setTimeout(() => {
-            clearInterval(danceInterval);
-            stop(); // Game End
-
-            // Show Game Over (Clear)
-            const collected = window.sgItemData ? window.sgItemData.collected : 10;
-            const scoreVal = score + (collected * 100);
-            showGameOver(scoreVal);
-
-        }, 5000);
-    }
-
 
 
 
@@ -1024,8 +859,7 @@ const SearchGame = (() => {
         let cameraPitch = 0; // Vertical look angle (for FPS mode)
 
         // Player position tracking (separate from camera)
-        // playerPosition is now Module Scope
-        playerPosition.set(0, 0.6, 25);
+        const playerPosition = new THREE.Vector3(0, 0.6, 0);
         let playerFacing = Math.PI; // Direction player is facing
 
         // Pinch zoom tracking
@@ -1216,7 +1050,6 @@ const SearchGame = (() => {
 
         // === Movement Update Function (called in loop) ===
         window.sgUpdateMovement = () => {
-            if (isCinematic) return; // Disable movement during cinematic
             const direction = new THREE.Vector3();
 
             // Forward/backward (along camera direction)
@@ -1607,13 +1440,13 @@ const SearchGame = (() => {
         createParkAssets();
 
 
-        // === LOAD FBX MODEL: Normal Potatokun ===
+        // === LOAD FBX MODEL: 2026 New Year Potatokun ===
         const TARGET_HEIGHT = 1.5; // Target height in meters
 
         loader.load(
-            'models/potatokun_normal.fbx',
+            'models/potatokun_newyear2026.fbx',
             (fbx) => {
-                console.log('FBX Model loaded: potatokun_normal.fbx');
+                console.log('FBX Model loaded: potatokun_newyear2026.fbx');
 
                 // === AUTO-SIZE NORMALIZATION using Box3 ===
                 // Get bounding box of the model
@@ -1652,13 +1485,12 @@ const SearchGame = (() => {
                 });
 
                 // Add to scene
-                fbx.visible = false; // Hide until cinematic starts
                 scene.add(fbx);
-                window.sgPlayer = fbx; // Store globally for cinematics
 
                 // Add edge outlines (EdgesGeometry method)
                 addEdgesOutline(fbx, 15, 0x000000);
                 console.log('Potatokun: Edge outlines applied');
+
 
                 // Set up animation if available
                 if (fbx.animations && fbx.animations.length > 0) {
@@ -1668,13 +1500,6 @@ const SearchGame = (() => {
                     action.play();
                     console.log('Animation started:', fbx.animations[0].name);
                 }
-
-                // ★ Trigger Opening Sequence
-                setTimeout(() => {
-                    if (typeof startOpeningSequence === 'function') {
-                        startOpeningSequence();
-                    }
-                }, 10);
             },
             (progress) => {
                 // Loading progress
@@ -2196,12 +2021,11 @@ const SearchGame = (() => {
                 const nearSandbox = (Math.abs(x) < 5 && z > 8 && z < 16);
                 const nearFountain = (Math.abs(x) < 5 && z < -8 && z > -16);
                 const nearSpawn = (Math.abs(x) < 5 && z > 20); // Player spawn area
-                const nearVendingArea = (x > -14 && x < -8 && z > -10 && z < -2); // Vending & Cinematic area
 
                 // Random chance to skip (creates natural paths)
                 const randomSkip = Math.random() < 0.3;
 
-                if (nearSlide || nearGym || nearBench || nearTree || nearSandbox || nearFountain || nearSpawn || nearVendingArea || onMainPath || randomSkip) {
+                if (nearSlide || nearGym || nearBench || nearTree || nearSandbox || nearFountain || nearSpawn || onMainPath || randomSkip) {
                     continue;
                 }
 
@@ -2789,8 +2613,15 @@ const SearchGame = (() => {
                 // === Game Clear! ===
                 console.log("Juice Purchased! Game Clear!");
 
-                // Start Ending Cinematic
-                startEndingSequence();
+                // Show message
+                showTapText(window.innerWidth / 2, window.innerHeight / 2, '🎉 ジュース買えたよ！', '#00FF00');
+
+                // Transition to Game Over/Clear screen
+                setTimeout(() => {
+                    stop();
+                    // Bonus score calculation
+                    showGameOver(currentCoins * 100 + 1000);
+                }, 2000);
 
             } else {
                 // === Not Enough Coins ===
@@ -2836,50 +2667,6 @@ const SearchGame = (() => {
 
     function loop() {
         if (!isPlaying) return;
-
-        // --- Cinematic Mode ---
-        if (isCinematic) {
-            const delta = clock.getDelta();
-            if (mixer) mixer.update(delta); // Keep animations running (idle etc)
-
-            // Sweat Animation
-            if (sweatParticles) {
-                sweatParticles.forEach(p => {
-                    p.mesh.position.y -= p.speed;
-                    if (p.mesh.position.y < p.startY - 0.4) p.mesh.position.y = p.startY;
-                });
-            }
-
-            // Camera Shake Effect
-            const time = Date.now() * 0.002;
-            // Base Shake on current position (assumes camera is set to cinematic pos)
-            // But we need to avoid drifting away. 
-            // Better to use offsets from a base, but since we don't store base per frame easily here without state,
-            // we'll use a subtle noise or just oscillate.
-            // User code: camera.position.x += Math.sin(time) * ...
-            // This causes drift if += is used. 
-            // User code probably meant oscillation around current point, but += is definitely drift.
-            // Let's assume startOpeningSequence set the camera to (-11, 1.0, -3.5).
-            // We should use set/copy or oscillate relative to a base.
-            // However, to follow user's "camera.position.x += ..." instruction strictly might cause flyaway.
-            // Let's implement oscillation: pos = base + offset.
-            // Since we don't have base in loop, strict replacement might be risky.
-            // But let's look at user code again: "camera.position.x += Math.sin(time) * 0.002; camera.position.y += ..."
-            // Math.sin changes sign, so it oscillates... BUT "+=" accumulates the value. Sum of sin is bounded? 
-            // Integral of sin is -cos. So it will drift in a cosine pattern but potentially far.
-            // Actually, if we add sin(t) every frame, position becomes Integral(sin(t)).
-            // It will wander.
-            // Let's use a safer shake using the sweat logic concept (looping) or just small randoms.
-            // OR use the base position if we knew it.
-            // Let's perform a lightweight shake:
-            camera.position.x += (Math.random() - 0.5) * 0.002;
-            camera.position.y += (Math.random() - 0.5) * 0.002;
-
-            renderer.render(scene, camera);
-            requestAnimationFrame(loop);
-            return;
-        }
-
         const delta = clock.getDelta();
         if (mixer) mixer.update(delta);
 
