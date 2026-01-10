@@ -864,7 +864,7 @@ const SearchGame = (() => {
 
             
             <!-- D-Pad Controller (GET button moved outside) -->
-            <div id="sg-dpad" style="position:absolute; bottom:20px; right:20px; z-index:200; user-select:none;">
+            <div id="sg-dpad" style="position:absolute; bottom:calc(120px + env(safe-area-inset-bottom)); left:calc(20px + env(safe-area-inset-left)); z-index:200; user-select:none;">
                 <style>
                     .dpad-btn {
                         width: 70px;
