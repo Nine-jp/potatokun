@@ -586,10 +586,14 @@ const SearchGame = (() => {
     const GameState = {
         LOADING: 'loading',
         OPENING: 'opening',
-        PLAYING: 'playing'
+        PLAYING: 'playing',
+        ENDING: 'ending'
     };
     let currentState = GameState.LOADING;
     let openingNPC = null; // Openning dedicated NPC
+    let banzaiNPC = null;  // Ending dedicated NPC
+    let juiceModel = null; // Ending dedicated Object
+    let slideModel = null; // Park Asset (Slide) for visibility control
 
     let isPlaying = false;
     let score = 0;
@@ -621,24 +625,74 @@ const SearchGame = (() => {
     let cameraAngle = Math.PI; // Horizontal orbit angle
     let cameraPitch = 0; // Vertical look angle
 
-    // === NPC Position/Rotation Constants ===
+    // === NPC Position/Rotation Constants (Shared across seasons) ===
     const NPC_CONFIG = {
-        // 汗っかきくん (Opening NPC)
         opening: {
-            model: 'models/potatokun_thirsty.fbx',
-            height: 1.5,
             position: { x: -11, z: -5 },  // カメラ演出位置
-            rotation: 0,             // 正面向き（カメラ方向）
+            rotation: 0,                   // 正面向き
         },
-        // お座りくん (Gameplay NPC)
         gameplay: {
-            model: 'models/potatokun_sitting.fbx',
-            height: 1.0,
-            position: { x: -13, z: -8 }, // 自販機の左側（手が重ならない距離）
-            rotation: 0,                  // 正面向き（汗っかきくんと同じ）
+            position: { x: -13, z: -8 },  // 自販機の左側
+            rotation: 0,                   // 正面向き
         },
-        // 自販機の座標（参考）
         vendingMachine: { x: -11, z: -8 }
+    };
+
+    // === Season System ===
+    const SEASON = {
+        SUMMER: 'summer',
+        WINTER: 'winter',
+    };
+    let currentSeason = SEASON.WINTER; // ← ここを書き換えるだけで季節切り替え
+
+    // === Season-specific Model Config ===
+    const SEASON_CONFIG = {
+        summer: {
+            openingNPC: {
+                model: 'models/potatokun_thirsty.fbx',
+                height: 1.5,
+            },
+            gameplayNPC: {
+                model: 'models/potatokun_sitting.fbx',
+                height: 1.0,
+            },
+        },
+        winter: {
+            openingNPC: {
+                model: 'models/potatokun_freezing.fbx',
+                height: 1.5,
+            },
+            gameplayNPC: {
+                model: 'models/potatokun_sitandfreezing.fbx',
+                height: 1.0,
+            },
+        },
+    };
+
+    // === Season-specific Dialog Lines ===
+    const OPENING_LINES = {
+        summer: [
+            { time: 0, text: 'ポテトくん「はぁ〜… あついよ〜… のどカラカラ…」', color: '#FFAE00' },
+            { time: 4000, text: 'あれれ？ ポテトくん、とっても困ってる！', color: '#87CEFA' },
+            { time: 7000, text: 'こんな暑さじゃ、元気も出ないよね…', color: '#87CEFA' },
+            { time: 10000, text: 'よし！ 公園に落ちているコインを集めて\nジュースを買ってあげよう！', color: '#87CEFA' },
+        ],
+        winter: [
+            { time: 0, text: 'ポテトくん「ぶるる… さむい… からだが こおりそう…」', color: '#FFAE00' },
+            { time: 4000, text: 'おや？ ポテトくんが ふるえている！', color: '#87CEFA' },
+            { time: 7000, text: 'こんな寒さじゃ、あったかいものが欲しいね', color: '#87CEFA' },
+            { time: 10000, text: 'よし！ コインを集めて、ホットドリンクを買ってあげよう！', color: '#87CEFA' },
+        ],
+    };
+
+    // === Season Visuals (Ground Color etc.) ===
+    const SEASON_VISUALS = {
+        summer: {
+            groundColor: 0x3FA34D, // Green
+        },
+        winter: {
+            groundColor: 0xEDEDED, // Snow White/Grey
+        }
     };
 
     // NPC References
@@ -770,6 +824,11 @@ const SearchGame = (() => {
         timeLeft = 60; // 60 seconds
         models = [];
 
+        // ★ Reset Ending Assets
+        banzaiNPC = null;
+        juiceModel = null;
+        endingObjects = [];
+
         setupGameUI();
 
         // ★ Force Viewport for Game (Prevent Zoom)
@@ -778,7 +837,11 @@ const SearchGame = (() => {
             meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
         }
 
-        if (window.pauseBackgroundViewer) window.pauseBackgroundViewer(true);
+        if (window.cleanupBackgroundViewer) {
+            window.cleanupBackgroundViewer();
+        } else if (window.pauseBackgroundViewer) {
+            window.pauseBackgroundViewer(true);
+        }
 
         setTimeout(async () => {
             initThreeJS();
@@ -854,6 +917,104 @@ const SearchGame = (() => {
         });
     }
 
+    // === WINTER EFFECTS (Freezing/Shivering) ===
+    let breathParticles = [];
+    let shiverModel = null;
+    let shiverFrame = 0;
+
+    function createFreezingEffects(model) {
+        clearFreezingEffects();
+        shiverModel = model;
+        shiverFrame = 0;
+
+        // 白い息パーティクル (口元から上昇)
+        const breathGeo = new THREE.SphereGeometry(0.05, 8, 8);
+        const breathMat = new THREE.MeshBasicMaterial({
+            color: 0xFFFFFF,
+            transparent: true,
+            opacity: 0.6
+        });
+
+        // Position near mouth
+        for (let i = 0; i < 3; i++) {
+            const mesh = new THREE.Mesh(breathGeo, breathMat.clone());
+            mesh.position.copy(model.position).add(new THREE.Vector3(
+                (Math.random() - 0.5) * 0.1,  // X variance
+                1.35 + Math.random() * 0.1,    // Mouth height
+                0.35                            // Front of face
+            ));
+            scene.add(mesh);
+            breathParticles.push({
+                mesh: mesh,
+                startY: mesh.position.y,
+                speed: 0.003 + Math.random() * 0.002,
+                life: 0,
+                maxLife: 60 + Math.random() * 30
+            });
+        }
+    }
+
+    function updateFreezingEffects() {
+        // 白い息の更新
+        breathParticles.forEach(p => {
+            p.mesh.position.y += p.speed;
+            p.life++;
+            // Fade out and reset
+            if (p.life > p.maxLife) {
+                p.mesh.position.y = p.startY;
+                p.mesh.material.opacity = 0.6;
+                p.life = 0;
+            } else if (p.life > p.maxLife - 20) {
+                p.mesh.material.opacity = 0.6 * (p.maxLife - p.life) / 20;
+            }
+        });
+
+        // 体の震え
+        if (shiverModel) {
+            shiverFrame++;
+            const shiverAmount = 0.015;
+            shiverModel.position.x += Math.sin(shiverFrame * 0.5) * shiverAmount;
+            shiverModel.rotation.z = Math.sin(shiverFrame * 0.3) * 0.02;
+        }
+    }
+
+    function clearFreezingEffects() {
+        breathParticles.forEach(p => {
+            scene.remove(p.mesh);
+            if (p.mesh.material) p.mesh.material.dispose();
+            if (p.mesh.geometry) p.mesh.geometry.dispose();
+        });
+        breathParticles = [];
+        if (shiverModel) {
+            shiverModel.position.x = NPC_CONFIG.opening.position.x;
+            shiverModel.rotation.z = 0;
+        }
+        shiverModel = null;
+        shiverFrame = 0;
+    }
+
+    // === Season-agnostic Effect Control ===
+    function createSeasonEffects(model) {
+        if (currentSeason === SEASON.SUMMER) {
+            createSweatEffects(model);
+        } else if (currentSeason === SEASON.WINTER) {
+            createFreezingEffects(model);
+        }
+    }
+
+    function updateSeasonEffects() {
+        if (currentSeason === SEASON.SUMMER) {
+            updateSweatEffects();
+        } else if (currentSeason === SEASON.WINTER) {
+            updateFreezingEffects();
+        }
+    }
+
+    function clearSeasonEffects() {
+        clearSweatEffects();
+        clearFreezingEffects();
+    }
+
     // Timer management for opening sequence
     let openingTimers = [];
     let openingInterval = null;
@@ -861,11 +1022,12 @@ const SearchGame = (() => {
     // === NPC Spawn Functions ===
 
     /**
-     * スポーン: 汗っかきくん (Opening専用NPC)
+     * スポーン: Opening専用NPC (季節対応)
      * @param {Function} onComplete - ロード完了時コールバック
      */
     function spawnOpeningNPC(onComplete) {
-        const config = NPC_CONFIG.opening;
+        const posConfig = NPC_CONFIG.opening;
+        const seasonConfig = SEASON_CONFIG[currentSeason].openingNPC;
 
         // 既存の破棄
         if (openingNPC) {
@@ -874,22 +1036,22 @@ const SearchGame = (() => {
         }
 
         loader.load(
-            config.model,
+            seasonConfig.model,
             (fbx) => {
-                console.log('FBX Loaded: Opening NPC (汗っかきくん)');
+                console.log('FBX Loaded: Opening NPC (' + currentSeason + ')');
 
                 // スケール調整
                 const box = new THREE.Box3().setFromObject(fbx);
                 const size = new THREE.Vector3();
                 box.getSize(size);
-                const scaleFactor = config.height / (size.y > 0 ? size.y : 1.0);
+                const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
                 fbx.scale.setScalar(scaleFactor);
 
                 // 位置・回転設定
                 const scaledBox = new THREE.Box3().setFromObject(fbx);
                 const offsetY = -scaledBox.min.y;
-                fbx.position.set(config.position.x, offsetY, config.position.z);
-                fbx.rotation.y = config.rotation;
+                fbx.position.set(posConfig.position.x, offsetY, posConfig.position.z);
+                fbx.rotation.y = posConfig.rotation;
 
                 // Entity設定
                 fbx.userData.entityType = 'npc';
@@ -928,10 +1090,11 @@ const SearchGame = (() => {
     }
 
     /**
-     * スポーン: お座りくん (Gameplay常駐NPC)
+     * スポーン: Gameplay常駐NPC (季節対応)
      */
     function spawnGameplayNPC() {
-        const config = NPC_CONFIG.gameplay;
+        const posConfig = NPC_CONFIG.gameplay;
+        const seasonConfig = SEASON_CONFIG[currentSeason].gameplayNPC;
 
         // 既存の破棄
         if (gameplayNPC) {
@@ -940,22 +1103,22 @@ const SearchGame = (() => {
         }
 
         loader.load(
-            config.model,
+            seasonConfig.model,
             (fbx) => {
-                console.log('FBX Loaded: Gameplay NPC (お座りくん)');
+                console.log('FBX Loaded: Gameplay NPC (' + currentSeason + ')');
 
                 // スケール調整
                 const box = new THREE.Box3().setFromObject(fbx);
                 const size = new THREE.Vector3();
                 box.getSize(size);
-                const scaleFactor = config.height / (size.y > 0 ? size.y : 1.0);
+                const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
                 fbx.scale.setScalar(scaleFactor);
 
                 // 位置・回転設定
                 const scaledBox = new THREE.Box3().setFromObject(fbx);
                 const offsetY = -scaledBox.min.y;
-                fbx.position.set(config.position.x, offsetY, config.position.z);
-                fbx.rotation.y = config.rotation;
+                fbx.position.set(posConfig.position.x, offsetY, posConfig.position.z);
+                fbx.rotation.y = posConfig.rotation;
 
                 // Entity設定
                 fbx.userData.entityType = 'npc';
@@ -981,6 +1144,113 @@ const SearchGame = (() => {
         );
     }
 
+
+    // Safety Array for Ending Objects
+    let endingObjects = [];
+    function addEndingObject(obj) {
+        endingObjects.push(obj);
+        scene.add(obj);
+    }
+
+    /**
+     * スポーン: Ending用アセット (Banzai Potato & Juice)
+     * @param {Function} onComplete - ロード完了時コールバック
+     */
+    function spawnEndingAssets(onComplete) {
+        console.log('--- spawnEndingAssets CALLED ---'); // Entry Log
+
+        let loadedCount = 0;
+        const onAssetLoaded = () => {
+            loadedCount++;
+            if (loadedCount === 2 && onComplete) onComplete();
+        };
+
+        // 1. Banzai Potato
+        const banzaiPath = 'models/potatokun_banzai.fbx';
+        console.log('LOADING ENDING POTATO:', banzaiPath); // Requested Log
+
+        loader.load(banzaiPath, (fbx) => {
+            // スケール調整 (Opening NPCと同じ)
+            const box = new THREE.Box3().setFromObject(fbx);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const scaleFactor = 1.5 / (size.y > 0 ? size.y : 1.0);
+            fbx.scale.setScalar(scaleFactor);
+
+            // アウトライン
+            fbx.userData.entityType = 'npc';
+            applyOutlineRules(fbx);
+            fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; c.userData.entityType = 'npc'; } });
+
+            // ★ Wrap in Ending Root (Fix Scale/Origin)
+            const endingRoot = new THREE.Object3D();
+            endingRoot.name = 'BanzaiRoot';
+
+            // Add FBX to Root
+            endingRoot.add(fbx);
+
+            // Reset FBX local transform just in case
+            fbx.position.set(0, 0, 0);
+            fbx.rotation.set(0, 0, 0);
+            fbx.scale.setScalar(1);
+
+            // Calculate Bounding Box of ROOT (World)
+            // Note: We need to add to scene briefly or update matrix
+            endingRoot.updateMatrixWorld(true);
+            const rootBox = new THREE.Box3().setFromObject(endingRoot);
+            const rootMinY = rootBox.min.y;
+
+            // Ground Snap (Move Root)
+            if (isFinite(rootMinY)) {
+                endingRoot.position.y -= rootMinY;
+            }
+            // Generate Safety Floor
+            endingRoot.position.y = Math.max(endingRoot.position.y, 0);
+
+            // Scale Root (User Request)
+            endingRoot.scale.setScalar(0.01);
+
+            // Global Reference
+            banzaiNPC = endingRoot; // Make banzaiNPC the ROOT
+
+            console.log("Banzai Root Created via spawnEndingAssets");
+            console.trace("Checking Spawn Origin");
+            endingRoot.visible = false; // Start Hidden
+
+            // Add via safety wrapper
+            addEndingObject(endingRoot);
+
+            // Debug BoxHelper (on Root)
+            // scene.add(new THREE.BoxHelper(endingRoot, 0x00ff00)); // Green for Root
+
+            // --------------------------------------
+
+            onAssetLoaded();
+        });
+
+        // 2. Juice
+        loader.load('models/juice.fbx', (fbx) => {
+            // スケール (小さめ)
+            const box = new THREE.Box3().setFromObject(fbx);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            // 0.3m target height
+            const scaleFactor = 0.3 / (size.y > 0 ? size.y : 1.0);
+            fbx.scale.setScalar(scaleFactor);
+
+            // アウトライン
+            fbx.userData.entityType = 'object'; // 'object' uses simple outline
+            applyOutlineRules(fbx);
+            fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; c.userData.entityType = 'object'; } });
+
+            juiceModel = fbx;
+            addEndingObject(fbx); // Use safe wrapper
+            // scene.add(fbx); 
+            fbx.visible = false; // 最初は隠す
+            onAssetLoaded();
+        });
+    }
+
     // State Transition: Opening -> Gameplay
     function transitionToGameplay() {
         console.log("Transitioning to Gameplay...");
@@ -1002,6 +1272,9 @@ const SearchGame = (() => {
             clearInterval(openingInterval);
             openingInterval = null;
         }
+
+        // ★ Clear Season Effects (Snow, Sweat, etc.)
+        clearSeasonEffects();
 
         // ★Reset Camera Variables for FPS
         cameraDistance = 0.0; // Force FPS
@@ -1091,10 +1364,11 @@ const SearchGame = (() => {
             };
         }
 
+
         // --- Acting Setup ---
         npc.position.set(-11, 0, -5);
         npc.visible = true;
-        createSweatEffects(npc);
+        createSeasonEffects(npc);
 
         // --- Camera Work ---
         const baseCamPos = new THREE.Vector3(-11, 1.0, -2.5);
@@ -1105,86 +1379,199 @@ const SearchGame = (() => {
         const overlay = document.getElementById('sg-loading-overlay');
         if (overlay) overlay.style.display = 'none';
 
-        // --- Dialog 1 ---
-        showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'ポテトくん「はぁ... 暑い... のどが渇いた...」', '#FFFFFF');
+        // --- Dialog Sequence (Season-based) ---
+        const lines = OPENING_LINES[currentSeason];
+        lines.forEach(line => {
+            if (line.time === 0) {
+                showTapText(window.innerWidth / 2, window.innerHeight * 0.7, line.text, line.color);
+            } else {
+                openingTimers.push(setTimeout(() => {
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, line.text, line.color);
+                }, line.time));
+            }
+        });
 
         // --- Animation Loop ---
-        let frame = 0;
+        // --- Animation Loop ---
         if (openingInterval) clearInterval(openingInterval);
         openingInterval = setInterval(() => {
             if (currentState !== GameState.OPENING) return; // 安全策
-            frame++;
-            camera.position.x = baseCamPos.x + Math.sin(frame * 0.02) * 0.1;
-            camera.position.y = baseCamPos.y + Math.cos(frame * 0.03) * 0.05;
-            updateSweatEffects();
+            updateSeasonEffects();
         }, 16);
 
-        // --- Dialog Sequence ---
-        openingTimers.push(setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'おや？ ポテトくんが困っているみたいだ', '#87CEFA');
-        }, 4000));
-
-        openingTimers.push(setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'すごく暑そう... 何か冷たいものを...', '#87CEFA');
-        }, 7000));
-
-        openingTimers.push(setTimeout(() => {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'よし！ 公園に落ちているコインを集めて\nジュースを買ってあげよう！', '#FFD700');
-        }, 10000));
-
+        // Finish
         openingTimers.push(setTimeout(() => {
             finishOpening();
         }, 13000));
     }
 
-    function startEndingSequence() {
-        isCinematic = true;
+    // State Transition: Gameplay -> Ending
+    function transitionToEnding() {
+        console.log("Transitioning to Ending...");
+        // 1. Set State
+        currentState = GameState.ENDING;
+        isPlaying = false; // Stop game loop updates (but loop continues for ENDING check)
 
-        // UI
-        showTapText(window.innerWidth / 2, window.innerHeight / 2, '🎉 ジュース買えたよ！やったね！', '#00FF00');
+        if (timerId) clearInterval(timerId); // Stop timer
 
-        // Camera: Vending Machine view
-        if (camera) {
-            camera.position.set(-8, 3, -4);
-            camera.lookAt(-11, 2, -8);
+        // ★ Aggressively Hide Background Viewer
+        const bgCanvas = document.getElementById('canvas-container');
+        if (bgCanvas) bgCanvas.style.display = 'none';
+
+        // 2. Hide ALL UI (Force Hide)
+        const uiIds = ['sg-ui', 'sg-dpad', 'sg-get-btn', 'sg-instructions', 'sg-crosshair', 'sg-timer'];
+        uiIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+        // 3. Remove/Hide Gameplay Assets
+        if (gameplayNPC) {
+            gameplayNPC.visible = false;
         }
 
-        // Dance: Rotate Main Character (using sgGameCoins[0] as proxy if player model hidden? 
-        // Actually player is camera in FPS... user said "Rotate Potatokun". 
-        // In FPS mode, Potatokun is hidden or is the camera.
-        // But for cinematic, we might want to see him. 
-        // Assuming there is a visible potato model or we rotate the vending machine? 
-        // User said: "Rotate Potatokun (window.sgCoin)". 
-        // Wait, window.sgCoin was single decorative coin. Now we have sgGameCoins.
-        // Maybe the user meant "Rotate the vending machine" or "Rotate a coin"?
-        // The user request code said: "if(window.sgCoin) window.sgCoin.rotation.y += 0.5;"
-        // Existing code removed single sgCoin. 
-        // I will attempt to rotate the last collected coin or just skip rotation if model missing.
-        // Actually, let's rotate the Camera around the vending machine for effect?
-        // Or better: Re-enable player model visibility for cutscene?
-        // Let's stick to user request code but adapt: 
-        // "window.sgCoin" likely refers to the single decorative coin they thought existed.
-        // I will assume they want a celebration effect. I'll rotate the vending machine instead?
-        // No, user said "Potatokun".
-        // Use camera rotation around target.
+        // 4. Force Disable Camera Controls (Critical)
+        if (controls) controls.enabled = false;
 
-        const danceInterval = setInterval(() => {
-            // Camera orbit effect
-            const time = Date.now() * 0.002;
-            camera.position.x = -11 + Math.cos(time) * 5;
-            camera.position.z = -8 + Math.sin(time) * 5;
-            camera.lookAt(-11, 2, -8);
-        }, 16);
+        // ★ Temporary: Hide Slide to prevent Camera blocking
+        if (slideModel) {
+            slideModel.visible = false;
+        }
 
+        // 5. Spawn/Show Ending Assets & Setup Camera
+        // Ensure Banzai NPC is the center of attention
+        const setBanzaiTransform = () => {
+            if (banzaiNPC) {
+                banzaiNPC.visible = true;
+                // Position: Front of Vending Machine (-11, 0, -8)
+                // Correct Z should be > -8 (e.g. -7) to be in front (Camera is at -4)
+                banzaiNPC.position.set(-10.5, 0, -7.0);
+                banzaiNPC.rotation.y = -Math.PI / 8; // Slight angle
+                // Scale is handled by Root (0.01)
+
+                console.log("Banzai Final Transform:", banzaiNPC.position);
+            }
+        };
+
+        // 5. Spawn/Show Ending Assets & Setup Camera
+        if (!banzaiNPC) {
+            console.warn("BanzaiNPC is NULL! Attempting emergency spawn...");
+            spawnEndingAssets(() => {
+                if (banzaiNPC) {
+                    addEndingObject(banzaiNPC);
+                    setBanzaiTransform(); // ★ Apply transform AFTER async load
+                }
+            });
+        } else {
+            setBanzaiTransform(); // ★ Apply immediately
+        }
+
+        /* REMOVED OLD LOGIC BLOCK TO AVOID DUPLICATION
+        if (banzaiNPC) { ... } 
+        */
+
+        /* BoxHelper REMOVED (User Request) */
+
+        // Camera Position to match this "Safe Coordinate"
+        // Potato is at (-10.5, 0, -7.0)
+        // Camera should be in front-ish.
+        camera.position.set(-8, 1.2, -4);
+        camera.lookAt(-10.5, 0.6, -7.0); // Look at center of potato (approx height 0.6)
+
+        // Force update matrix to ensure change takes effect immediately
+        camera.updateMatrixWorld();
+
+        // Removed orphaned else block
+
+
+
+        // Juice hidden initially
+        if (juiceModel) {
+            juiceModel.visible = false;
+        }
+
+        // 6. Reset Ending Timer
+        endingTime = 0;
+        console.log("Ending Sequence Started. State:", currentState);
+    }
+
+
+    // Ending Animation Variables
+    let endingTime = 0;
+
+    /**
+     * エンディング演出用アップデート関数
+     * @param {number} dt 
+     */
+    function updateEndingAnimation(dt) {
+        // Ensure we advance time
+        endingTime += dt;
+
+        // Debug periodic log
+        // if (Math.floor(endingTime) > Math.floor(endingTime - dt)) console.log("Ending Time:", endingTime.toFixed(1));
+
+        // Banzai Potato Floating (Subtle)
+        if (banzaiNPC && banzaiNPC.visible) {
+            banzaiNPC.position.y = 0.5 + Math.sin(endingTime * 2) * 0.05; // Gentle float
+        }
+
+        // Timeline Events
+        // 3.0s: Juice Appears + Text 1 ("ジュース、買えたよ！")
+        if (endingTime >= 3.0 && endingTime < 3.1) {
+            if (juiceModel) {
+                juiceModel.visible = true;
+                juiceModel.position.set(-10.6, 1.1, -7.6); // Outlet position
+            }
+            showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
+        }
+
+        // Juice Animation (Rotate)
+        if (juiceModel && juiceModel.visible) {
+            juiceModel.rotation.y += dt; // Spin
+            // Float up slightly
+            if (juiceModel.position.y < 1.5) {
+                juiceModel.position.y += dt * 0.2;
+            }
+        }
+
+        // 6.0s: Text 2 ("やったーーー！！")
+        if (endingTime >= 6.0 && endingTime < 6.1) {
+            showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "やったーーー！！", "#FFA500");
+        }
+
+        // 9.0s: Finish
+        if (endingTime >= 9.0 && endingTime < 9.1) {
+            finishEnding();
+        }
+    }
+
+    function finishEnding() {
+        console.log("Ending Finished.");
+
+        // Fade Out effect (using overlay)
+        const overlay = document.getElementById('sg-loading-overlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            overlay.style.opacity = '0';
+            overlay.style.transition = 'opacity 1s';
+            overlay.innerHTML = 'THANK YOU FOR PLAYING!';
+
+            // Force reflow
+            void overlay.offsetWidth;
+            overlay.style.opacity = '1';
+        }
+
+        // Return to Menu after delay
         setTimeout(() => {
-            clearInterval(danceInterval);
-            stop(); // Game End
+            stop(); // Cleanup
 
-            // Show Game Over (Clear)
-            const collected = window.sgItemData ? window.sgItemData.collected : 10;
-            showGameOver(collected * 100);
-
-        }, 5000);
+            // Go back to Menu
+            if (activeGameContainer && menuContainer) {
+                activeGameContainer.classList.add('hidden');
+                menuContainer.classList.remove('hidden');
+                showGameMenu(); // Refresh menu
+            }
+        }, 2000);
     }
 
 
@@ -1227,6 +1614,9 @@ const SearchGame = (() => {
             }
             renderer = null;
         }
+
+        // Reset Model References
+        slideModel = null;
     }
 
 
@@ -1495,6 +1885,9 @@ const SearchGame = (() => {
             viewBtn.addEventListener('touchstart', toggleView, { passive: false });
             viewBtn.addEventListener('click', toggleView); // PC対応
         }
+
+        // ★ Pre-load Ending Assets here (Hidden by default)
+        spawnEndingAssets();
 
 
         // === Keyboard Controls ===
@@ -1793,9 +2186,10 @@ const SearchGame = (() => {
         scene.add(dirLight);
 
         // Pastel green grass ground
+        const visualConfig = SEASON_VISUALS[currentSeason] || SEASON_VISUALS.summer;
         const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(100, 100),
-            new THREE.MeshLambertMaterial({ color: 0x98FB98 })
+            new THREE.MeshLambertMaterial({ color: visualConfig.groundColor })
         );
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
@@ -2625,6 +3019,7 @@ const SearchGame = (() => {
         slideGroup.add(slope);
         slideGroup.position.set(-8, 0, -8);
         scene.add(slideGroup);
+        slideModel = slideGroup; // Store reference
         slideGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(slideGroup, 20, 0x000000);
 
@@ -3157,7 +3552,7 @@ const SearchGame = (() => {
                 console.log("Juice Purchased! Game Clear!");
 
                 // Start Ending Cinematic
-                startEndingSequence();
+                transitionToEnding();
 
             } else {
                 // === Not Enough Coins ===
@@ -3174,36 +3569,35 @@ const SearchGame = (() => {
             scene.remove(parentGroup); // Remove from scene
             if (parentGroup !== target) scene.remove(target); // Ensure self is removed if not group
 
-            target.visible = false; // Just in case
-
-            // Update Data
+            // Update coins
             if (window.sgItemData) {
                 window.sgItemData.collected++;
-                // Update UI
                 const counter = document.getElementById('sg-coin-counter');
-                if (counter) counter.innerText = window.sgItemData.collected;
+                if (counter) counter.textContent = window.sgItemData.collected;
+
+                // Play sound (Beep)
+                const audio = new AudioContext(); // Simple beep
+                const osc = audio.createOscillator();
+                const gain = audio.createGain();
+                osc.connect(gain);
+                gain.connect(audio.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audio.currentTime); // A5
+                gain.gain.setValueAtTime(0.1, audio.currentTime);
+                osc.start();
+                osc.stop(audio.currentTime + 0.1);
             }
 
-            // Update Score
-            score += 50;
-            const scoreEl = document.getElementById('sg-score');
-            if (scoreEl) scoreEl.textContent = score;
-
-            // Effect
-            showTapText(window.innerWidth / 2, window.innerHeight / 2, '🪙 コイン GET!', '#FFD700');
-
-            // Clear Target
+            // Hide button
             window.sgCurrentTarget = null;
             const getBtn = document.getElementById('sg-get-btn');
             if (getBtn) getBtn.style.display = 'none';
-            const crosshair = document.getElementById('sg-crosshair');
-            if (crosshair) crosshair.classList.remove('target-locked');
         }
     }
 
     // === Pro Game Loop ===
     function gameLoop(now) {
-        if (!isPlaying) return;
+        if (!isPlaying && currentState !== GameState.ENDING) return; // Only stop if not ENDING (ENDING uses loop for animation)
 
         // DeltaTime Calculation
         let dt = (now - lastTime) / 1000;
@@ -3226,19 +3620,15 @@ const SearchGame = (() => {
     function update(dt) {
         if (mixer) mixer.update(dt);
 
-        // ★ OPENING専用処理（PLAYINGでは完全にスキップ）
-        if (currentState === GameState.OPENING && isCinematic) {
-            // Cinematic Shake
-            camera.position.x += (Math.random() - 0.5) * 0.12 * dt;
-            camera.position.y += (Math.random() - 0.5) * 0.12 * dt;
+        // ★ ENDING専用処理
+        if (currentState === GameState.ENDING) {
+            updateEndingAnimation(dt);
+            return;
+        }
 
-            // Sweat Animation
-            if (sweatParticles) {
-                sweatParticles.forEach(p => {
-                    p.mesh.position.y -= (p.speed * 60) * dt;
-                    if (p.mesh.position.y < p.startY - 0.4) p.mesh.position.y = p.startY;
-                });
-            }
+        // ★ OPENING専用処理（PLAYINGでは完全にスキップ）
+        if (currentState === GameState.OPENING) {
+            // Opening effects are handled in startOpeningSequence interval
             return; // Skip gameplay update during opening
         }
 
@@ -3247,6 +3637,7 @@ const SearchGame = (() => {
             // Gameplay Update
             if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
 
+
             // Coin Rotation (3.0 rad/sec)
             if (window.sgGameCoins) {
                 window.sgGameCoins.forEach(coin => {
@@ -3254,9 +3645,44 @@ const SearchGame = (() => {
                 });
             }
 
+            // Gameplay NPC Shiver (Winter Only)
+            updateGameplayShiver(dt);
+
             // Aim Detection (Moved from loop)
             updateAim();
         }
+    }
+
+    // === Gameplay Shiver Effect ===
+    let gameShiverTime = 0;
+    function updateGameplayShiver(dt) {
+        if (currentSeason !== SEASON.WINTER || !gameplayNPC) return;
+
+        gameShiverTime += dt;
+
+        // 1. 高速振動 (High Frequency) - 「ブルブル」の源
+        // 60 rad/s = approx 10Hz (fast vibrate)
+        const rapidShake = Math.sin(gameShiverTime * 60);
+
+        // 2. 強弱の波 (Envelope) - 「緩急」
+        // 異なる周期の波を合成して、不規則なリズムを作る
+        // slowWave: -1.5 ~ 1.5 程度をゆっくり変動
+        const slowWave = Math.sin(gameShiverTime * 1.0) + Math.sin(gameShiverTime * 2.3) * 0.5;
+
+        // Intensity Calc:
+        // Base shiver (small)
+        let intensity = 0.005;
+
+        // Strong shiver when wave is high (thresholding)
+        if (slowWave > 0.2) {
+            intensity += slowWave * 0.05; // Max approx 0.08
+        }
+
+        // Apply Rotation Shake
+        gameplayNPC.rotation.y = rapidShake * intensity;
+
+        // Apply Position Shake (Subtle)
+        gameplayNPC.position.x = NPC_CONFIG.gameplay.position.x + (rapidShake * intensity * 0.05);
     }
 
     function updateAim() {
@@ -3324,6 +3750,14 @@ const SearchGame = (() => {
 
     function render() {
         if (renderer && scene && camera) {
+            // Debug Log for Ending Camera
+            if (currentState === GameState.ENDING) {
+                // Throttle log to once per second approx? No, user asked for it. 
+                // But let's simple throttle to avoid console flood 60fps
+                if (Math.random() < 0.01) {
+                    console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
+                }
+            }
             renderer.render(scene, camera);
         }
     }

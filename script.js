@@ -19,20 +19,28 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 });
 
 // 3D Model Viewer
+let backgroundViewerDestroyed = false; // ★ Global Flag
+
 const init3DViewer = () => {
+    // ★ Blocking Guard
+    if (backgroundViewerDestroyed) {
+        console.warn('init3DViewer blocked: viewer already destroyed');
+        return;
+    }
+
     const container = document.getElementById('canvas-container');
     if (!container) return;
 
     // Scene setup
-    const scene = new THREE.Scene();
+    let scene = new THREE.Scene();
 
     // Camera setup
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    let camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.set(0, 1.5, 4);
     camera.lookAt(0, 1, 0);
 
     // Renderer setup
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    let renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace; // Crucial for vivid colors
@@ -211,9 +219,62 @@ const init3DViewer = () => {
         renderer.setSize(width, height);
     });
 
+    // ★ GLOBAL API TO PAUSE/DESTROY VIEWER (For Mini-game)
+    let animationId = null;
+
+    window.cleanupBackgroundViewer = () => {
+        backgroundViewerDestroyed = true; // ★ Set Flag
+
+        // 1. Stop Loop (Absolute Priority)
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+        }
+
+        // 2. Clear Scene (Geometry, Material, Texture)
+        if (scene) {
+            scene.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => {
+                            if (m.map) m.map.dispose();
+                            m.dispose();
+                        });
+                    } else {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                }
+            });
+            scene.clear();
+        }
+
+        // 3. Dispose Renderer
+        if (renderer) {
+            renderer.dispose();
+            renderer.forceContextLoss();
+            const canvas = renderer.domElement;
+            if (canvas && canvas.parentNode) {
+                canvas.parentNode.removeChild(canvas); // Remove Canvas from DOM
+            }
+            renderer = null;
+        }
+
+        // 4. Hide/Remove Container
+        if (container) {
+            container.style.display = 'none';
+            // container.parentNode.removeChild(container); // Use if container itself should go
+        }
+
+        console.log("Background Viewer COMPLETELY DESTROYED via cleanupBackgroundViewer");
+    };
+
     // Animation Loop
     function animate() {
-        requestAnimationFrame(animate);
+        if (!renderer) return; // Stop if destroyed
+
+        animationId = requestAnimationFrame(animate);
         controls.update();
         const delta = clock.getDelta();
         if (mixer) mixer.update(delta);
@@ -221,7 +282,7 @@ const init3DViewer = () => {
     }
     animate();
 
-    // Trigger explicit resize after a short delay to handle mobile layout shifts
+    // Trigger explicit resize after a short delay
     setTimeout(() => {
         const width = container.clientWidth;
         const height = container.clientHeight;
@@ -231,6 +292,21 @@ const init3DViewer = () => {
             renderer.setSize(width, height);
         }
     }, 500);
+
+    // ★ GLOBAL API TO PAUSE VIEWER (For Mini-game)
+    window.pauseBackgroundViewer = (shouldPause) => {
+        if (shouldPause) {
+            container.style.display = 'none';
+        } else {
+            container.style.display = 'block';
+            // Force resize on resume
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+    };
 };
 
 // i18n Translation Data
@@ -365,6 +441,10 @@ const initI18n = () => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    init3DViewer();
+    // init3DViewer(); // ★ Disabled for Minigame Debugging
+    // initI18n(); // Keep i18n
+    if (window.initI18n) window.initI18n();
+    // Re-enable initI18n if it's local, but the file has it as const initI18n... 
+    // Wait, initI18n is defined in the file scope above?
     initI18n();
 });
