@@ -581,16 +581,6 @@ const PotatoAction = (() => {
 const SearchGame = (() => {
     let container;
     let scene, camera, renderer, controls;
-
-    // === Game State Management ===
-    const GameState = {
-        LOADING: 'loading',
-        OPENING: 'opening',
-        PLAYING: 'playing'
-    };
-    let currentState = GameState.LOADING;
-    let openingNPC = null; // Openning dedicated NPC
-
     let isPlaying = false;
     let score = 0;
     let timeLeft = 30;
@@ -615,34 +605,6 @@ const SearchGame = (() => {
 
     // Player Position (Module Scope)
     let playerPosition = new THREE.Vector3(0, 0.6, 0);
-
-    // Camera Control Variables (Module Scope for access from transitionToGameplay)
-    let cameraDistance = 0; // 0 = FPS, 10 = max TPS
-    let cameraAngle = Math.PI; // Horizontal orbit angle
-    let cameraPitch = 0; // Vertical look angle
-
-    // === NPC Position/Rotation Constants ===
-    const NPC_CONFIG = {
-        // 汗っかきくん (Opening NPC)
-        opening: {
-            model: 'models/potatokun_thirsty.fbx',
-            height: 1.5,
-            position: { x: -11, z: -5 },  // カメラ演出位置
-            rotation: 0,             // 正面向き（カメラ方向）
-        },
-        // お座りくん (Gameplay NPC)
-        gameplay: {
-            model: 'models/potatokun_sitting.fbx',
-            height: 1.0,
-            position: { x: -13, z: -8 }, // 自販機の左側（手が重ならない距離）
-            rotation: 0,                  // 正面向き（汗っかきくんと同じ）
-        },
-        // 自販機の座標（参考）
-        vendingMachine: { x: -11, z: -8 }
-    };
-
-    // NPC References
-    let gameplayNPC = null; // Gameplay中に常駐するNPC
 
     const loader = new FBXLoader();
 
@@ -858,280 +820,120 @@ const SearchGame = (() => {
     let openingTimers = [];
     let openingInterval = null;
 
-    // === NPC Spawn Functions ===
-
-    /**
-     * スポーン: 汗っかきくん (Opening専用NPC)
-     * @param {Function} onComplete - ロード完了時コールバック
-     */
-    function spawnOpeningNPC(onComplete) {
-        const config = NPC_CONFIG.opening;
-
-        // 既存の破棄
-        if (openingNPC) {
-            disposeObject(openingNPC);
-            openingNPC = null;
-        }
-
-        loader.load(
-            config.model,
-            (fbx) => {
-                console.log('FBX Loaded: Opening NPC (汗っかきくん)');
-
-                // スケール調整
-                const box = new THREE.Box3().setFromObject(fbx);
-                const size = new THREE.Vector3();
-                box.getSize(size);
-                const scaleFactor = config.height / (size.y > 0 ? size.y : 1.0);
-                fbx.scale.setScalar(scaleFactor);
-
-                // 位置・回転設定
-                const scaledBox = new THREE.Box3().setFromObject(fbx);
-                const offsetY = -scaledBox.min.y;
-                fbx.position.set(config.position.x, offsetY, config.position.z);
-                fbx.rotation.y = config.rotation;
-
-                // Entity設定
-                fbx.userData.entityType = 'npc';
-                fbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        child.userData.entityType = 'npc';
-                    }
-                });
-
-                // 非表示でシーンに追加
-                fbx.visible = false;
-                scene.add(fbx);
-                openingNPC = fbx;
-
-                // アウトライン適用
-                applyOutlineRules(fbx);
-
-                // アニメーション（あれば）
-                if (fbx.animations && fbx.animations.length > 0) {
-                    mixer = new THREE.AnimationMixer(fbx);
-                    const action = mixer.clipAction(fbx.animations[0]);
-                    action.setLoop(THREE.LoopRepeat);
-                    action.play();
-                }
-
-                if (onComplete) onComplete(fbx);
-            },
-            undefined,
-            (error) => {
-                console.error("Error loading Opening NPC:", error);
-                if (onComplete) onComplete(null);
-            }
-        );
-    }
-
-    /**
-     * スポーン: お座りくん (Gameplay常駐NPC)
-     */
-    function spawnGameplayNPC() {
-        const config = NPC_CONFIG.gameplay;
-
-        // 既存の破棄
-        if (gameplayNPC) {
-            disposeObject(gameplayNPC);
-            gameplayNPC = null;
-        }
-
-        loader.load(
-            config.model,
-            (fbx) => {
-                console.log('FBX Loaded: Gameplay NPC (お座りくん)');
-
-                // スケール調整
-                const box = new THREE.Box3().setFromObject(fbx);
-                const size = new THREE.Vector3();
-                box.getSize(size);
-                const scaleFactor = config.height / (size.y > 0 ? size.y : 1.0);
-                fbx.scale.setScalar(scaleFactor);
-
-                // 位置・回転設定
-                const scaledBox = new THREE.Box3().setFromObject(fbx);
-                const offsetY = -scaledBox.min.y;
-                fbx.position.set(config.position.x, offsetY, config.position.z);
-                fbx.rotation.y = config.rotation;
-
-                // Entity設定
-                fbx.userData.entityType = 'npc';
-                fbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                        child.userData.entityType = 'npc';
-                    }
-                });
-
-                // シーンに追加
-                scene.add(fbx);
-                gameplayNPC = fbx;
-
-                // アウトライン適用
-                applyOutlineRules(fbx);
-            },
-            undefined,
-            (error) => {
-                console.error("Error loading Gameplay NPC:", error);
-            }
-        );
-    }
-
-    // State Transition: Opening -> Gameplay
-    function transitionToGameplay() {
-        console.log("Transitioning to Gameplay...");
-
-        // 1. オープニングNPC削除
-        if (openingNPC) {
-            disposeObject(openingNPC);
-            openingNPC = null;
-        }
-
-        // 2. お座りくん生成
-        spawnGameplayNPC();
-
-        // 3. FPS視点へ & 入力有効化 (Sync Variables!)
-        isCinematic = false;
-
-        // ★ Stop OPENING interval explicitly
-        if (openingInterval) {
-            clearInterval(openingInterval);
-            openingInterval = null;
-        }
-
-        // ★Reset Camera Variables for FPS
-        cameraDistance = 0.0; // Force FPS
-
-        // Synced Position: Starts at Z=2 (safe distance from Vending Machine at Z=-8)
-        playerPosition.set(-11, 0.6, 2);
-
-        // Sync Camera Angle to look at Vending Machine (North/Negative Z)
-        cameraAngle = Math.PI; // PI = Looking -Z (North) in this logic
-        cameraPitch = 0;       // Level
-
-        // Apply immediately so render doesn't flicker
-        camera.position.copy(playerPosition);
-        camera.rotation.set(cameraPitch, cameraAngle, 0, 'YXZ');
-
-        // UI Reset
-        const dpad = document.getElementById('sg-dpad');
-        if (dpad) dpad.style.display = 'grid';
-        showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
-
-        // ★ Enable Player Input (ensure input manager is active)
-        // enablePlayerInput is implicit - inputs are always enabled when isCinematic = false
-        // But we can explicitly log for debugging:
-        console.log("Player Input Enabled. State:", GameState.PLAYING);
-
-        // ★ Set State LAST to ensure all setup is done
-        currentState = GameState.PLAYING;
-    }
-
     // Finish/Skip Opening - Common cleanup function
-    // Finish/Skip Opening
     function finishOpening() {
-        // 現在の状態がOPENINGでなければ無視（重複防止）
-        if (currentState !== GameState.OPENING) return;
+        // 1. Clear all timers
         openingTimers.forEach(id => clearTimeout(id));
         openingTimers = [];
         if (openingInterval) {
             clearInterval(openingInterval);
             openingInterval = null;
         }
+
+        // 2. Reset effects and pose
         clearSweatEffects();
-
-        // UI切り替え
-        const skipBtn = document.getElementById('sg-skip-btn');
-        if (skipBtn) skipBtn.style.display = 'none';
-
-        // 次のフェーズへ
-        if (typeof transitionToGameplay === 'function') {
-            transitionToGameplay();
-        } else {
-            console.log("transitionToGameplay not found, falling back strictly.");
-            if (openingNPC) openingNPC.visible = false;
-            isCinematic = false;
-            currentState = GameState.PLAYING;
-
-            // Fallback UI
-            const dpad = document.getElementById('sg-dpad');
-            if (dpad) dpad.style.display = 'grid';
-            if (typeof playerPosition !== 'undefined') playerPosition.set(-13, 0.6, -5);
-            showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+        if (window.sgPlayer) {
+            window.sgPlayer.rotation.x = 0;
+            window.sgPlayer.visible = true;
         }
 
+        // 3. Camera to gameplay position (natural TPS view from behind)
+        if (window.sgPlayer) {
+            // Player at (-11, 0, -5), camera behind and above
+            camera.position.set(-11, 2.5, 2);
+            camera.lookAt(window.sgPlayer.position);
+        }
+
+        // 4. UI toggle (hide SKIP, show D-pad)
+        const skipBtn = document.getElementById('sg-skip-btn');
+        const dpad = document.getElementById('sg-dpad');
+
+        if (skipBtn) skipBtn.style.display = 'none';
+        if (dpad) dpad.style.display = 'grid';
+
+        // 5. Sync player position (shifted left to avoid slide collision)
+        if (typeof playerPosition !== 'undefined') {
+            playerPosition.set(-13, 0.6, -5);
+        }
+
+        // 6. Start game
+        isCinematic = false;
+        showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
     }
 
     function startOpeningSequence() {
         console.log("Starting Opening Sequence...");
-        currentState = GameState.OPENING; // ★State変更
         isCinematic = true;
-
-        // ★Opening NPC参照
-        const npc = openingNPC;
-        if (!npc) {
-            console.warn("Opening NPC not ready yet, retrying...");
-            setTimeout(startOpeningSequence, 500);
+        const player = window.sgPlayer;
+        if (!player) {
+            console.error("Player model not found for opening!");
             return;
         }
 
         // --- UI Toggle ---
         const skipBtn = document.getElementById('sg-skip-btn');
         const dpad = document.getElementById('sg-dpad');
+
+        // Hide D-pad during cinematic
         if (dpad) dpad.style.display = 'none';
+
+        // Show SKIP button and set handler
         if (skipBtn) {
             skipBtn.style.display = 'block';
             skipBtn.onclick = (e) => {
-                e.preventDefault(); e.stopPropagation();
+                e.preventDefault();
+                e.stopPropagation();
                 finishOpening();
             };
         }
 
         // --- Acting Setup ---
-        npc.position.set(-11, 0, -5);
-        npc.visible = true;
-        createSweatEffects(npc);
+        player.position.set(-11, 0, -5);
+        player.rotation.y = 0;
+        player.rotation.x = 0; // Standing upright (was 0.5 for bowing)
+        player.visible = true;
+        createSweatEffects(player);
 
         // --- Camera Work ---
-        const baseCamPos = new THREE.Vector3(-11, 1.0, -2.5);
+        const baseCamPos = new THREE.Vector3(-11, 1.2, -3);
         camera.position.copy(baseCamPos);
-        camera.lookAt(-11, 0.5, -5);
+        camera.lookAt(-11, 1.0, -5);
 
-        // --- Hide Loading Overlay ---
-        const overlay = document.getElementById('sg-loading-overlay');
-        if (overlay) overlay.style.display = 'none';
+        // --- Hide Loading Overlay (scene is now ready) ---
+        setTimeout(() => {
+            const overlay = document.getElementById('sg-loading-overlay');
+            if (overlay) overlay.style.display = 'none';
+        }, 100);
 
-        // --- Dialog 1 ---
+        // --- Dialog: Scene 1 (0s) ---
         showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'ポテトくん「はぁ... 暑い... のどが渇いた...」', '#FFFFFF');
 
         // --- Animation Loop ---
         let frame = 0;
         if (openingInterval) clearInterval(openingInterval);
         openingInterval = setInterval(() => {
-            if (currentState !== GameState.OPENING) return; // 安全策
             frame++;
-            camera.position.x = baseCamPos.x + Math.sin(frame * 0.02) * 0.1;
+            camera.position.x = baseCamPos.x + Math.sin(frame * 0.02) * 0.05;
             camera.position.y = baseCamPos.y + Math.cos(frame * 0.03) * 0.05;
             updateSweatEffects();
         }, 16);
 
-        // --- Dialog Sequence ---
+        // --- Dialog: Scene 2 (4s) - Notice ---
         openingTimers.push(setTimeout(() => {
             showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'おや？ ポテトくんが困っているみたいだ', '#87CEFA');
         }, 4000));
 
+        // --- Dialog: Scene 3 (7s) - Sympathy ---
         openingTimers.push(setTimeout(() => {
             showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'すごく暑そう... 何か冷たいものを...', '#87CEFA');
         }, 7000));
 
+        // --- Dialog: Scene 4 (10s) - Decision ---
         openingTimers.push(setTimeout(() => {
             showTapText(window.innerWidth / 2, window.innerHeight * 0.7, 'よし！ 公園に落ちているコインを集めて\nジュースを買ってあげよう！', '#FFD700');
         }, 10000));
 
+        // --- End: (13s) ---
         openingTimers.push(setTimeout(() => {
             finishOpening();
         }, 13000));
@@ -1451,16 +1253,14 @@ const SearchGame = (() => {
         // (Ketchup tracking REMOVED - now using Coin system via window.sgCoinData)
 
         // === CAMERA ZOOM (FPS to TPS) ===
-        // cameraDistance, cameraAngle, cameraPitch are now MODULE SCOPE
-        // Re-initialize them here for clarity if wanted:
-        cameraDistance = 0; // 0 = FPS, 10 = max TPS
+        let cameraDistance = 0; // 0 = FPS, 10 = max TPS
         const CAMERA_DISTANCE_MIN = 0;
         const CAMERA_DISTANCE_MAX = 10;
         const ZOOM_SPEED = 0.5;
 
         // === ORBIT CAMERA CONTROL ===
-        cameraAngle = Math.PI; // Horizontal orbit angle (starts behind player)
-        cameraPitch = 0; // Vertical look angle (for FPS mode)
+        let cameraAngle = Math.PI; // Horizontal orbit angle (starts behind player)
+        let cameraPitch = 0; // Vertical look angle (for FPS mode)
 
         // Player position tracking (separate from camera)
         // playerPosition is now Module Scope
@@ -1804,95 +1604,6 @@ const SearchGame = (() => {
         // REMOVED: Beige dirt patches (previously cream-colored boards under objects)
         // Keeping only green grass ground for a cleaner look
 
-        // =========================================
-        // ★ UTILITY HELPERS (Global Outline & Cleanup)
-        // =========================================
-
-        // 1. オブジェクトの完全廃棄（メモリリーク防止 & アウトライン残留防止）
-        window.disposeObject = (obj) => {
-            if (!obj) return;
-            // 再帰的に子要素を破棄
-            obj.traverse((child) => {
-                if (child.isMesh) {
-                    if (child.geometry) child.geometry.dispose();
-                    if (child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(m => m.dispose());
-                        } else {
-                            child.material.dispose();
-                        }
-                    }
-                }
-                // LineSegments（アウトライン）も明示的に破棄
-                if (child.isLineSegments) {
-                    if (child.geometry) child.geometry.dispose();
-                    if (child.material) child.material.dispose();
-                }
-            });
-            // 親から削除
-            if (obj.parent) obj.parent.remove(obj);
-        };
-
-        // 2. アウトライン適用ルール（重複防止 & 除外判定）
-        window.applyOutlineRules = (object) => {
-            if (!object) return;
-            // デフォルトは60（建物など）
-            let defaultThreshold = 60;
-            const color = 0x000000;
-
-            object.traverse((child) => {
-                // プレイヤー（FPS視点カメラ）以外かつメッシュであれば適用
-                if (child.isMesh && child.userData.entityType !== 'player') {
-                    // キャラ専用設定
-                    let thresholdAngle = defaultThreshold;
-                    if (child.userData.entityType === 'npc') {
-                        thresholdAngle = 70; // キャラはシルエット重視（詳細な線を出さない）
-                    }
-
-                    // 既にアウトラインがあるかチェック（二重付与防止）
-                    let hasOutline = false;
-                    child.children.forEach(c => {
-                        if (c.isLineSegments && c.userData.isOutline) hasOutline = true;
-                    });
-
-                    if (!hasOutline) {
-                        // アウトライン生成
-                        if (child.geometry) {
-                            const edges = new THREE.EdgesGeometry(child.geometry, thresholdAngle);
-                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: color }));
-                            line.userData.isOutline = true; // 識別用フラグ
-                            child.add(line);
-                        }
-                    }
-                }
-            });
-        };
-
-        // 3. 既存関数のラッパー（互換性維持）
-        // 個別の addEdgesOutline 呼び出しを applyOutlineRules に誘導するか、
-        // またはこの関数自体を安全な実装にする
-        // 3. 既存関数のラッパー（互換性維持 + NPC70度強制）
-        window.addEdgesOutline = (object, angle = 60, color = 0x000000) => {
-            object.traverse((child) => {
-                if (child.isMesh && child.userData.entityType !== 'player') {
-                    // キャラは70度（スッキリ）、その他は指定角度（デフォルト60度＝カッチリ）
-                    let threshold = (child.userData.entityType === 'npc') ? 70 : angle;
-                    // 重複チェック
-                    let hasOutline = false;
-                    child.children.forEach(c => {
-                        if (c.isLineSegments && c.userData.isOutline) hasOutline = true;
-                    });
-
-                    if (!hasOutline && child.geometry) {
-                        const edges = new THREE.EdgesGeometry(child.geometry, angle); // 引数の角度を使用
-                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: color }));
-                        line.userData.isOutline = true;
-                        child.add(line);
-                    }
-                }
-            });
-        };
-
         // === VOXEL CLOUDS for orientation ===
 
         const cloudMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
@@ -2038,22 +1749,86 @@ const SearchGame = (() => {
         createParkAssets();
 
 
-        // === LOAD Opening NPC (汗っかきくん) ===
-        spawnOpeningNPC((npc) => {
-            if (npc) {
-                // オープニング開始
+        // === LOAD FBX MODEL: Normal Potatokun ===
+        const TARGET_HEIGHT = 1.5; // Target height in meters
+
+        loader.load(
+            'models/potatokun_normal.fbx',
+            (fbx) => {
+                console.log('FBX Model loaded: potatokun_normal.fbx');
+
+                // === AUTO-SIZE NORMALIZATION using Box3 ===
+                // Get bounding box of the model
+                const box = new THREE.Box3().setFromObject(fbx);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+
+                const originalHeight = size.y;
+                console.log('Loaded Model Height:', originalHeight.toFixed(3));
+
+                // Calculate scale factor to achieve target height
+                const scaleFactor = TARGET_HEIGHT / originalHeight;
+                fbx.scale.setScalar(scaleFactor);
+                console.log('Applied Scale:', scaleFactor.toFixed(6));
+
+                // Recalculate bounding box after scaling
+                const scaledBox = new THREE.Box3().setFromObject(fbx);
+
+                // Position model so feet touch ground (Y=0)
+                // Offset by the minimum Y of the scaled bounding box
+                const offsetY = -scaledBox.min.y;
+
+                // Position near the slide with Y offset for ground contact
+                fbx.position.set(-5, offsetY, -8);
+                console.log('Position Y offset:', offsetY.toFixed(3));
+
+                // Rotate to face the center/player
+                fbx.rotation.y = Math.PI / 4; // Face toward center
+
+                // Set up shadows for all meshes
+                fbx.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                // Add to scene
+                fbx.visible = false; // Hide until cinematic starts
+                scene.add(fbx);
+                window.sgPlayer = fbx; // Store globally for cinematics
+
+                // Add edge outlines (EdgesGeometry method)
+                addEdgesOutline(fbx, 15, 0x000000);
+                console.log('Potatokun: Edge outlines applied');
+
+                // Set up animation if available
+                if (fbx.animations && fbx.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(fbx);
+                    const action = mixer.clipAction(fbx.animations[0]);
+                    action.setLoop(THREE.LoopRepeat);
+                    action.play();
+                    console.log('Animation started:', fbx.animations[0].name);
+                }
+
+                // ★ Trigger Opening Sequence
                 setTimeout(() => {
                     if (typeof startOpeningSequence === 'function') {
                         startOpeningSequence();
                     }
-                }, 100);
-            } else {
-                // エラー時もオープニングを開始
-                setTimeout(() => {
-                    if (typeof startOpeningSequence === 'function') startOpeningSequence();
-                }, 100);
+                }, 10);
+            },
+            (progress) => {
+                // Loading progress
+                if (progress.total > 0) {
+                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
+                    console.log(`Loading FBX: ${percent}%`);
+                }
+            },
+            (error) => {
+                console.error('Error loading FBX model:', error);
             }
-        });
+        );
 
         // === LOAD FBX MODEL: Elephant Fountain (Water Drinking Station) ===
         const FOUNTAIN_TARGET_HEIGHT = 0.9; // Target height: 0.9m (potato's chest height)
@@ -3201,6 +2976,62 @@ const SearchGame = (() => {
         }
     }
 
+    function gameLoop(now) {
+        if (!isPlaying) return;
+
+        let delta = (now - lastTime) / 1000;
+        lastTime = now;
+        if (delta > 0.25) delta = 0.25;
+
+        accumulator += delta;
+
+        while (accumulator >= FIXED_STEP) {
+            update(FIXED_STEP);
+            accumulator -= FIXED_STEP;
+        }
+
+        render();
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+        // AnimationMixer更新
+        if (mixer) mixer.update(dt);
+
+        // プレイヤー移動 (dtを渡す)
+        if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
+
+        // コイン回転 (秒単位の回転数に変換: 0.05 rad/frame * 60 = 3.0 rad/sec)
+        if (window.sgGameCoins) {
+            window.sgGameCoins.forEach(coin => {
+                if (coin.visible) coin.rotation.y += 3.0 * dt;
+            });
+        }
+
+        // Cinematic Mode
+        if (isCinematic) {
+            // Sway/Shake using dt
+            camera.position.x += (Math.random() - 0.5) * 0.12 * dt;
+            camera.position.y += (Math.random() - 0.5) * 0.12 * dt;
+
+            // Sweat Animation
+            if (window.sweatParticles) {
+                window.sweatParticles.forEach(p => {
+                    // speed was pixel/frame or similar? Need to check.
+                    // Assuming speed was defined in abstract units, we scale it.
+                    // Previous: p.mesh.position.y -= p.speed;
+                    // Let's assume p.speed needs to be scaled by 60 for per-second.
+                    p.mesh.position.y -= (p.speed * 60) * dt;
+                    if (p.mesh.position.y < p.startY - 0.4) p.mesh.position.y = p.startY;
+                });
+            }
+        }
+
+        // Aim Detection (Raycasting) is visual/input related, can often stay in render or be in update.
+        // Putting it in update (every logic tick) is safer for consistency.
+        updateAim();
+    }
+
     // === Pro Game Loop ===
     function gameLoop(now) {
         if (!isPlaying) return;
@@ -3226,8 +3057,7 @@ const SearchGame = (() => {
     function update(dt) {
         if (mixer) mixer.update(dt);
 
-        // ★ OPENING専用処理（PLAYINGでは完全にスキップ）
-        if (currentState === GameState.OPENING && isCinematic) {
+        if (isCinematic) {
             // Cinematic Shake
             camera.position.x += (Math.random() - 0.5) * 0.12 * dt;
             camera.position.y += (Math.random() - 0.5) * 0.12 * dt;
@@ -3239,24 +3069,21 @@ const SearchGame = (() => {
                     if (p.mesh.position.y < p.startY - 0.4) p.mesh.position.y = p.startY;
                 });
             }
-            return; // Skip gameplay update during opening
+            return;
         }
 
-        // ★ PLAYING専用処理
-        if (currentState === GameState.PLAYING) {
-            // Gameplay Update
-            if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
+        // Gameplay Update
+        if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
 
-            // Coin Rotation (3.0 rad/sec)
-            if (window.sgGameCoins) {
-                window.sgGameCoins.forEach(coin => {
-                    if (coin.visible) coin.rotation.y += 3.0 * dt;
-                });
-            }
-
-            // Aim Detection (Moved from loop)
-            updateAim();
+        // Coin Rotation (3.0 rad/sec)
+        if (window.sgGameCoins) {
+            window.sgGameCoins.forEach(coin => {
+                if (coin.visible) coin.rotation.y += 3.0 * dt;
+            });
         }
+
+        // Aim Detection (Moved from loop)
+        updateAim();
     }
 
     function updateAim() {
