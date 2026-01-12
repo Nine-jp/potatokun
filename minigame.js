@@ -837,9 +837,9 @@ const SearchGame = (() => {
             meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
         }
 
-        if (window.cleanupBackgroundViewer) {
-            window.cleanupBackgroundViewer();
-        } else if (window.pauseBackgroundViewer) {
+        // Use pause instead of cleanup to allow restoration
+        // if (window.cleanupBackgroundViewer) { window.cleanupBackgroundViewer(); } 
+        if (window.pauseBackgroundViewer) {
             window.pauseBackgroundViewer(true);
         }
 
