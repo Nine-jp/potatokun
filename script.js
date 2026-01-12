@@ -23,6 +23,10 @@ let backgroundViewerDestroyed = false; // ★ Global Flag
 
 const init3DViewer = () => {
     // ★ Blocking Guard
+    if (window.backgroundViewer?.isInitialized) {
+        console.log('init3DViewer blocked: already initialized');
+        return;
+    }
     if (backgroundViewerDestroyed) {
         console.warn('init3DViewer blocked: viewer already destroyed');
         return;
@@ -116,6 +120,7 @@ const init3DViewer = () => {
     let rightForeArmBone = null;
     let leftArmBone = null;
     let currentObject = null;
+    let animationId = null; // ★ Restore animationId
 
     // Model Configuration
     const models = [
@@ -221,12 +226,18 @@ const init3DViewer = () => {
 
     // ★ GLOBAL API (Encapsulated)
     window.backgroundViewer = {
+        isInitialized: true, // Guard Flag
         /**
          * Pause viewer (Hide container).
          * Used during mini-game to save resources without destroying context.
          */
         pause: () => {
             if (container) container.style.display = 'none';
+            // Stop Loop logic
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
         },
 
         /**
@@ -243,7 +254,24 @@ const init3DViewer = () => {
                     camera.aspect = width / height;
                     camera.updateProjectionMatrix();
                     renderer.setSize(width, height);
+
+                    // Re-center Camera & Controls
+                    if (currentObject) {
+                        camera.lookAt(currentObject.position);
+                        if (controls) {
+                            controls.target.copy(currentObject.position);
+                            controls.update();
+                        }
+                    }
+
+                    // Force initial render frame
+                    renderer.render(scene, camera);
                 }
+            }
+
+            // Restart Loop if not running and not destroyed
+            if (!animationId && renderer && !backgroundViewerDestroyed) {
+                animate();
             }
         },
 
@@ -254,6 +282,7 @@ const init3DViewer = () => {
          */
         cleanup: () => {
             backgroundViewerDestroyed = true;
+            this.isInitialized = false; // Reset Guard
             if (animationId) {
                 cancelAnimationFrame(animationId);
                 animationId = null;
@@ -285,8 +314,23 @@ const init3DViewer = () => {
     };
 
     // Deprecated global aliases (Removed to prevent misuse)
-    // window.cleanupBackgroundViewer = window.backgroundViewer.cleanup;
     // window.pauseBackgroundViewer = ...
+
+    // Animation Loop (Restored)
+    const animate = () => {
+        if (!renderer) return; // Stop if destroyed
+        animationId = requestAnimationFrame(animate);
+
+        controls.update();
+
+        const delta = clock.getDelta();
+        if (mixer) mixer.update(delta);
+
+        renderer.render(scene, camera);
+    };
+
+    // Start Loop
+    animate();
 };
 
 // i18n Translation Data
