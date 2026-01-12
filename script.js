@@ -216,7 +216,7 @@ const init3DViewer = () => {
         const height = container.clientHeight;
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
+        if (renderer) renderer.setSize(width, height);
     });
 
     // ★ GLOBAL API TO PAUSE/DESTROY VIEWER (For Mini-game)
@@ -300,11 +300,13 @@ const init3DViewer = () => {
         } else {
             container.style.display = 'block';
             // Force resize on resume
-            const width = container.clientWidth;
-            const height = container.clientHeight;
-            camera.aspect = width / height;
-            camera.updateProjectionMatrix();
-            renderer.setSize(width, height);
+            if (renderer) {
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            }
         }
     };
 };
@@ -441,10 +443,16 @@ const initI18n = () => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // init3DViewer(); // ★ Disabled for Minigame Debugging
-    // initI18n(); // Keep i18n
-    if (window.initI18n) window.initI18n();
-    // Re-enable initI18n if it's local, but the file has it as const initI18n... 
-    // Wait, initI18n is defined in the file scope above?
+    // Top Page 3D Viewer Initialization
+    // Only initialize if we are on the Top Page (hero section exists)
+    // and NOT deep-linking into minigame (though minigame handles its own cleanup)
+    const heroSection = document.querySelector('.hero');
+    const canvasContainer = document.getElementById('canvas-container');
+
+    if (heroSection && canvasContainer) {
+        // console.log("Top Page detected: Initializing 3D Viewer");
+        init3DViewer();
+    }
+
     initI18n();
 });

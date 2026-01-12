@@ -1220,9 +1220,6 @@ const SearchGame = (() => {
             // Add via safety wrapper
             addEndingObject(endingRoot);
 
-            // Debug BoxHelper (on Root)
-            // scene.add(new THREE.BoxHelper(endingRoot, 0x00ff00)); // Green for Root
-
             // --------------------------------------
 
             onAssetLoaded();
@@ -1485,6 +1482,8 @@ const SearchGame = (() => {
 
 
 
+
+
         // Juice hidden initially
         if (juiceModel) {
             juiceModel.visible = false;
@@ -1548,7 +1547,7 @@ const SearchGame = (() => {
     function finishEnding() {
         console.log("Ending Finished.");
 
-        // Fade Out effect (using overlay)
+        // Message display (Success/Thank You)
         const overlay = document.getElementById('sg-loading-overlay');
         if (overlay) {
             overlay.style.display = 'flex';
@@ -1561,17 +1560,29 @@ const SearchGame = (() => {
             overlay.style.opacity = '1';
         }
 
-        // Return to Menu after delay
+        // Return to Mini Game Select after delay (Auto Transition)
         setTimeout(() => {
-            stop(); // Cleanup
+            console.log("Transitioning to Menu...");
+            stop(); // Cleanup Three.js & Events
 
-            // Go back to Menu
-            if (activeGameContainer && menuContainer) {
-                activeGameContainer.classList.add('hidden');
-                menuContainer.classList.remove('hidden');
-                showGameMenu(); // Refresh menu
+            // Hide Ending Overlay directly
+            if (overlay) overlay.style.display = 'none';
+
+            // Attempt transition
+            if (typeof showGameMenu === 'function') {
+                showGameMenu();
+            } else {
+                console.warn("showGameMenu not found via scope, forcing UI reset.");
+                // Manual Fallback
+                const menu = document.getElementById('game-menu');
+                const active = document.getElementById('active-game-container');
+                const overlayPortal = document.getElementById('minigame-container');
+
+                if (active) active.classList.add('hidden');
+                if (menu) menu.classList.remove('hidden');
+                if (overlayPortal) overlayPortal.classList.remove('hidden');
             }
-        }, 2000);
+        }, 3000); // Wait 3.0s (User Request)
     }
 
 
