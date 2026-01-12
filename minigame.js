@@ -837,11 +837,8 @@ const SearchGame = (() => {
             meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
         }
 
-        // Use pause instead of cleanup to allow restoration
-        // if (window.cleanupBackgroundViewer) { window.cleanupBackgroundViewer(); } 
-        if (window.pauseBackgroundViewer) {
-            window.pauseBackgroundViewer(true);
-        }
+        // Pause Top Page Viewer (Encapsulated)
+        window.backgroundViewer?.pause();
 
         setTimeout(async () => {
             initThreeJS();
@@ -1616,7 +1613,8 @@ const SearchGame = (() => {
         if (animationId) cancelAnimationFrame(animationId);
         // Button handlers are removed when HTML is cleared
 
-        if (window.pauseBackgroundViewer) window.pauseBackgroundViewer(false);
+        // Resume Top Page Viewer
+        window.backgroundViewer?.resume();
 
         if (renderer) {
             renderer.dispose();

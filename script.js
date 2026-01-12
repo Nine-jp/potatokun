@@ -219,96 +219,74 @@ const init3DViewer = () => {
         if (renderer) renderer.setSize(width, height);
     });
 
-    // ★ GLOBAL API TO PAUSE/DESTROY VIEWER (For Mini-game)
-    let animationId = null;
+    // ★ GLOBAL API (Encapsulated)
+    window.backgroundViewer = {
+        /**
+         * Pause viewer (Hide container).
+         * Used during mini-game to save resources without destroying context.
+         */
+        pause: () => {
+            if (container) container.style.display = 'none';
+        },
 
-    window.cleanupBackgroundViewer = () => {
-        backgroundViewerDestroyed = true; // ★ Set Flag
-
-        // 1. Stop Loop (Absolute Priority)
-        if (animationId) {
-            cancelAnimationFrame(animationId);
-            animationId = null;
-        }
-
-        // 2. Clear Scene (Geometry, Material, Texture)
-        if (scene) {
-            scene.traverse((child) => {
-                if (child.geometry) child.geometry.dispose();
-                if (child.material) {
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(m => {
-                            if (m.map) m.map.dispose();
-                            m.dispose();
-                        });
-                    } else {
-                        if (child.material.map) child.material.map.dispose();
-                        child.material.dispose();
-                    }
+        /**
+         * Resume viewer (Show container & Resize).
+         * Used when returning from mini-game.
+         */
+        resume: () => {
+            if (container) {
+                container.style.display = 'block';
+                // Force resize
+                if (renderer) {
+                    const width = container.clientWidth;
+                    const height = container.clientHeight;
+                    camera.aspect = width / height;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(width, height);
                 }
-            });
-            scene.clear();
-        }
-
-        // 3. Dispose Renderer
-        if (renderer) {
-            renderer.dispose();
-            renderer.forceContextLoss();
-            const canvas = renderer.domElement;
-            if (canvas && canvas.parentNode) {
-                canvas.parentNode.removeChild(canvas); // Remove Canvas from DOM
             }
-            renderer = null;
-        }
+        },
 
-        // 4. Hide/Remove Container
-        if (container) {
-            container.style.display = 'none';
-            // container.parentNode.removeChild(container); // Use if container itself should go
-        }
-
-        console.log("Background Viewer COMPLETELY DESTROYED via cleanupBackgroundViewer");
-    };
-
-    // Animation Loop
-    function animate() {
-        if (!renderer) return; // Stop if destroyed
-
-        animationId = requestAnimationFrame(animate);
-        controls.update();
-        const delta = clock.getDelta();
-        if (mixer) mixer.update(delta);
-        renderer.render(scene, camera);
-    }
-    animate();
-
-    // Trigger explicit resize after a short delay
-    setTimeout(() => {
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        if (width > 0 && height > 0) {
-            camera.aspect = width / height;
-            camera.updateProjectionMatrix();
-            renderer.setSize(width, height);
-        }
-    }, 500);
-
-    // ★ GLOBAL API TO PAUSE VIEWER (For Mini-game)
-    window.pauseBackgroundViewer = (shouldPause) => {
-        if (shouldPause) {
-            container.style.display = 'none';
-        } else {
-            container.style.display = 'block';
-            // Force resize on resume
+        /**
+         * Completely destroy viewer.
+         * [WARNING] Do not use during game transitions. Use only on page unload.
+         * Re-initialization from this state is expensive/complex.
+         */
+        cleanup: () => {
+            backgroundViewerDestroyed = true;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            if (scene) {
+                scene.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(m => m.dispose());
+                        } else {
+                            m.dispose && m.dispose(); // Safe check
+                            if (child.material.map) child.material.map.dispose();
+                        }
+                    }
+                });
+                scene.clear();
+            }
             if (renderer) {
-                const width = container.clientWidth;
-                const height = container.clientHeight;
-                camera.aspect = width / height;
-                camera.updateProjectionMatrix();
-                renderer.setSize(width, height);
+                renderer.dispose();
+                renderer.forceContextLoss();
+                const canvas = renderer.domElement;
+                if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
+                renderer = null;
             }
+            if (container) container.style.display = 'none';
+            console.log("Background Viewer DESTROYED via backgroundViewer.cleanup()");
         }
     };
+
+    // Deprecated global aliases (Removed to prevent misuse)
+    // window.cleanupBackgroundViewer = window.backgroundViewer.cleanup;
+    // window.pauseBackgroundViewer = ...
 };
 
 // i18n Translation Data
