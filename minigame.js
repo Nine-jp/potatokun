@@ -2858,7 +2858,7 @@ const SearchGame = (() => {
                     window.sgTreeCollisions.push({
                         x: pos.x,
                         z: pos.z,
-                        radius: 0.25
+                        radius: 0.1 // Reduced from 0.25 as per user request
                     });
 
                     // Add to scene
