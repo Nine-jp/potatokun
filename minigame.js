@@ -1456,9 +1456,12 @@ const SearchGame = (() => {
                     fired: false,
                     action: () => {
                         console.log("Ending Step 1: Init Camera & Assets");
-                        // Camera Setup
-                        camera.position.set(-8, 1.2, -4);
-                        camera.lookAt(-10.5, 0.6, -7.0);
+                        const vm = NPC_CONFIG.vendingMachine;
+
+                        // Camera Setup: Front of Vending Machine
+                        camera.position.set(vm.x, 1.5, vm.z + 2.5);
+                        // Face -Z (Look at machine)
+                        camera.lookAt(vm.x, 1.5, vm.z);
                         camera.updateMatrixWorld();
 
                         // Assets Init (Hidden at start)
