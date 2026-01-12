@@ -879,6 +879,14 @@ const SearchGame = (() => {
                 newBtn.addEventListener('touchstart', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+
+                    // ★ ADMIN MODE CHECK (Touch Support)
+                    if (typeof adminMode !== 'undefined' && adminMode) {
+                        console.log("Admin Mode: Instant Clear Triggered (Touch)");
+                        transitionToEnding();
+                        return;
+                    }
+
                     handleInteraction();
                 });
             }
@@ -1474,6 +1482,15 @@ const SearchGame = (() => {
         time: 0,
         steps: [],
 
+        // ★ Camera Base Definition (Single Source of Truth)
+        // [FIXED] Default Frontal View
+        // Pos: (vm.x, 1.3, vm.z + 3.5)
+        // LookAt: (vm.x, 1.3, vm.z)
+        baseCamera: {
+            pos: new THREE.Vector3(NPC_CONFIG.vendingMachine.x, 1.3, NPC_CONFIG.vendingMachine.z + 3.5),
+            lookAt: new THREE.Vector3(NPC_CONFIG.vendingMachine.x, 1.3, NPC_CONFIG.vendingMachine.z)
+        },
+
         start: function () {
             this.time = 0;
 
@@ -1484,12 +1501,12 @@ const SearchGame = (() => {
                     fired: false,
                     action: () => {
                         console.log("Ending Step 1: Init Camera & Assets");
-                        const vm = NPC_CONFIG.vendingMachine;
 
-                        // Camera Setup: Front of Vending Machine
-                        camera.position.set(vm.x, 1.5, vm.z + 2.5);
-                        // Face -Z (Look at machine)
-                        camera.lookAt(vm.x, 1.5, vm.z);
+                        // Camera Setup: Use BASE CONSTANT
+                        // Front of Vending Machine (Default Position)
+                        const base = this.baseCamera;
+                        camera.position.copy(base.pos);
+                        camera.lookAt(base.lookAt);
                         camera.updateMatrixWorld();
 
                         // Assets Init (Hidden at start)
