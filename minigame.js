@@ -1190,10 +1190,38 @@ const SearchGame = (() => {
             const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
             fbx.scale.setScalar(scaleFactor);
 
-            // アウトライン
+            // アウトライン & Material Cloning (Isolation)
             fbx.userData.entityType = 'npc';
             applyOutlineRules(fbx);
-            fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; c.userData.entityType = 'npc'; } });
+            fbx.traverse(c => {
+                if (c.isMesh) {
+                    c.castShadow = true;
+                    c.receiveShadow = true;
+                    c.userData.entityType = 'npc';
+
+                    // Clone material to prevent shared state issues (e.g. accidental transparency)
+                    if (Array.isArray(c.material)) {
+                        c.material = c.material.map(m => {
+                            const cloned = m.clone();
+                            // ★ FORCE OPAQUE: Fix for persistent transparency
+                            cloned.transparent = false;
+                            cloned.opacity = 1.0;
+                            return cloned;
+                        });
+                    } else if (c.material) {
+                        const cloned = c.material.clone();
+                        // ★ FORCE OPAQUE: Fix for persistent transparency
+                        cloned.transparent = false;
+                        cloned.opacity = 1.0;
+                        c.material = cloned;
+                    }
+
+                    // Targeting the Can specifically (Blender name: Untitled)
+                    if (c.name === 'Untitled') {
+                        console.log('Fixed Transparency for Can (Untitled)');
+                    }
+                }
+            });
 
             // ★ Wrap in Ending Root (Fix Scale/Origin)
             const endingRoot = new THREE.Object3D();
@@ -2521,15 +2549,25 @@ const SearchGame = (() => {
 
                         // Water transparency check
                         if (child.name.toLowerCase().includes('water')) {
-                            const materials = Array.isArray(child.material) ? child.material : [child.material];
-                            materials.forEach(mat => {
-                                mat.transparent = true;
-                                mat.opacity = 0.6;
-                                mat.depthWrite = false;
-                            });
+                            // Clone material to avoid affecting other models sharing the same material
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(m => {
+                                    const cloned = m.clone();
+                                    cloned.transparent = true;
+                                    cloned.opacity = 0.6;
+                                    cloned.depthWrite = false;
+                                    return cloned;
+                                });
+                            } else {
+                                const cloned = child.material.clone();
+                                cloned.transparent = true;
+                                cloned.opacity = 0.6;
+                                cloned.depthWrite = false;
+                                child.material = cloned;
+                            }
                             // Skip outline for water
                             child.userData.skipOutline = true;
-                            console.log('Water transparency applied to:', child.name);
+                            console.log('Water transparency applied to (Cloned Material):', child.name);
                         }
                     }
                 });
@@ -2604,14 +2642,24 @@ const SearchGame = (() => {
 
                         // Water/Glass: Transparency
                         if (childName.includes('water') || childName.includes('glass')) {
-                            const mats = Array.isArray(child.material) ? child.material : [child.material];
-                            mats.forEach(m => {
-                                m.transparent = true;
-                                m.opacity = 0.5;
-                                m.depthWrite = false;
-                            });
+                            // Clone material to avoid affecting other models sharing the same material
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(m => {
+                                    const cloned = m.clone();
+                                    cloned.transparent = true;
+                                    cloned.opacity = 0.5;
+                                    cloned.depthWrite = false;
+                                    return cloned;
+                                });
+                            } else {
+                                const cloned = child.material.clone();
+                                cloned.transparent = true;
+                                cloned.opacity = 0.5;
+                                cloned.depthWrite = false;
+                                child.material = cloned;
+                            }
                             child.userData.skipOutline = true;
-                            console.log('Vending: Transparency applied to:', child.name);
+                            console.log('Vending: Transparency applied to (Cloned Material):', child.name);
                         }
 
                         // Light: Emission
