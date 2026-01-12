@@ -819,6 +819,11 @@ const SearchGame = (() => {
     function init(gameContainer) { }
 
     function start() {
+        // ★ ADMIN MODE: Instant Clear
+        // Set to true to trigger ending immediately on BUY button press.
+        // Set to false for normal gameplay.
+        const adminMode = true;
+
         isPlaying = true;
         score = 0;
         timeLeft = 60; // 60 seconds
@@ -860,6 +865,15 @@ const SearchGame = (() => {
                 newBtn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+
+                    // ★ ADMIN MODE CHECK
+                    if (typeof adminMode !== 'undefined' && adminMode) {
+                        console.log("Admin Mode: Instant Clear Triggered");
+                        // Ensure transition happens safely
+                        transitionToEnding();
+                        return;
+                    }
+
                     handleInteraction();
                 });
                 newBtn.addEventListener('touchstart', (e) => {
@@ -1163,15 +1177,17 @@ const SearchGame = (() => {
         };
 
         // 1. Banzai Potato
-        const banzaiPath = 'models/potatokun_banzai.fbx';
-        console.log('LOADING ENDING POTATO:', banzaiPath); // Requested Log
+        // 1. Ending Potato (Juice Ver)
+        const banzaiPath = 'models/potatokun_juice.fbx';
+        console.log('LOADING ENDING POTATO (Juice):', banzaiPath); // Requested Log
 
         loader.load(banzaiPath, (fbx) => {
-            // スケール調整 (Opening NPCと同じ)
+            // スケール調整 (Opening NPCと同一ロジック)
+            const seasonConfig = SEASON_CONFIG[currentSeason].openingNPC;
             const box = new THREE.Box3().setFromObject(fbx);
             const size = new THREE.Vector3();
             box.getSize(size);
-            const scaleFactor = 1.5 / (size.y > 0 ? size.y : 1.0);
+            const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
             fbx.scale.setScalar(scaleFactor);
 
             // アウトライン
@@ -1189,7 +1205,6 @@ const SearchGame = (() => {
             // Reset FBX local transform just in case
             fbx.position.set(0, 0, 0);
             fbx.rotation.set(0, 0, 0);
-            fbx.scale.setScalar(1);
 
             // Calculate Bounding Box of ROOT (World)
             // Note: We need to add to scene briefly or update matrix
@@ -1204,8 +1219,8 @@ const SearchGame = (() => {
             // Generate Safety Floor
             endingRoot.position.y = Math.max(endingRoot.position.y, 0);
 
-            // Scale Root (User Request)
-            endingRoot.scale.setScalar(0.01);
+            // Scale Root (No Modification)
+            // endingRoot.scale.setScalar(1.0);
 
             // Global Reference
             banzaiNPC = endingRoot; // Make banzaiNPC the ROOT
@@ -1402,143 +1417,148 @@ const SearchGame = (() => {
     // State Transition: Gameplay -> Ending
     function transitionToEnding() {
         console.log("Transitioning to Ending...");
-        // 1. Set State
         currentState = GameState.ENDING;
-        isPlaying = false; // Stop game loop updates (but loop continues for ENDING check)
+        isPlaying = false;
+        if (timerId) clearInterval(timerId);
 
-        if (timerId) clearInterval(timerId); // Stop timer
-
-        // ★ Aggressively Hide Background Viewer
+        // UI & Asset Cleanup
         const bgCanvas = document.getElementById('canvas-container');
         if (bgCanvas) bgCanvas.style.display = 'none';
-
-        // 2. Hide ALL UI (Force Hide)
-        const uiIds = ['sg-ui', 'sg-dpad', 'sg-get-btn', 'sg-instructions', 'sg-crosshair', 'sg-timer'];
-        uiIds.forEach(id => {
+        ['sg-ui', 'sg-dpad', 'sg-get-btn', 'sg-instructions', 'sg-crosshair', 'sg-timer'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = 'none';
         });
 
-        // 3. Remove/Hide Gameplay Assets
-        if (gameplayNPC) {
-            gameplayNPC.visible = false;
-        }
-
-        // 4. Force Disable Camera Controls (Critical)
+        if (gameplayNPC) gameplayNPC.visible = false;
         if (controls) controls.enabled = false;
+        if (slideModel) slideModel.visible = false;
 
-        // ★ Temporary: Hide Slide to prevent Camera blocking
-        if (slideModel) {
-            slideModel.visible = false;
-        }
-
-        // 5. Spawn/Show Ending Assets & Setup Camera
-        // Ensure Banzai NPC is the center of attention
-        const setBanzaiTransform = () => {
-            if (banzaiNPC) {
-                banzaiNPC.visible = true;
-                // Position: Front of Vending Machine (-11, 0, -8)
-                // Correct Z should be > -8 (e.g. -7) to be in front (Camera is at -4)
-                banzaiNPC.position.set(-10.5, 0, -7.0);
-                banzaiNPC.rotation.y = -Math.PI / 8; // Slight angle
-                // Scale is handled by Root (0.01)
-
-                console.log("Banzai Final Transform:", banzaiNPC.position);
-            }
-        };
-
-        // 5. Spawn/Show Ending Assets & Setup Camera
-        if (!banzaiNPC) {
-            console.warn("BanzaiNPC is NULL! Attempting emergency spawn...");
-            spawnEndingAssets(() => {
-                if (banzaiNPC) {
-                    addEndingObject(banzaiNPC);
-                    setBanzaiTransform(); // ★ Apply transform AFTER async load
-                }
-            });
-        } else {
-            setBanzaiTransform(); // ★ Apply immediately
-        }
-
-        /* REMOVED OLD LOGIC BLOCK TO AVOID DUPLICATION
-        if (banzaiNPC) { ... } 
-        */
-
-        /* BoxHelper REMOVED (User Request) */
-
-        // Camera Position to match this "Safe Coordinate"
-        // Potato is at (-10.5, 0, -7.0)
-        // Camera should be in front-ish.
-        camera.position.set(-8, 1.2, -4);
-        camera.lookAt(-10.5, 0.6, -7.0); // Look at center of potato (approx height 0.6)
-
-        // Force update matrix to ensure change takes effect immediately
-        camera.updateMatrixWorld();
-
-        // Removed orphaned else block
-
-
-
-
-
-        // Juice hidden initially
-        if (juiceModel) {
-            juiceModel.visible = false;
-        }
-
-        // 6. Reset Ending Timer
-        endingTime = 0;
-        console.log("Ending Sequence Started. State:", currentState);
+        // Start Controller
+        EndingController.start();
     }
 
 
-    // Ending Animation Variables
-    let endingTime = 0;
+    /**
+     * エンディングコントローラー
+     * 演出を一本のタイムラインで管理
+     */
+    const EndingController = {
+        time: 0,
+        steps: [],
+
+        start: function () {
+            this.time = 0;
+
+            // Define Steps
+            this.steps = [
+                {
+                    time: 0.0,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 1: Init Camera & Assets");
+                        // Camera Setup
+                        camera.position.set(-8, 1.2, -4);
+                        camera.lookAt(-10.5, 0.6, -7.0);
+                        camera.updateMatrixWorld();
+
+                        // Assets Init (Hidden at start)
+                        if (banzaiNPC) {
+                            banzaiNPC.visible = false; // Hidden until Step 3
+                            banzaiNPC.position.set(-10.5, 0, -7.0);
+                            banzaiNPC.rotation.y = -Math.PI / 8;
+                        } else {
+                            // Emergency Spawn check
+                            spawnEndingAssets(() => {
+                                if (banzaiNPC) {
+                                    addEndingObject(banzaiNPC);
+                                    banzaiNPC.visible = false;
+                                    banzaiNPC.position.set(-10.5, 0, -7.0);
+                                    banzaiNPC.rotation.y = -Math.PI / 8;
+                                }
+                            });
+                        }
+                        if (juiceModel) {
+                            juiceModel.visible = false; // Hidden until Step 2
+                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+                            const vm = NPC_CONFIG.vendingMachine;
+                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
+                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+
+                            // Rotation: Sideways (Z-axis rotation)
+                            juiceModel.rotation.set(0, 0, Math.PI / 2);
+                        }
+                    }
+                },
+                {
+                    time: 1.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 2: Juice Slide");
+                        if (juiceModel) juiceModel.visible = true;
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
+                    }
+                },
+                {
+                    time: 3.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 3: Potato Appears");
+                        if (banzaiNPC) banzaiNPC.visible = true;
+                        if (juiceModel) juiceModel.visible = false; // Hide Juice (Picked up by Potato)
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ありがとう💕", "#FFA500");
+                    }
+                },
+                {
+                    time: 6.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 4: Finish");
+                        finishEnding();
+                    }
+                }
+            ];
+
+            // Execute time 0 immediately
+            this.update(0);
+        },
+
+        update: function (dt) {
+            this.time += dt;
+
+            // Execute Steps
+            this.steps.forEach(step => {
+                if (!step.fired && this.time >= step.time) {
+                    step.action();
+                    step.fired = true;
+                }
+            });
+
+            // --- Continuous Animations ---
+
+            // Juice Slide (1.5s ~ 3.0s)
+            if (this.time >= 1.5 && this.time < 3.0) {
+                if (juiceModel && juiceModel.visible) {
+                    // Slide forward/up slightly
+                    juiceModel.position.z += dt * 0.1;
+                }
+            }
+
+            // Potato Bob (3.5s ~)
+            if (this.time >= 3.5) {
+                if (banzaiNPC && banzaiNPC.visible) {
+                    // Gentle vertical bob
+                    banzaiNPC.position.y = Math.sin((this.time - 3.5) * 4) * 0.05;
+                }
+            }
+        }
+    };
 
     /**
      * エンディング演出用アップデート関数
      * @param {number} dt 
      */
     function updateEndingAnimation(dt) {
-        // Ensure we advance time
-        endingTime += dt;
-
-        // Debug periodic log
-        // if (Math.floor(endingTime) > Math.floor(endingTime - dt)) console.log("Ending Time:", endingTime.toFixed(1));
-
-        // Banzai Potato Floating (Subtle)
-        if (banzaiNPC && banzaiNPC.visible) {
-            banzaiNPC.position.y = 0.5 + Math.sin(endingTime * 2) * 0.05; // Gentle float
-        }
-
-        // Timeline Events
-        // 3.0s: Juice Appears + Text 1 ("ジュース、買えたよ！")
-        if (endingTime >= 3.0 && endingTime < 3.1) {
-            if (juiceModel) {
-                juiceModel.visible = true;
-                juiceModel.position.set(-10.6, 1.1, -7.6); // Outlet position
-            }
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
-        }
-
-        // Juice Animation (Rotate)
-        if (juiceModel && juiceModel.visible) {
-            juiceModel.rotation.y += dt; // Spin
-            // Float up slightly
-            if (juiceModel.position.y < 1.5) {
-                juiceModel.position.y += dt * 0.2;
-            }
-        }
-
-        // 6.0s: Text 2 ("やったーーー！！")
-        if (endingTime >= 6.0 && endingTime < 6.1) {
-            showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "やったーーー！！", "#FFA500");
-        }
-
-        // 9.0s: Finish
-        if (endingTime >= 9.0 && endingTime < 9.1) {
-            finishEnding();
-        }
+        EndingController.update(dt);
     }
 
     function finishEnding() {
