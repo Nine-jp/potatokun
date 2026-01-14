@@ -4011,6 +4011,10 @@ const SearchGame = (() => {
             // ★デバッグ表示 (実測サイズに合わせる)
             const debugGroup = new THREE.Group();
             debugGroup.name = 'DokanDebugWalls';
+
+            // ★【修正】調整完了につき非表示にする (判定は残る)
+            debugGroup.visible = false;
+
             window.sgExtraObstacles.forEach(obs => {
                 const w = obs.maxX - obs.minX;
                 const h = pipeHeight; // ★高さも実測値に合わせる (約2mになるはず)
@@ -4027,7 +4031,7 @@ const SearchGame = (() => {
                 debugGroup.add(boxMesh);
             });
             scene.add(debugGroup);
-            console.log('Dokan debug walls added with dynamic size');
+            console.log('Dokan debug walls hidden (Physics active)');
 
         }, undefined, (error) => {
             console.error("Error loading ceramic_pipe.fbx:", error);
