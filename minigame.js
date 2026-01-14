@@ -36,7 +36,8 @@ const GameLibrary = {
         iconScale: 0.7,
         isBeta: true,
         init: (container) => SearchGame.init(container),
-        start: () => SearchGame.start(),
+        // TEST MODE: Skip Opening for quick testing
+        start: () => SearchGame.start({ skipOpening: true }),
         stop: () => SearchGame.stop()
     }
 };
@@ -59,7 +60,23 @@ function initGameSystem() {
 
     if (!fabBtn) return;
 
-    fabBtn.addEventListener('click', showGameMenu);
+    // TEST MODE: Direct Launch for Playground Dev
+    fabBtn.addEventListener('click', () => {
+        // Prepare UI state directly (Bypass Menu)
+        scrollPos = window.pageYOffset;
+        overlay.classList.remove('hidden');
+        menuContainer.classList.add('hidden'); // Skip Menu
+        introContainer.classList.add('hidden');
+        activeGameContainer.classList.remove('hidden');
+        gameOverContainer.classList.add('hidden');
+
+        document.body.classList.add('modal-open');
+        document.body.style.top = `-${scrollPos}px`;
+
+        // Launch Potecoin Game
+        currentActiveGameId = '3d-search';
+        GameLibrary[currentActiveGameId].start();
+    });
 
     // Close Button (Portal Level)
     const closeBtn = document.getElementById('portal-close-btn');
@@ -818,7 +835,7 @@ const SearchGame = (() => {
 
     function init(gameContainer) { }
 
-    function start() {
+    function start(options = {}) {
         // ★ ADMIN MODE: Instant Clear
         // Set to true to trigger ending immediately on BUY button press.
         // Set to false for normal gameplay.
@@ -891,8 +908,71 @@ const SearchGame = (() => {
                 });
             }
 
-            // Start Opening Cinematic
-            startOpeningSequence();
+            // ★ SKIP OPENING CHECK (For Development)
+            if (arguments[0] && arguments[0].options && arguments[0].options.skipOpening) {
+                // Note: arguments check due to setTimeout wrapper scope issues if not careful, 
+                // but here 'options' is from start(options).
+                // Wait, start(options) -> inside setTimeout, 'options' variable is available via closure.
+            }
+
+            // Let's use the 'options' argument from start(options) directly.
+            if (options && options.skipOpening) {
+                console.log("Skipping Opening Sequence (Test Mode)");
+
+                // Hide Loading Overlay
+                const overlay = document.getElementById('sg-loading-overlay');
+                if (overlay) overlay.style.display = 'none';
+
+                // Set State
+                isCinematic = false;
+                currentState = GameState.PLAYING;
+
+                // Position Player (Start Point)
+                if (typeof playerPosition !== 'undefined') {
+                    playerPosition.set(-13, 0.6, -5);
+                }
+
+                // Show UI
+                const dpad = document.getElementById('sg-dpad');
+                if (dpad) dpad.style.display = 'grid';
+
+                const skipBtn = document.getElementById('sg-skip-btn');
+                if (skipBtn) skipBtn.style.display = 'none';
+
+                // Initial Text
+                showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+
+                return; // Skip startOpeningSequence
+            }
+
+            // ★★★ PLAYGROUND DEV: Opening Disabled ★★★
+            // Original: startOpeningSequence();
+            // Now: Directly set game to PLAYING state
+            console.log("[PLAYGROUND DEV] Opening Sequence DISABLED - Direct Start");
+
+            // Hide Loading Overlay
+            const loadingOverlay = document.getElementById('sg-loading-overlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+
+            // Set State to PLAYING
+            isCinematic = false;
+            currentState = GameState.PLAYING;
+
+            // Position Player at Start Point (Safe zone, far from all colliders)
+            if (typeof playerPosition !== 'undefined') {
+                playerPosition.set(10, 0.6, 10); // Safe spawn: away from pipe(0,0) and obstacles
+            }
+
+            // Show D-Pad Controls
+            const dpad = document.getElementById('sg-dpad');
+            if (dpad) dpad.style.display = 'grid';
+
+            // Hide Skip Button (not needed)
+            const skipBtn = document.getElementById('sg-skip-btn');
+            if (skipBtn) skipBtn.style.display = 'none';
+
+            // Show START message
+            showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
         }, 100);
     }
 
@@ -1966,6 +2046,11 @@ const SearchGame = (() => {
         // ★ Pre-load Ending Assets here (Hidden by default)
         spawnEndingAssets();
 
+        // ★ PlayGround Test Assets
+        if (typeof spawnTestAssets === 'function') {
+            spawnTestAssets();
+        }
+
 
         // === Keyboard Controls ===
         const onKeyDown = (e) => {
@@ -2057,16 +2142,11 @@ const SearchGame = (() => {
             const newZ = playerPosition.z + direction.z;
 
             // === AABB Collision Detection for Structures ===
-            const COLLISION_MARGIN = 0.5; // Player radius
+            const COLLISION_MARGIN = 0.25; // Player radius (reduced for better mobility)
             // Collision obstacles (slide and old tree REMOVED - now using FBX trees with sgTreeCollisions)
-            const obstacles = [
-                // { name: 'slide', minX: -11, maxX: -5, minZ: -11, maxZ: -3 }, // REMOVED - can climb
-                { name: 'gym', minX: 2, maxX: 8, minZ: -8, maxZ: -2 },
-                { name: 'bench', minX: 8, maxX: 14, minZ: 6.5, maxZ: 9.5 },
-                // { name: 'tree', minX: -15, maxX: -9, minZ: 2, maxZ: 8 }, // REMOVED - now FBX trees
-                { name: 'sandbox', minX: -4, maxX: 4, minZ: 9, maxZ: 15 },
-                { name: 'fountain', minX: -4, maxX: 4, minZ: -15, maxZ: -9 }
-            ];
+            // ★【修正】古いボクセルアセット（ベンチ、ジム、砂場など）の衝突判定を全削除
+            // これにより、FBXモデル以外の「見えない壁」がなくなります。
+            const obstacles = [];
 
             let blockedX = false;
             let blockedZ = false;
@@ -2135,6 +2215,21 @@ const SearchGame = (() => {
                 }
             }
 
+
+
+            // === 土管用など追加の障害物判定 (sgExtraObstacles) ===
+            if (window.sgExtraObstacles) {
+                for (const obs of window.sgExtraObstacles) {
+                    const withinX = newX > obs.minX - COLLISION_MARGIN && newX < obs.maxX + COLLISION_MARGIN;
+                    const withinZ = newZ > obs.minZ - COLLISION_MARGIN && newZ < obs.maxZ + COLLISION_MARGIN;
+                    const currentWithinX = playerPosition.x > obs.minX - COLLISION_MARGIN && playerPosition.x < obs.maxX + COLLISION_MARGIN;
+                    const currentWithinZ = playerPosition.z > obs.minZ - COLLISION_MARGIN && playerPosition.z < obs.maxZ + COLLISION_MARGIN;
+
+                    if (withinX && currentWithinZ) blockedX = true;
+                    if (currentWithinX && withinZ) blockedZ = true;
+                }
+            }
+
             // Apply movement to playerPosition (not camera)
             if (!blockedX) {
                 playerPosition.x += direction.x;
@@ -2155,14 +2250,16 @@ const SearchGame = (() => {
             groundRaycaster.set(rayOrigin, rayDirection);
 
 
-            // Collect walkable meshes (EXCLUDE trees, ketchup, invisible objects, and HitBoxes)
+            // Collect walkable meshes (EXCLUDE trees, ketchup, invisible objects, HitBoxes)
             const walkableMeshes = [];
             scene.traverse((child) => {
                 if (child.isMesh && child.geometry) {
-                    // Exclude trees, ketchup items, invisible objects, and vending machine HitBox
+                    // Exclude trees, ketchup items, invisible objects, vending machine HitBox
+                    // ★【追加】ignoreGroundフラグがあるオブジェクト（土管）も除外
                     if (!child.userData.isTree &&
                         !child.userData.isKetchup &&
                         !child.userData.isVendingMachine &&
+                        !child.userData.ignoreGround &&  // 土管などを除外
                         child.visible !== false) {
                         walkableMeshes.push(child);
                     }
@@ -2176,6 +2273,14 @@ const SearchGame = (() => {
             for (const hit of groundHits) {
                 // Only consider surfaces we can stand on
                 if (hit.point.y >= 0 && hit.point.y < 10) {
+
+                    // ★【追加】段差制限 (Max Step Height)
+                    // 現在の足元より 1.0m 以上高い場所は「壁」や「天井」とみなして無視する。
+                    // これにより、土管の天井(Y=2.0)の下にいる時に、上に吸い寄せられるのを防ぐ。
+                    if (hit.point.y > playerPosition.y + 1.0) {
+                        continue;
+                    }
+
                     if (hit.point.y > targetHeight) {
                         targetHeight = hit.point.y;
                     }
@@ -2480,51 +2585,36 @@ const SearchGame = (() => {
         createFenceSection(-FENCE_BOUNDARY, -FENCE_BOUNDARY, -FENCE_BOUNDARY, FENCE_BOUNDARY, false); // West
         createFenceSection(FENCE_BOUNDARY, -FENCE_BOUNDARY, FENCE_BOUNDARY, FENCE_BOUNDARY, false);  // East
 
-        // === EXTERIOR DECORATIONS (Outside fence - trees removed, using FBX instead) ===
-        // Note: Old box-based trees removed - now using Tree_test.fbx for all trees
-        const bushMaterial = new THREE.MeshLambertMaterial({ color: 0x2E8B57 }); // SeaGreen
-
-
-        // Create exterior bushes
-        for (let i = 0; i < 20; i++) {
-            const angle = (i / 20) * Math.PI * 2;
-            const radius = 35 + Math.random() * 10;
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
-
-            const bush = new THREE.Mesh(
-                new THREE.BoxGeometry(
-                    1.5 + Math.random(),
-                    0.8 + Math.random() * 0.5,
-                    1.5 + Math.random()
-                ),
-                bushMaterial
-            );
-            bush.position.set(x, 0.4, z);
-            bush.castShadow = true;
-            scene.add(bush);
-        }
+        // === EXTERIOR DECORATIONS (Outside fence) ===
+        // ★【削除】草・低木を削除してフィールドを更地にする
+        // (Exterior bushes removed for cleaner test field)
 
         // Add park assets
         createParkAssets();
 
 
-        // === LOAD Opening NPC (汗っかきくん) ===
+        // ★★★ PLAYGROUND DEV: Opening Callback DISABLED ★★★
+        // Original spawnOpeningNPC callback would trigger startOpeningSequence here.
+        // Commenting out entirely to prevent any deferred opening start.
+        /*
         spawnOpeningNPC((npc) => {
             if (npc) {
-                // オープニング開始
                 setTimeout(() => {
-                    if (typeof startOpeningSequence === 'function') {
+                    if (currentState !== GameState.PLAYING && typeof startOpeningSequence === 'function') {
                         startOpeningSequence();
                     }
                 }, 100);
             } else {
-                // エラー時もオープニングを開始
                 setTimeout(() => {
-                    if (typeof startOpeningSequence === 'function') startOpeningSequence();
+                    if (currentState !== GameState.PLAYING && typeof startOpeningSequence === 'function') {
+                        startOpeningSequence();
+                    }
                 }, 100);
             }
         });
+        */
+        // Instead, just load the NPC without callback (for potential later use)
+        spawnOpeningNPC(() => { /* No-op callback */ });
 
         // === LOAD FBX MODEL: Elephant Fountain (Water Drinking Station) ===
         const FOUNTAIN_TARGET_HEIGHT = 0.9; // Target height: 0.9m (potato's chest height)
@@ -2837,6 +2927,8 @@ const SearchGame = (() => {
             }
         );
 
+        // === 土管 (Dokan) の読み込み ===
+        spawnDokan();
         // === LOAD FBX MODEL: Tree_test (Forest of trees around park edges) ===
 
         const TREE_TARGET_HEIGHT = 5.0; // Base target height for trees: 5 meters
@@ -3028,61 +3120,8 @@ const SearchGame = (() => {
 
 
 
-        // === GRASS MAZE GENERATION (3 color variations, 1.0-1.5m height) ===
-
-        const grassColors = [
-            new THREE.MeshLambertMaterial({ color: 0x228B22 }), // Forest green
-            new THREE.MeshLambertMaterial({ color: 0x006400 }), // Dark green
-            new THREE.MeshLambertMaterial({ color: 0x6B8E23 })  // Olive drab (dried grass)
-        ];
-
-        // Grid-based grass placement with paths
-        const GRID_SIZE = 3; // Grid cell size
-        const GRASS_HEIGHT_MIN = 1.0;
-        const GRASS_HEIGHT_MAX = 1.5;
-
-
-        for (let x = -25; x <= 25; x += GRID_SIZE) {
-            for (let z = -25; z <= 25; z += GRID_SIZE) {
-                // Skip areas around structures and paths
-                const distFromCenter = Math.sqrt(x * x + z * z);
-                const onMainPath = (Math.abs(x) < 4 && z > 0) || (Math.abs(z) < 4 && x > 0); // Cross path
-                const nearSlide = (x < -4 && x > -12 && z < -4 && z > -12);
-                const nearGym = (x > 1 && x < 9 && z < -1 && z > -9);
-                const nearBench = (x > 6 && x < 14 && z > 4 && z < 12);
-                const nearTree = (x < -8 && x > -16 && z > 1 && z < 9);
-                const nearSandbox = (Math.abs(x) < 5 && z > 8 && z < 16);
-                const nearFountain = (Math.abs(x) < 5 && z < -8 && z > -16);
-                const nearSpawn = (Math.abs(x) < 5 && z > 20); // Player spawn area
-                const nearVendingArea = (x > -14 && x < -8 && z > -10 && z < -2); // Vending & Cinematic area
-
-                // Random chance to skip (creates natural paths)
-                const randomSkip = Math.random() < 0.3;
-
-                if (nearSlide || nearGym || nearBench || nearTree || nearSandbox || nearFountain || nearSpawn || nearVendingArea || onMainPath || randomSkip) {
-                    continue;
-                }
-
-                // Create grass clump (multiple boxes for organic look)
-                const clumpCount = Math.floor(Math.random() * 3) + 2;
-                for (let i = 0; i < clumpCount; i++) {
-                    const grassHeight = GRASS_HEIGHT_MIN + Math.random() * (GRASS_HEIGHT_MAX - GRASS_HEIGHT_MIN);
-                    const grassMat = grassColors[Math.floor(Math.random() * grassColors.length)];
-                    const grass = new THREE.Mesh(
-                        new THREE.BoxGeometry(0.4, grassHeight, 0.4),
-                        grassMat
-                    );
-                    grass.position.set(
-                        x + (Math.random() - 0.5) * 2,
-                        grassHeight / 2,
-                        z + (Math.random() - 0.5) * 2
-                    );
-                    grass.rotation.y = Math.random() * Math.PI;
-                    scene.add(grass);
-                }
-
-            }
-        }
+        // === GRASS MAZE GENERATION REMOVED ===
+        // (Field cleared for better visibility)
 
         // (Ketchup items REMOVED - now using Coins via FBX loader)
     }
@@ -3091,7 +3130,12 @@ const SearchGame = (() => {
 
     function createParkAssets() {
         // ===== VOXEL STYLE PARK - All BoxGeometry, Pastel Colors =====
+        // ★【修正】古いボクセルアセットの生成を全停止（全削除）
+        // これにより、画面からベンチやジムなどが消えます。
 
+        console.log("Old voxel park assets skipped (Clean state for FBX)");
+
+        /*
         // === 滑り台 (Slide) at (-8, 0, -8) - Pastel Pink ===
         const slideGroup = new THREE.Group();
         const slideMaterial = new THREE.MeshLambertMaterial({ color: 0xFFB6C1 }); // Light pink
@@ -3250,6 +3294,7 @@ const SearchGame = (() => {
             scene.add(bushGroup);
             bushGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         });
+        */
     }
 
 
@@ -3861,6 +3906,135 @@ const SearchGame = (() => {
 
 
 
+    // ==========================================
+    // 土管 (Dokan) の特別配置
+    // 中は通り抜け可能、上にも乗れる
+    // ==========================================
+    function spawnDokan() {
+        console.log("--- spawnDokan CALLED ---");
+
+        loader.load('models/ceramic_pipe.fbx', (fbx) => {
+            console.log("Dokan Loaded: ceramic_pipe.fbx");
+
+            // スケールと回転を設定
+            fbx.scale.setScalar(2.0);  // 2倍サイズ
+            // 【修正】土管の向きを90度回転させ、Z軸（通路の向き）に合わせる
+            fbx.rotation.set(0, Math.PI / 2, 0);
+
+            // バウンディングボックスを計算して底面をY=0に設置
+            fbx.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(fbx);
+            const bottomY = box.min.y; // モデルの最下部Y
+            const groundY = 0 - bottomY; // 底面をY=0に合わせるオフセット
+
+            fbx.position.set(14, groundY, 12);
+
+            // デバッグログ
+            console.log('Dokan bounding box min:', box.min.toArray());
+            console.log('Dokan bounding box max:', box.max.toArray());
+            console.log('Dokan ground offset:', groundY);
+            console.log('Dokan final position:', fbx.position.toArray());
+
+            // ★【修正】土管モデル自体は「地面判定」から除外する
+            // これにより、中に入っても天井にワープせず、地面を歩けるようになる
+            fbx.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    // 地面判定（Raycaster）で無視させるフラグ
+                    child.userData.ignoreGround = true;
+                }
+            });
+
+            scene.add(fbx);
+
+            // アウトライン追加
+            if (typeof window.addEdgesOutline === 'function') {
+                window.addEdgesOutline(fbx, 20, 0x000000);
+            }
+
+            // ★【追加】上に乗るための「透明な天井板」を作成
+            // 土管のサイズ(Scale 2.0)に合わせて調整
+            const roofGeo = new THREE.BoxGeometry(1.6, 0.2, 3.2);
+            const roofMat = new THREE.MeshBasicMaterial({
+                color: 0x00FF00,
+                wireframe: true,
+                visible: false    // ★【修正】不可視に変更 (判定のみ有効)
+            });
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+
+            // 土管の天辺付近に配置
+            roof.position.set(14, 2.0, 12);
+            scene.add(roof);
+            console.log('Dokan roof platform added at:', roof.position.toArray());
+
+            console.log('Dokan added to scene at:', fbx.position.toArray());
+
+            // ★【修正】実測サイズに基づく衝突判定の生成
+            // バウンディングボックスから正確なサイズを取得
+            fbx.updateMatrixWorld(true);
+            const pipeBox = new THREE.Box3().setFromObject(fbx);
+
+            const pipeWidthX = pipeBox.max.x - pipeBox.min.x; // 幅
+            const pipeHeight = pipeBox.max.y - pipeBox.min.y; // 高さ (Y)
+            const pipeLength = pipeBox.max.z - pipeBox.min.z; // 長さ (Z)
+
+            console.log(`Dokan Collision: H=${pipeHeight.toFixed(2)}, L=${pipeLength.toFixed(2)}`);
+
+            // 土管の中心座標
+            const dokanX = 14;
+            const dokanZ = 12;
+
+            // ★パラメータ設定
+            const innerGap = 0.5;  // 中心から内壁まで0.5m (通路幅1.0m)
+            const wallThick = 0.1; // ★壁の厚さを0.1mに変更 (激薄設定)
+
+            // 衝突判定のリセット
+            window.sgExtraObstacles = [];
+
+            // 左の壁 (Z方向の長さは実測値 pipeLength を使用)
+            window.sgExtraObstacles.push({
+                minX: dokanX - innerGap - wallThick,
+                maxX: dokanX - innerGap,
+                minZ: dokanZ - pipeLength / 2,
+                maxZ: dokanZ + pipeLength / 2
+            });
+
+            // 右の壁
+            window.sgExtraObstacles.push({
+                minX: dokanX + innerGap,
+                maxX: dokanX + innerGap + wallThick,
+                minZ: dokanZ - pipeLength / 2,
+                maxZ: dokanZ + pipeLength / 2
+            });
+
+            // ★デバッグ表示 (実測サイズに合わせる)
+            const debugGroup = new THREE.Group();
+            debugGroup.name = 'DokanDebugWalls';
+            window.sgExtraObstacles.forEach(obs => {
+                const w = obs.maxX - obs.minX;
+                const h = pipeHeight; // ★高さも実測値に合わせる (約2mになるはず)
+                const d = obs.maxZ - obs.minZ; // ここが自動的に3.0mになります
+                const x = (obs.minX + obs.maxX) / 2;
+                const z = (obs.minZ + obs.maxZ) / 2;
+
+                const boxMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(w, h, d),
+                    new THREE.MeshBasicMaterial({ color: 0xFF0000, wireframe: true })
+                );
+                // 高さは地面(0)から積み上げるので y = h/2
+                boxMesh.position.set(x, h / 2, z);
+                debugGroup.add(boxMesh);
+            });
+            scene.add(debugGroup);
+            console.log('Dokan debug walls added with dynamic size');
+
+        }, undefined, (error) => {
+            console.error("Error loading ceramic_pipe.fbx:", error);
+        });
+    }
+
+    // spawnDokan() は initThreeJS() 内から呼び出す（scene初期化後）
 
     return { setup, init, start, stop };
 })();
