@@ -2470,7 +2470,8 @@ const SearchGame = (() => {
         };
 
         // === VOXEL CLOUDS for orientation ===
-
+        // REMOVED at user request
+        /*
         const cloudMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
         const cloudPositions = [
             { x: -20, y: 15, z: -15 },
@@ -2513,6 +2514,7 @@ const SearchGame = (() => {
             cloudGroup.rotation.y = Math.random() * Math.PI;
             scene.add(cloudGroup);
         });
+        */
 
 
         // === PERIMETER FENCE (Voxel Style) ===
@@ -2929,6 +2931,8 @@ const SearchGame = (() => {
 
         // === 土管 (Dokan) の読み込み ===
         spawnDokan();
+        // === 雲 (Clouds) の生成 ===
+        spawnClouds();
         // === LOAD FBX MODEL: Tree_test (Forest of trees around park edges) ===
 
         const TREE_TARGET_HEIGHT = 5.0; // Base target height for trees: 5 meters
@@ -3905,6 +3909,66 @@ const SearchGame = (() => {
     }
 
 
+
+    // ==========================================
+    // 雲 (Cloud) の配置
+    // models/cloud.fbx を読み込んでランダム配置
+    // ==========================================
+    function spawnClouds() {
+        console.log("--- spawnClouds CALLED ---");
+
+        const loader = new FBXLoader();
+        loader.load('models/cloud.fbx', (masterCloud) => {
+            console.log("Cloud Loaded: cloud.fbx");
+
+            // マテリアル調整 (必要に応じて)
+            masterCloud.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;       // 地面に影を落とす
+                    child.receiveShadow = false;   // 雲自体は影を受けない(明るく)
+
+                    // 白く発光させて「明るい雲」にする場合 (暗くなるのを防ぐ)
+                    if (child.material) {
+                        // 遠景のフォグ(緑色)の影響を受けないようにする
+                        child.material.fog = false;
+
+                        // 既存のマテリアル設定を維持しつつ、少し明るくする
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(0x333333);
+                        }
+                    }
+                }
+            });
+
+            // ランダム配置する数
+            const cloudCount = 15;
+
+            for (let i = 0; i < cloudCount; i++) {
+                const cloud = masterCloud.clone();
+
+                // ランダム座標 (公園全体を覆う広さ)
+                const x = (Math.random() - 0.5) * 100; // -50 ~ 50
+                const z = (Math.random() - 0.5) * 100; // -50 ~ 50
+                const y = 15 + Math.random() * 10;     // 高さ 15 ~ 25m
+
+                cloud.position.set(x, y, z);
+
+                // ランダム回転
+                cloud.rotation.y = Math.random() * Math.PI * 2;
+
+                // ランダムスケール (大小をつける)
+                const scale = 0.8 + Math.random() * 0.7; // 0.8 ~ 1.5倍
+                cloud.scale.setScalar(scale);
+
+                scene.add(cloud);
+            }
+
+            console.log(`${cloudCount} clouds placed in the sky.`);
+
+        }, undefined, (error) => {
+            console.error("Error loading cloud.fbx:", error);
+        });
+    }
 
     // ==========================================
     // 土管 (Dokan) の特別配置
