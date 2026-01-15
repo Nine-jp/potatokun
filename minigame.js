@@ -1938,6 +1938,64 @@ const SearchGame = (() => {
         scene.background = new THREE.Color(0xBFEFFF); // Soft pastel sky blue
         scene.fog = new THREE.Fog(0x90EE90, 5, 25); // Green-tinted fog for grass maze
 
+        // ★ ライトをグローバル変数に保持
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(20, 50, 20); // Default Summer position
+        dirLight.castShadow = true;
+        // Shadow map settings
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 100;
+        dirLight.shadow.camera.left = -40;
+        dirLight.shadow.camera.right = 40;
+        dirLight.shadow.camera.top = 40;
+        dirLight.shadow.camera.bottom = -40;
+        scene.add(dirLight);
+        window.sgSunLight = dirLight; // 参照保持
+
+        // Ambient Light (soft filler)
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.9); // Soft white light (Brighter shadows)
+        scene.add(ambientLight);
+
+        // ★ 環境設定（空・光・フォグ）
+        const ENV_CONFIG = {
+            summer: {
+                background: 0xBFEFFF, // パステルブルー
+                fog: 0x90EE90,        // 薄緑
+                lightPos: { x: 20, y: 50, z: 20 } // 夏は太陽が高い
+            },
+            winter: {
+                background: 0xE6E6FA, // ラベンダー（魔法の冬）
+                fog: 0xE6E6FA,        // ★重要: フォグもラベンダーにして遠くを馴染ませる
+                lightPos: { x: 20, y: 15, z: 20 } // ★冬は太陽が低い（影が伸びる）
+            }
+        };
+
+        window.setEnvironmentSeason = (seasonName) => {
+            console.log(`Setting Environment to: ${seasonName}`);
+            const config = ENV_CONFIG[seasonName] || ENV_CONFIG.summer;
+
+            // 1. 空の色
+            scene.background = new THREE.Color(config.background);
+
+            // 2. フォグの色 (遠景の色)
+            if (scene.fog) {
+                scene.fog.color.setHex(config.fog);
+            }
+
+            // 3. 太陽の位置（影の長さ）
+            if (window.sgSunLight) {
+                window.sgSunLight.position.set(
+                    config.lightPos.x,
+                    config.lightPos.y,
+                    config.lightPos.z
+                );
+                // 影カメラの更新
+                window.sgSunLight.updateMatrixWorld();
+            }
+        };
+
         camera = new THREE.PerspectiveCamera(75, width / height, 0.05, 1000); // Wider FOV, closer near plane
         camera.position.set(0, 0.6, 25); // POTATO HEIGHT (60cm) at park entrance
         camera.rotation.order = 'YXZ'; // Important for FPS camera
@@ -2369,26 +2427,7 @@ const SearchGame = (() => {
 
 
 
-        // Brighter ambient light for cheerful atmosphere
-        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        dirLight.position.set(20, 40, 20);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
 
-        // Expand shadow camera to cover entire park (-30 to 30)
-        dirLight.shadow.camera.left = -30;
-        dirLight.shadow.camera.right = 30;
-        dirLight.shadow.camera.top = 30;
-        dirLight.shadow.camera.bottom = -30;
-        dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 100;
-        dirLight.shadow.bias = -0.0005; // Prevent shadow acne
-
-        scene.add(dirLight);
-
-        // Pastel green grass ground
         const visualConfig = SEASON_VISUALS[currentSeason] || SEASON_VISUALS.summer;
         const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(100, 100),
@@ -2961,188 +3000,233 @@ const SearchGame = (() => {
         const TREE_TARGET_HEIGHT = 5.0; // Base target height for trees: 5 meters
         const NUM_TREES = 22; // Increased to replace old box-based trees
 
-        loader.load(
-            'models/Tree_test.fbx',
-            (masterTree) => {
-                console.log('FBX Model loaded: Tree_test.fbx (master for cloning)');
+        // ==========================================
+        // 木 (Tree) の配置と季節カラー管理
+        // models/tree.fbx
+        // ==========================================
+        function spawnTrees() {
+            console.log("--- spawnTrees CALLED (Mesh-Specific Color) ---");
 
-                // === AUTO-SIZE NORMALIZATION using Box3 (apply to master) ===
-                const treeBox = new THREE.Box3().setFromObject(masterTree);
-                const treeSize = new THREE.Vector3();
-                treeBox.getSize(treeSize);
+            // ★ 葉っぱ専用カラーパレット
+            const TREE_PALETTES = {
+                summer: [
+                    0x66BB6A, // 鮮やかな緑
+                    0x43A047, // 少し濃い緑
+                    0x81C784, // 淡い緑
+                    0x9CCC65  // 黄緑
+                ],
+                // ★【決定】冬の配色：魔法の冬（ファンタジー）
+                winter: [
+                    0xE6E6FA, // ラベンダー (薄紫)
+                    0xF8F8FF, // ゴーストホワイト (青み白)
+                    0xD8BFD8  // アザミ色 (パステルパープル)
+                ]
+            };
 
-                const treeOriginalHeight = treeSize.y;
-                console.log('Tree Original Height:', treeOriginalHeight.toFixed(3));
+            window.sgTreeObjects = [];
 
-                // Calculate base scale factor to achieve target height
-                const baseScaleFactor = TREE_TARGET_HEIGHT / treeOriginalHeight;
-                masterTree.scale.setScalar(baseScaleFactor);
-                console.log('Tree Base Scale:', baseScaleFactor.toFixed(6));
+            // ★ 季節切り替え関数 (葉っぱだけを変える)
+            window.setTreeSeason = (seasonName) => {
+                console.log(`Setting Tree Season to: ${seasonName}`);
 
-                // Set up shadows and fix material brightness on master
+                const palette = TREE_PALETTES[seasonName] || TREE_PALETTES.summer;
+                const isMultiColor = palette.length > 1;
+
+                window.sgTreeObjects.forEach((tree, index) => {
+                    // 木ごとにランダムな色を決定
+                    const colorHex = isMultiColor
+                        ? palette[index % palette.length]
+                        : palette[0];
+                    const leafColorObj = new THREE.Color(colorHex);
+                    const trunkColorObj = new THREE.Color(0xFFFFFF); // 幹は常に白(テクスチャ色)
+
+                    tree.traverse(child => {
+                        if (child.isMesh && child.material) {
+                            // ★重要: メッシュ名で判定 (小文字変換してチェック)
+                            // Blender由来の名前: "Leaves", "Trunk" などを想定
+                            const name = child.name.toLowerCase();
+
+                            // 判定ロジック: 名前に 'leaves', 'leaf', 'canopy' が含まれるか？
+                            const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
+
+                            if (child.material.color) {
+                                if (isLeaves) {
+                                    // 葉っぱなら季節の色を適用
+                                    child.material.color.copy(leafColorObj);
+                                } else {
+                                    // 幹なら元の色(白乗算)に戻す
+                                    child.material.color.copy(trunkColorObj);
+                                }
+                            }
+                        }
+                    });
+                });
+                console.log(`Updated ${window.sgTreeObjects.length} trees to ${seasonName} (Leaves only).`);
+            };
+
+
+            const loader = new FBXLoader();
+
+            loader.load('models/tree.fbx', (masterTree) => {
+                console.log('FBX Loaded: tree.fbx');
+
+                // 階層構造と名前の確認ログ
+                masterTree.traverse((c) => {
+                    if (c.isMesh) console.log(`[Tree Mesh Found] Name: ${c.name}`);
+                });
+
+                window.sgMasterTree = masterTree;
+
+                // マテリアル設定 (クローン必須)
                 masterTree.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
 
-                        // Fix dark materials from Blender export
                         if (child.material) {
                             if (Array.isArray(child.material)) {
-                                child.material.forEach(mat => {
-                                    if (mat.emissive) mat.emissive.setHex(0x111111);
-                                });
+                                child.material = child.material.map(m => m.clone());
                             } else {
-                                if (child.material.emissive) {
-                                    child.material.emissive.setHex(0x111111);
-                                }
+                                child.material = child.material.clone();
+                            }
+                            // 自己発光リセット
+                            if (child.material.emissive) {
+                                child.material.emissive.setHex(0x000000);
                             }
                         }
+                        child.userData.isTree = true;
                     }
                 });
 
-                // === CLONE AND DISTRIBUTE TREES ===
-                // Avoid center play area and ensure minimum distance between trees
-                const AVOID_CENTER = 12;
-                const PARK_BOUNDS = 26;
-                const MIN_TREE_DISTANCE = 5.0; // Minimum 5m between trees
 
-                // Track placed tree positions for distance checking
+                // --- Tree Placement Logic ---
+                const NUM_TREES = 80; // Total standard trees
+                const treePositions = [];
                 const placedTrees = [];
+                const MIN_TREE_DISTANCE = 5.0;
 
-                // Helper function to check distance from all placed trees
+                // Placement Helper
                 function isTooClose(x, z) {
                     for (const placed of placedTrees) {
                         const dx = x - placed.x;
                         const dz = z - placed.z;
-                        const distance = Math.sqrt(dx * dx + dz * dz);
-                        if (distance < MIN_TREE_DISTANCE) {
-                            return true;
-                        }
+                        if (Math.sqrt(dx * dx + dz * dz) < MIN_TREE_DISTANCE) return true;
                     }
                     return false;
                 }
 
-                // Generate positions with minimum distance check
-                const treePositions = [];
-                let totalAttempts = 0;
-                const maxTotalAttempts = 200;
+                // 1. Generate Positions (Inner Park)
+                let attempts = 0;
+                while (treePositions.length < NUM_TREES && attempts < 500) {
+                    attempts++;
+                    const x = (Math.random() - 0.5) * 50; // -25~25
+                    const z = (Math.random() - 0.5) * 50; // -25~25
 
-                while (treePositions.length < NUM_TREES && totalAttempts < maxTotalAttempts) {
-                    const x = (Math.random() - 0.5) * 2 * PARK_BOUNDS;
-                    const z = (Math.random() - 0.5) * 2 * PARK_BOUNDS;
-                    totalAttempts++;
+                    // AVOID CENTER (Radius ~12m)
+                    if (x * x + z * z < 144) continue;
 
-                    // Check: outside center area AND far enough from other trees
-                    const outsideCenter = Math.abs(x) >= AVOID_CENTER || Math.abs(z) >= AVOID_CENTER;
-                    if (outsideCenter && !isTooClose(x, z)) {
+                    if (!isTooClose(x, z)) {
                         treePositions.push({ x, z });
                         placedTrees.push({ x, z });
                     }
                 }
 
-                console.log(`Placing ${treePositions.length} trees with ${MIN_TREE_DISTANCE}m spacing...`);
-
-                // Store tree collision boxes globally for movement blocking
-                window.sgTreeCollisions = [];
+                // 2. Clone and Place
+                window.sgTreeCollisions = []; // Reset collisions
 
                 treePositions.forEach((pos, index) => {
-                    // Clone the master tree
-                    const treeClone = masterTree.clone();
+                    const tree = masterTree.clone();
+                    tree.userData.isTree = true; // Mark root
+                    tree.name = `Tree_${index}`;
 
-                    // Mark as tree for raycaster exclusion
-                    treeClone.userData.isTree = true;
-                    treeClone.name = `Tree_${index}`;
-                    treeClone.traverse((child) => {
-                        child.userData.isTree = true;
-                    });
+                    // Random Scale 0.8 ~ 1.2
+                    const scale = 0.8 + Math.random() * 0.4;
+                    tree.scale.setScalar(scale);
 
-                    // Random scale variation (0.8 to 1.2)
-                    const scaleVariation = 0.8 + Math.random() * 0.4;
-                    treeClone.scale.multiplyScalar(scaleVariation);
+                    // Box for ground alignment
+                    const box = new THREE.Box3().setFromObject(tree);
+                    const offsetY = -box.min.y;
+                    tree.position.set(pos.x, offsetY, pos.z);
 
-                    // Recalculate bounding box for this clone's scale
-                    const cloneBox = new THREE.Box3().setFromObject(treeClone);
-                    const offsetY = -cloneBox.min.y;
+                    // Random Rotation
+                    tree.rotation.y = Math.random() * Math.PI * 2;
 
-                    // Set position with ground alignment
-                    treeClone.position.set(pos.x, offsetY, pos.z);
+                    scene.add(tree);
+                    window.sgTreeObjects.push(tree); // Track
 
-                    // Random Y rotation (0 to 360 degrees)
-                    treeClone.rotation.y = Math.random() * Math.PI * 2;
-
-                    // Add collision data for this tree (trunk radius ~0.25m + margin)
+                    // Collision Data
                     window.sgTreeCollisions.push({
                         x: pos.x,
                         z: pos.z,
-                        radius: 0.1 // Reduced from 0.25 as per user request
+                        radius: 0.3 * scale // Rough trunk radius
                     });
 
-                    // Add to scene
-                    scene.add(treeClone);
-
-                    // Add edge outlines (EdgesGeometry method)
-                    addEdgesOutline(treeClone, 15, 0x000000);
+                    // Outline
+                    if (window.addEdgesOutline) window.addEdgesOutline(tree, 15, 0x000000);
                 });
 
+                console.log(`${treePositions.length} trees placed.`);
 
-                console.log(`${treePositions.length} trees placed with collision data!`);
-
-                // === EXTERIOR FOREST (Dense trees outside fence) ===
-                const NUM_EXTERIOR_TREES = 70;
-                console.log(`Placing ${NUM_EXTERIOR_TREES} exterior forest trees...`);
-
-                for (let i = 0; i < NUM_EXTERIOR_TREES; i++) {
-                    // Polar coordinates: radius 35-70m, angle 0-360°
+                // 3. Exterior Forest (Dense ring outside)
+                const NUM_EXTERIOR = 70;
+                for (let i = 0; i < NUM_EXTERIOR; i++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const radius = 35 + Math.random() * 35;
+                    const radius = 35 + Math.random() * 35; // 35m - 70m radius
                     const x = Math.cos(angle) * radius;
                     const z = Math.sin(angle) * radius;
 
-                    // Clone the master tree
-                    const exteriorTree = masterTree.clone();
+                    const extTree = masterTree.clone();
+                    extTree.userData.isTree = true;
+                    extTree.name = `ExteriorTree_${i}`;
 
-                    // Mark as tree for raycaster exclusion
-                    exteriorTree.userData.isTree = true;
-                    exteriorTree.name = `ExteriorTree_${i}`;
-                    exteriorTree.traverse((child) => {
-                        child.userData.isTree = true;
-                    });
+                    // Larger Scale for exterior
+                    const scale = 1.2 + Math.random() * 0.8;
+                    extTree.scale.setScalar(scale);
 
-                    // Large scale variation (0.8 to 1.8) for natural forest look
-                    const scaleVariation = 0.8 + Math.random() * 1.0;
-                    exteriorTree.scale.multiplyScalar(scaleVariation);
+                    const box = new THREE.Box3().setFromObject(extTree);
+                    const offsetY = -box.min.y;
+                    extTree.position.set(x, offsetY, z);
 
-                    // Recalculate bounding box for ground alignment
-                    const extBox = new THREE.Box3().setFromObject(exteriorTree);
-                    const extOffsetY = -extBox.min.y;
+                    extTree.rotation.y = Math.random() * Math.PI * 2;
 
-                    // Set position
-                    exteriorTree.position.set(x, extOffsetY, z);
+                    scene.add(extTree);
+                    window.sgTreeObjects.push(extTree);
 
-                    // Random Y rotation
-                    exteriorTree.rotation.y = Math.random() * Math.PI * 2;
-
-                    // Add to scene (no collision for exterior trees)
-                    scene.add(exteriorTree);
-
-                    // Add edge outlines (EdgesGeometry method)
-                    addEdgesOutline(exteriorTree, 15, 0x000000);
+                    if (window.addEdgesOutline) window.addEdgesOutline(extTree, 15, 0x000000);
                 }
 
-
-                console.log(`${NUM_EXTERIOR_TREES} exterior forest trees placed!`);
+                // Initialize Season
+                window.setTreeSeason('winter');
 
             },
-            (progress) => {
-                if (progress.total > 0) {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                    console.log(`Loading Tree_test.fbx: ${percent}%`);
-                }
-            },
-            (error) => {
-                console.error('Error loading Tree_test.fbx:', error);
-            }
-        );
+                undefined,
+                (error) => console.error('Error loading tree.fbx:', error)
+            );
+        }
+
+        // ★ GLOBAL SEASON MANAGER (Comms Tower)
+        window.setGameSeason = (seasonName) => {
+            console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
+
+            // 1. Grass
+            if (window.setGrassSeason) window.setGrassSeason(seasonName);
+
+            // 2. Trees
+            if (window.setTreeSeason) window.setTreeSeason(seasonName);
+
+            // 3. Environment (Sky, Fog, Sun) ★追加
+            if (window.setEnvironmentSeason) window.setEnvironmentSeason(seasonName);
+        };
+
+        // Call the new tree spawning function
+        spawnTrees();
+
+        // Initialize Game Season (sets grass and trees)
+        window.setGameSeason('winter');
+
+
+        /* REMOVED OLD TREE LOADING LOGIC */
+
 
 
 
@@ -3167,7 +3251,7 @@ const SearchGame = (() => {
         const slideGroup = new THREE.Group();
         const slideMaterial = new THREE.MeshLambertMaterial({ color: 0xFFB6C1 }); // Light pink
         const woodMaterial = new THREE.MeshLambertMaterial({ color: 0xDEB887 }); // Burlywood
-
+    
         // Platform (stacked blocks)
         for (let y = 0; y < 3; y++) {
             const block = new THREE.Mesh(
@@ -3190,7 +3274,7 @@ const SearchGame = (() => {
         slideModel = slideGroup; // Store reference
         slideGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(slideGroup, 20, 0x000000);
-
+    
         // === ジャングルジム (Jungle Gym) at (5, 0, -5) - Pastel Yellow wireframe ===
         const gymGroup = new THREE.Group();
         const gymMaterial = new THREE.MeshLambertMaterial({ color: 0xFFE4B5, wireframe: true }); // Moccasin
@@ -3204,7 +3288,7 @@ const SearchGame = (() => {
         scene.add(gymGroup);
         gymGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(gymGroup, 20, 0x000000);
-
+    
         // === ベンチ (Bench) at (10, 0, 8) - Pastel Brown ===
         const benchGroup = new THREE.Group();
         const benchMaterial = new THREE.MeshLambertMaterial({ color: 0xD2B48C }); // Tan
@@ -3236,15 +3320,15 @@ const SearchGame = (() => {
         scene.add(benchGroup);
         benchGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(benchGroup, 20, 0x000000);
-
+    
         // === 大きな木 (Big Tree) - REMOVED, now using Tree_test.fbx ===
         // Old primitive tree deleted - all trees are now FBX models
-
+    
         // === 砂場 (Sandbox) at (0, 0, 12) - Cream color ===
-
+    
         const sandMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFACD }); // Lemon chiffon
         const sandEdgeMaterial = new THREE.MeshLambertMaterial({ color: 0xBC8F8F }); // Rosy brown
-
+    
         // Sand
         const sandbox = new THREE.Mesh(
             new THREE.BoxGeometry(6, 0.4, 6),
@@ -3252,7 +3336,7 @@ const SearchGame = (() => {
         );
         sandbox.position.set(0, 0.2, 12);
         scene.add(sandbox);
-
+    
         // Edge (frame)
         const edgePositions = [
             [0, 0.4, 9], [0, 0.4, 15], [-3, 0.4, 12], [3, 0.4, 12]
@@ -3266,12 +3350,12 @@ const SearchGame = (() => {
             edge.position.set(ex, ey, ez);
             scene.add(edge);
         });
-
+    
         // === 噴水 (Fountain) at (0, 0, -12) - Voxel style (square) ===
         const fountainGroup = new THREE.Group();
         const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0xB0C4DE }); // Light steel blue
         const waterMaterial = new THREE.MeshLambertMaterial({ color: 0x87CEFA, transparent: true, opacity: 0.7 });
-
+    
         // Base (square)
         const fountainBase = new THREE.Mesh(
             new THREE.BoxGeometry(6, 1, 6),
@@ -3279,7 +3363,7 @@ const SearchGame = (() => {
         );
         fountainBase.position.y = 0.5;
         fountainGroup.add(fountainBase);
-
+    
         // Water surface
         const fountainWater = new THREE.Mesh(
             new THREE.BoxGeometry(5, 0.3, 5),
@@ -3287,7 +3371,7 @@ const SearchGame = (() => {
         );
         fountainWater.position.y = 0.85;
         fountainGroup.add(fountainWater);
-
+    
         // Center pillar (stacked cubes)
         for (let y = 0; y < 3; y++) {
             const pillar = new THREE.Mesh(
@@ -3301,7 +3385,7 @@ const SearchGame = (() => {
         scene.add(fountainGroup);
         fountainGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(fountainGroup, 20, 0x000000);
-
+    
         // === 茂み (Bushes) - Voxel style (cubes) ===
         const bushMaterial = new THREE.MeshLambertMaterial({ color: 0x98FB98 }); // Pale green
         const bushPositions = [[15, 0], [-5, 15], [12, -8], [-15, -15]];
@@ -3994,11 +4078,54 @@ const SearchGame = (() => {
     }
 
     // ==========================================
-    // 草 (Grass) の配置
-    // models/grass.fbx を読み込んで地面にランダム配置
+    // 草 (Grass) の配置と季節カラー管理
     // ==========================================
     function spawnGrass() {
         console.log("--- spawnGrass CALLED ---");
+
+        // ★ 季節ごとのカラーパレット定義 (ここをいじれば色が変えられます)
+        const GRASS_PALETTES = {
+            summer: [
+                0x66BB6A, // 鮮やかな緑
+                0x43A047, // 少し濃い緑
+                0x81C784, // 淡い緑
+                0x9CCC65  // 黄緑っぽい緑
+            ],
+            winter: [
+                0xDDDDDD, // 仮: 冬の色（後で相談しましょう！）
+            ]
+        };
+
+        window.sgGrassObjects = []; // 草オブジェクト管理用
+
+        // ★ 季節切り替え関数のアップデート
+        window.setGrassSeason = (seasonName) => {
+            console.log(`Setting Grass Season to: ${seasonName}`);
+
+            // パレットを取得 (未定義なら夏をデフォルトに)
+            const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
+            const isMultiColor = palette.length > 1;
+
+            window.sgGrassObjects.forEach((grass, index) => {
+                // ランダムに色を選ぶ (indexを使ってバラけさせる)
+                const colorHex = isMultiColor
+                    ? palette[index % palette.length]
+                    : palette[0];
+
+                const colorObj = new THREE.Color(colorHex);
+
+                grass.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // 色を乗算 (白～グレーのモデルに色が乗る)
+                        if (child.material.color) {
+                            child.material.color.copy(colorObj);
+                        }
+                    }
+                });
+            });
+            console.log(`Updated ${window.sgGrassObjects.length} grass patches to ${seasonName}.`);
+        };
+
 
         const loader = new FBXLoader();
         loader.load('models/grass.fbx', (masterGrass) => {
@@ -4008,50 +4135,56 @@ const SearchGame = (() => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
+                    // 地面判定無視
+                    child.userData.ignoreGround = true;
 
-                    // 暗くなりすぎないよう少し明るさを足す
+                    // ★重要: マテリアルをクローンして、個別に色を変えられるようにする
                     if (child.material) {
-                        // child.material.side = THREE.DoubleSide; // ★削除: 中に入った時に裏側が見えないようにする
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(m => m.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
+
+                        // 自己発光を少し抑えめにセット (影をきれいに出すため)
                         if (child.material.emissive) {
-                            child.material.emissive.setHex(0x111111);
+                            child.material.emissive.setHex(0x000000);
                         }
                     }
-
-                    // 地面判定（Raycaster）で無視させるフラグ (草は通り抜け可能にする)
-                    child.userData.ignoreGround = true;
                 }
             });
 
-            // ★アウトラインの追加 (クローン前に親に適用してジオメトリを共有させる)
+            // アウトライン追加
             if (typeof window.addEdgesOutline === 'function') {
                 window.addEdgesOutline(masterGrass, 15, 0x000000);
             }
 
-            // テスト用に200個配置 (スマホでも十分軽いです)
+            // 草の配置数
             const grassCount = 200;
 
             for (let i = 0; i < grassCount; i++) {
                 const grass = masterGrass.clone();
 
-                // ランダム座標 (公園内)
-                const x = (Math.random() - 0.5) * 50; // -25 ~ 25
-                const z = (Math.random() - 0.5) * 50; // -25 ~ 25
-
-                // 地面に配置 (Y=0)
+                // ランダム配置
+                const x = (Math.random() - 0.5) * 50;
+                const z = (Math.random() - 0.5) * 50;
                 grass.position.set(x, 0, z);
 
                 // ランダム回転
                 grass.rotation.y = Math.random() * Math.PI * 2;
 
-                // ランダムスケール (5.0 ~ 8.0)
-                // 土管と比較して小さすぎたため、約5倍〜8倍にサイズアップ
+                // ランダムスケール
                 const scale = 5.0 + Math.random() * 3.0;
                 grass.scale.setScalar(scale);
 
                 scene.add(grass);
+                window.sgGrassObjects.push(grass);
             }
 
             console.log(`${grassCount} grass patches placed.`);
+
+            // ★ 読み込み完了直後に「冬」の色を適用！
+            window.setGrassSeason('winter');
 
         }, undefined, (error) => {
             console.error("Error loading grass.fbx:", error);
