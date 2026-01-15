@@ -2892,30 +2892,47 @@ const SearchGame = (() => {
         // === LOAD FBX MODEL: Coin (collectible game items) ===
         const COIN_TARGET_SIZE = 0.5; // Target diameter: 50cm
 
+        // ★修正: テスト用モデル 'coin_test.fbx' を読み込む
         loader.load(
-            'models/coin.fbx',
+            'models/coin_test.fbx',
             (masterCoin) => {
-                console.log('FBX Loaded: coin.fbx (master for cloning)');
+                console.log('FBX Loaded: coin_test.fbx (master for cloning)');
 
                 // === AUTO-SIZE NORMALIZATION using Box3 ===
                 const coinBox = new THREE.Box3().setFromObject(masterCoin);
                 const coinSize = new THREE.Vector3();
                 coinBox.getSize(coinSize);
-
                 const coinMaxDim = Math.max(coinSize.x, coinSize.y, coinSize.z);
-                console.log('Coin Original Size:', coinMaxDim.toFixed(3));
-
-                // Calculate scale factor
                 const coinScaleFactor = COIN_TARGET_SIZE / coinMaxDim;
                 masterCoin.scale.setScalar(coinScaleFactor);
-                console.log('Coin Applied Scale:', coinScaleFactor.toFixed(6));
 
-                // === Material: Keep original FBX settings, only add shadows ===
+                // === Material Replacement (Force Unlit / MeshBasicMaterial) ===
                 masterCoin.traverse((child) => {
                     if (child.isMesh) {
+                        // 影を落とすのはOKだが、影を受けるのはNG（ムラの原因）
                         child.castShadow = true;
-                        child.receiveShadow = true;
-                        // DO NOT modify metalness/roughness - keep original FBX material
+                        child.receiveShadow = false; // ★重要: 影を受けない
+
+                        // ★重要: BasicMaterial（光計算なし・常時発光）に置き換える
+                        if (child.material) {
+                            const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+
+                            // MeshBasicMaterialを作成
+                            const newMat = new THREE.MeshBasicMaterial({
+                                map: oldMat.map, // テクスチャ引き継ぎ
+                                color: 0xFFFFFF, // 白ベース（テクスチャの色をそのまま出す）
+                                transparent: false,
+                                opacity: 1.0,
+                                side: THREE.DoubleSide // 裏面も念のため描画
+                            });
+
+                            // もしテクスチャが無い場合だけ、金色にする
+                            if (!oldMat.map) {
+                                newMat.color.setHex(0xFFD700);
+                            }
+
+                            child.material = newMat;
+                        }
                     }
                 });
 
