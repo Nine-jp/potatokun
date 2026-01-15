@@ -1983,6 +1983,34 @@ const SearchGame = (() => {
         // Store addEdgesOutline globally for use in asset loaders
         window.addEdgesOutline = addEdgesOutline;
 
+        // === OPTIMIZATION: Cached Walkable Meshes ===
+        // To prevent scene.traverse() every frame (causing stutter with many objects),
+        // we cache the list of walkable meshes and update it periodically.
+        window.sgWalkableMeshes = [];
+
+        window.sgRefreshWalkableMeshes = () => {
+            if (!scene) return;
+            const meshes = [];
+            scene.traverse((child) => {
+                if (child.isMesh && child.geometry) {
+                    // Exclude trees, ketchup items, invisible objects, vending machine HitBox
+                    if (!child.userData.isTree &&
+                        !child.userData.isKetchup &&
+                        !child.userData.isVendingMachine &&
+                        !child.userData.isCoin && // Coins are not ground
+                        !child.userData.ignoreGround && // Grass, Dokan pipe itself
+                        child.visible !== false) {
+                        meshes.push(child);
+                    }
+                }
+            });
+            window.sgWalkableMeshes = meshes;
+            // console.log("Walkable meshes updated:", displayMeshes.length);
+        };
+
+        // Update walkable meshes every 2 seconds (sufficient for static ground)
+        setInterval(window.sgRefreshWalkableMeshes, 2000);
+
 
         // === FPS Camera Variables (POTATO PERSPECTIVE) ===
         let yaw = Math.PI; // Looking toward center (negative Z)
@@ -2249,22 +2277,15 @@ const SearchGame = (() => {
             const rayDirection = new THREE.Vector3(0, -1, 0);
             groundRaycaster.set(rayOrigin, rayDirection);
 
-
-            // Collect walkable meshes (EXCLUDE trees, ketchup, invisible objects, HitBoxes)
-            const walkableMeshes = [];
-            scene.traverse((child) => {
-                if (child.isMesh && child.geometry) {
-                    // Exclude trees, ketchup items, invisible objects, vending machine HitBox
-                    // ★【追加】ignoreGroundフラグがあるオブジェクト（土管）も除外
-                    if (!child.userData.isTree &&
-                        !child.userData.isKetchup &&
-                        !child.userData.isVendingMachine &&
-                        !child.userData.ignoreGround &&  // 土管などを除外
-                        child.visible !== false) {
-                        walkableMeshes.push(child);
-                    }
+            // Use CACHED walkable meshes (Optimized)
+            // If the cache is empty (init), try to refresh immediately
+            if (!window.sgWalkableMeshes || window.sgWalkableMeshes.length === 0) {
+                if (typeof window.sgRefreshWalkableMeshes === 'function') {
+                    window.sgRefreshWalkableMeshes();
                 }
-            });
+            }
+            // Fallback to empty if still nothing (prevents crash, though player might fall if no ground)
+            const walkableMeshes = window.sgWalkableMeshes || [];
 
             const groundHits = groundRaycaster.intersectObjects(walkableMeshes, false);
 
@@ -3990,16 +4011,24 @@ const SearchGame = (() => {
 
                     // 暗くなりすぎないよう少し明るさを足す
                     if (child.material) {
-                        child.material.side = THREE.DoubleSide; // 両面描画（葉っぱ系は裏が見えるため）
+                        // child.material.side = THREE.DoubleSide; // ★削除: 中に入った時に裏側が見えないようにする
                         if (child.material.emissive) {
                             child.material.emissive.setHex(0x111111);
                         }
                     }
+
+                    // 地面判定（Raycaster）で無視させるフラグ (草は通り抜け可能にする)
+                    child.userData.ignoreGround = true;
                 }
             });
 
-            // テスト用に100個ほど配置
-            const grassCount = 100;
+            // ★アウトラインの追加 (クローン前に親に適用してジオメトリを共有させる)
+            if (typeof window.addEdgesOutline === 'function') {
+                window.addEdgesOutline(masterGrass, 15, 0x000000);
+            }
+
+            // テスト用に200個配置 (スマホでも十分軽いです)
+            const grassCount = 200;
 
             for (let i = 0; i < grassCount; i++) {
                 const grass = masterGrass.clone();
