@@ -2129,6 +2129,129 @@ const SearchGame = (() => {
             viewBtn.addEventListener('click', toggleView); // PC対応
         }
 
+        // ★ 新・インタラクション機能 (コインをクリックで拾う)
+        const handleInputInteraction = (event) => {
+            if (!isPlaying) return;
+
+            // 座標取得 (マウス vs タッチ)
+            const rect = renderer.domElement.getBoundingClientRect();
+            let clientX, clientY;
+
+            // タッチイベントの正規化
+            if (event.type === 'touchstart') {
+                if (event.changedTouches.length > 0) {
+                    clientX = event.changedTouches[0].clientX;
+                    clientY = event.changedTouches[0].clientY;
+                } else return;
+            } else {
+                // click (マウス)
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
+
+            // 正規化デバイス座標 (-1 to +1) への変換
+            const mouse = new THREE.Vector2();
+            mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+            // Raycaster発射
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            for (const hit of intersects) {
+                // 距離チェック (5メートル以内のみ有効)
+                if (hit.distance > 5.0) continue;
+
+                const obj = hit.object;
+
+                // コイン判定 (親グループを遡ってチェック)
+                let targetGroup = obj;
+                while (targetGroup.parent && !targetGroup.userData.isCoin && targetGroup !== scene) {
+                    targetGroup = targetGroup.parent;
+                }
+
+                // ★自販機は無視して、コインだけを判定
+                if (targetGroup.userData.isCoin && !targetGroup.userData.collected) {
+                    // コインゲット処理！ (既存の処理を流用)
+                    // 効果音
+                    const audio = new AudioContext();
+                    const osc = audio.createOscillator();
+                    const gain = audio.createGain();
+                    osc.connect(gain);
+                    gain.connect(audio.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, audio.currentTime);
+                    gain.gain.setValueAtTime(0.1, audio.currentTime);
+                    osc.start();
+                    osc.stop(audio.currentTime + 0.1);
+
+                    // データ更新 & 削除
+                    scene.remove(targetGroup);
+                    if (window.sgItemData) {
+                        window.sgItemData.collected++;
+                        const counter = document.getElementById('sg-coin-counter');
+                        if (counter) counter.textContent = window.sgItemData.collected;
+                    }
+
+                    // エフェクト: タップした場所にキラキラ
+                    // ★Fix: 確実に見えるキラキラエフェクト (DOM版・自己完結型)
+                    const colors = ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'];
+                    const pCount = 12; // 粒子数
+
+                    for (let i = 0; i < pCount; i++) {
+                        const el = document.createElement('div');
+
+                        // スタイルを直接指定 (CSS依存なし)
+                        Object.assign(el.style, {
+                            position: 'fixed',
+                            left: `${clientX}px`,
+                            top: `${clientY}px`,
+                            width: '8px',
+                            height: '8px',
+                            backgroundColor: colors[Math.floor(Math.random() * colors.length)],
+                            borderRadius: '50%',
+                            zIndex: '10000', // 最前面
+                            pointerEvents: 'none',
+                            boxShadow: '0 0 6px #FFF' // 発光感
+                        });
+
+                        document.body.appendChild(el);
+
+                        // 飛び散る方向をランダム計算
+                        const angle = Math.random() * Math.PI * 2;
+                        const velocity = 40 + Math.random() * 60; // 飛び散る距離
+                        const tx = Math.cos(angle) * velocity;
+                        const ty = Math.sin(angle) * velocity;
+
+                        // アニメーション実行 (Web Animations API)
+                        el.animate([
+                            { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                            { transform: `translate(${tx}px, ${ty}px) scale(0)`, opacity: 0 }
+                        ], {
+                            duration: 600 + Math.random() * 200,
+                            easing: 'cubic-bezier(0, .9, .57, 1)',
+                            fill: 'forwards'
+                        }).onfinish = () => el.remove(); // 終わったら削除
+                    }
+
+                    return; // 1回につき1個だけ
+                }
+            }
+        };
+
+        // イベント登録
+        renderer.domElement.addEventListener('click', handleInputInteraction);
+        // タッチ環境での反応を良くするため touchstart も追加
+        renderer.domElement.addEventListener('touchstart', handleInputInteraction, { passive: false });
+
+        // ★旧UIの非表示化 (十字キーとGETボタン)
+        const crosshair = document.getElementById('sg-crosshair');
+        if (crosshair) crosshair.style.display = 'none';
+        const getBtn = document.getElementById('sg-get-btn');
+        if (getBtn) getBtn.style.display = 'none';
+
+
         // ★ Pre-load Ending Assets here (Hidden by default)
         spawnEndingAssets();
 
@@ -3919,7 +4042,8 @@ const SearchGame = (() => {
             updateGameplayShiver(dt);
 
             // Aim Detection (Moved from loop)
-            updateAim();
+            // ★ Deprecated: Click interaction implemented instead
+            // updateAim();
         }
     }
 
