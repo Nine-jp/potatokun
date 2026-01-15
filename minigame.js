@@ -2194,45 +2194,54 @@ const SearchGame = (() => {
                         if (counter) counter.textContent = window.sgItemData.collected;
                     }
 
-                    // エフェクト: タップした場所にキラキラ
-                    // ★Fix: 確実に見えるキラキラエフェクト (DOM版・自己完結型)
-                    const colors = ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'];
-                    const pCount = 12; // 粒子数
+                    // ★Fix: 派手な取得エフェクト (視認性強化版)
+                    const colors = ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF', '#FF4500']; // オレンジレッド追加
+                    const pCount = 30; // 粒子数を30個に増量
 
                     for (let i = 0; i < pCount; i++) {
                         const el = document.createElement('div');
 
-                        // スタイルを直接指定 (CSS依存なし)
+                        // ランダムサイズ (12px ~ 20px)
+                        const size = 12 + Math.random() * 8;
+                        const isCircle = Math.random() > 0.5; // 丸と四角を半々に
+
+                        // スタイルを直接指定
                         Object.assign(el.style, {
                             position: 'fixed',
                             left: `${clientX}px`,
                             top: `${clientY}px`,
-                            width: '8px',
-                            height: '8px',
+                            width: `${size}px`,
+                            height: `${size}px`,
                             backgroundColor: colors[Math.floor(Math.random() * colors.length)],
-                            borderRadius: '50%',
-                            zIndex: '10000', // 最前面
+                            borderRadius: isCircle ? '50%' : '0%', // 丸か四角か
+                            zIndex: '10000',
                             pointerEvents: 'none',
-                            boxShadow: '0 0 6px #FFF' // 発光感
+                            boxShadow: '0 0 10px rgba(255, 255, 255, 0.8)', // 発光強化
+                            transform: `rotate(${Math.random() * 360}deg)` // 初期回転
                         });
 
                         document.body.appendChild(el);
 
-                        // 飛び散る方向をランダム計算
+                        // 飛び散る方向と距離 (爆発力を強化)
                         const angle = Math.random() * Math.PI * 2;
-                        const velocity = 40 + Math.random() * 60; // 飛び散る距離
+                        const velocity = 60 + Math.random() * 90; // 60px〜150px飛び散る
                         const tx = Math.cos(angle) * velocity;
                         const ty = Math.sin(angle) * velocity;
+                        const rot = (Math.random() - 0.5) * 720; // 回転量
 
-                        // アニメーション実行 (Web Animations API)
+                        // ★Fix: 余韻たっぷりアニメーション (ぱぁ～～ん！)
                         el.animate([
-                            { transform: 'translate(0, 0) scale(1)', opacity: 1 },
-                            { transform: `translate(${tx}px, ${ty}px) scale(0)`, opacity: 0 }
+                            // 0%: 発生
+                            { transform: 'translate(0, 0) scale(1) rotate(0deg)', opacity: 1, offset: 0 },
+                            // 70%: まだハッキリ残っている (ここが余韻)
+                            { transform: `translate(${tx * 0.8}px, ${ty * 0.8}px) scale(0.8) rotate(${rot * 0.8}deg)`, opacity: 0.8, offset: 0.7 },
+                            // 100%: 消失
+                            { transform: `translate(${tx}px, ${ty}px) scale(0) rotate(${rot}deg)`, opacity: 0, offset: 1 }
                         ], {
-                            duration: 600 + Math.random() * 200,
-                            easing: 'cubic-bezier(0, .9, .57, 1)',
+                            duration: 1500 + Math.random() * 1000, // 1.5秒〜2.5秒 (かなり長く)
+                            easing: 'cubic-bezier(0.1, 1, 0.1, 1)', // 勢いよく飛び出し、あとはゆっくり漂う
                             fill: 'forwards'
-                        }).onfinish = () => el.remove(); // 終わったら削除
+                        }).onfinish = () => el.remove();
                     }
 
                     return; // 1回につき1個だけ
