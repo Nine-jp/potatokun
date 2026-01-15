@@ -2933,6 +2933,8 @@ const SearchGame = (() => {
         spawnDokan();
         // === 雲 (Clouds) の生成 ===
         spawnClouds();
+        // === 草 (Grass) の生成 ===
+        spawnGrass();
         // === LOAD FBX MODEL: Tree_test (Forest of trees around park edges) ===
 
         const TREE_TARGET_HEIGHT = 5.0; // Base target height for trees: 5 meters
@@ -3967,6 +3969,63 @@ const SearchGame = (() => {
 
         }, undefined, (error) => {
             console.error("Error loading cloud.fbx:", error);
+        });
+    }
+
+    // ==========================================
+    // 草 (Grass) の配置
+    // models/grass.fbx を読み込んで地面にランダム配置
+    // ==========================================
+    function spawnGrass() {
+        console.log("--- spawnGrass CALLED ---");
+
+        const loader = new FBXLoader();
+        loader.load('models/grass.fbx', (masterGrass) => {
+            console.log("Grass Loaded: grass.fbx");
+
+            masterGrass.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+
+                    // 暗くなりすぎないよう少し明るさを足す
+                    if (child.material) {
+                        child.material.side = THREE.DoubleSide; // 両面描画（葉っぱ系は裏が見えるため）
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(0x111111);
+                        }
+                    }
+                }
+            });
+
+            // テスト用に100個ほど配置
+            const grassCount = 100;
+
+            for (let i = 0; i < grassCount; i++) {
+                const grass = masterGrass.clone();
+
+                // ランダム座標 (公園内)
+                const x = (Math.random() - 0.5) * 50; // -25 ~ 25
+                const z = (Math.random() - 0.5) * 50; // -25 ~ 25
+
+                // 地面に配置 (Y=0)
+                grass.position.set(x, 0, z);
+
+                // ランダム回転
+                grass.rotation.y = Math.random() * Math.PI * 2;
+
+                // ランダムスケール (5.0 ~ 8.0)
+                // 土管と比較して小さすぎたため、約5倍〜8倍にサイズアップ
+                const scale = 5.0 + Math.random() * 3.0;
+                grass.scale.setScalar(scale);
+
+                scene.add(grass);
+            }
+
+            console.log(`${grassCount} grass patches placed.`);
+
+        }, undefined, (error) => {
+            console.error("Error loading grass.fbx:", error);
         });
     }
 
