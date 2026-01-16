@@ -8,7 +8,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'autumn', // 'spring', 'summer', 'autumn', 'winter'
+    currentSeason: 'winter', // 'spring', 'summer', 'autumn', 'winter'
     debugMode: true          // ★trueなら、ロード/OPを飛ばしていきなりゲーム開始
 };
 

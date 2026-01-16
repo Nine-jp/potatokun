@@ -1752,54 +1752,64 @@ body.modal-open {
         /* 横持ちなら横並びに戻しても良いが、今回は縦並び維持で統一 */
     }
 }
+
 /* === アクションボタン最適化 (Pickup) === */
 .action-btn {
     width: 70px;
     height: 70px;
     border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.8);
-    background: rgba(0, 0, 0, 0.3); /* 背景は少し暗く */
-    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-    
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    background: rgba(0, 0, 0, 0.3);
+    /* 背景は少し暗く */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+
     display: flex;
     justify-content: center;
     align-items: center;
-    
+
     /* 文字(🦅)のサイズ */
-    font-size: 32px; 
+    font-size: 32px;
     padding: 0;
-    overflow: hidden; /* はみ出し防止 */
+    overflow: hidden;
+    /* はみ出し防止 */
     transition: transform 0.1s;
 }
 
 .pickup-btn {
-    background: rgba(255, 50, 50, 0.8); 
+    background: rgba(255, 50, 50, 0.8);
     /* 出現アニメーション */
     animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 /* ボタン内の画像調整 */
 .pickup-btn img {
-    width: 60%;  /* ボタンのicon比率 */
+    width: 60%;
+    /* ボタンのicon比率 */
     height: auto;
-    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); /* 画像にも影 */
-    pointer-events: none; /* クリック透過 */
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+    /* 画像にも影 */
+    pointer-events: none;
+    /* クリック透過 */
 }
 
 
 /* === ボタン色修正（優先度強化） === */
 button.view-btn {
-    background-color: rgba(0, 100, 255, 0.8) !important; /* 強制的に青 */
-    box-shadow: 0 0 15px rgba(0, 100, 255, 0.4); /* 青い発光感 */
+    background-color: rgba(0, 100, 255, 0.8) !important;
+    /* 強制的に青 */
+    box-shadow: 0 0 15px rgba(0, 100, 255, 0.4);
+    /* 青い発光感 */
 }
 
 button.pickup-btn {
-    background-color: rgba(255, 50, 50, 0.8) !important; /* 強制的に赤 */
+    background-color: rgba(255, 50, 50, 0.8) !important;
+    /* 強制的に赤 */
     box-shadow: 0 0 15px rgba(255, 50, 50, 0.4);
 }
 
 /* === PC/iPad 大画面時のサイズ調整 === */
 @media (min-width: 768px) {
+
     /* ボタン枠自体の拡大 */
     .action-btn {
         width: 100px;
@@ -1862,7 +1872,8 @@ button.pickup-btn {
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none; /* ボタン以外は透過 */
+    pointer-events: none;
+    /* ボタン以外は透過 */
     z-index: 200;
 }
 
@@ -1873,7 +1884,7 @@ button.pickup-btn {
     left: 15px;
     pointer-events: auto;
     color: white;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
 }
 
 #hud-top-left h1 {
@@ -1946,9 +1957,9 @@ button.pickup-btn {
     width: 70px;
     height: 70px;
     border-radius: 50%;
-    border: 3px solid rgba(255,255,255,0.8);
+    border: 3px solid rgba(255, 255, 255, 0.8);
     background: rgba(0, 0, 0, 0.4);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -1978,7 +1989,7 @@ button.pickup-btn {
 .pickup-btn img {
     width: 60%;
     height: auto;
-    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
     pointer-events: none;
 }
 
@@ -2014,9 +2025,20 @@ button.pickup-btn {
 
 /* popIn アニメーション */
 @keyframes popIn {
-    0% { transform: scale(0); opacity: 0; }
-    80% { transform: scale(1.1); opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    80% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 
@@ -2028,12 +2050,13 @@ button.pickup-btn {
     width: 160px;
     height: 160px;
     z-index: 1000;
-    
+
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
-    gap: 0 !important; /* 隙間をなくして一体化 */
-    
+    gap: 0 !important;
+    /* 隙間をなくして一体化 */
+
     background: transparent !important;
     border: none !important;
     padding: 0 !important;
@@ -2076,7 +2099,8 @@ button.pickup-btn {
 }
 
 /* 中央の埋め合わせ */
-#dpad-center, #dpad-center-fill {
+#dpad-center,
+#dpad-center-fill {
     grid-column: 2;
     grid-row: 2;
     background-color: #333 !important;
@@ -2195,7 +2219,8 @@ button.pickup-btn {
 /* === 十字キー最終修正 - 角丸＆半透明 === */
 #dpad-cross button,
 #dpad-cross #dpad-center {
-    background-color: rgba(128, 128, 128, 0.6) !important; /* 薄いグレー + 半透明 */
+    background-color: rgba(128, 128, 128, 0.6) !important;
+    /* 薄いグレー + 半透明 */
 }
 
 #dpad-cross button:active {
@@ -2267,7 +2292,7 @@ button.pickup-btn {
 /* ボタンと中央の共通設定 (色: 明るい半透明グレー) */
 #dpad-cross button,
 #dpad-cross #dpad-center {
-    background-color: rgba(255, 255, 255, 0.3) !important; 
+    background-color: rgba(255, 255, 255, 0.3) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
@@ -2318,8 +2343,8 @@ button.pickup-btn {
 ======================================== */
 
 /* === A. ボタン共通アニメーション（押し感） === */
-button:active, 
-.action-btn:active, 
+button:active,
+.action-btn:active,
 #dpad-cross button:active,
 .game-card:active {
     transform: scale(0.92) !important;
@@ -2328,8 +2353,17 @@ button:active,
 
 /* アクションボタンの呼吸アニメーション */
 @keyframes breathe {
-    0%, 100% { transform: scale(1); box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
-    50% { transform: scale(1.05); box-shadow: 0 6px 12px rgba(0,0,0,0.6); }
+
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6);
+    }
 }
 
 .pickup-btn {
@@ -2362,18 +2396,39 @@ button:active,
 
 /* === C. HUD スライドイン演出 === */
 @keyframes slideInLeft {
-    from { opacity: 0; transform: translateX(-50px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+        opacity: 0;
+        transform: translateX(-50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 @keyframes slideInRight {
-    from { opacity: 0; transform: translateX(50px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 @keyframes slideInTop {
-    from { opacity: 0; transform: translateY(-50px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* HUD要素にスライドイン適用 */
@@ -2397,3 +2452,14 @@ button:active,
     animation-fill-mode: forwards;
 }
 
+/* === D-Pad Fix: Prevent separation === */
+/* 十字キーは縮小すると隙間ができるので、縮小を禁止する */
+#dpad-cross button:active {
+    transform: none !important;
+    /* サイズ変更なし */
+    background-color: rgba(255, 255, 255, 0.6) !important;
+    /* 押すと明るく/濃くなる */
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5) !important;
+    /* 内側に影を落として「凹み」を表現 */
+    transition: background-color 0.1s;
+}
