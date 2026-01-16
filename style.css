@@ -1332,3 +1332,506 @@ body.modal-open {
     justify-content: center;
     margin-top: 20px;
 }
+
+/* === style.css 末尾に追加 === */
+
+/* --- 共通設定 & アニメーション準備 --- */
+
+/* UIコンテナ全体は画面全体を覆うが、操作を阻害しないように */
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* コンテナ自体はクリックを透過 */
+    /* 子要素の配置基準にするためrelativeなどは設定しない */
+}
+
+/* コンテナ内の各要素はクリック可能に戻す */
+#ui-container>* {
+    pointer-events: auto;
+}
+
+/* コントロールグループの共通スタイル */
+.controls-group {
+    position: absolute;
+    /* フワッと移動するためのトランジション設定 */
+    transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+    /* 滑らかなイージング */
+
+    /* デフォルト（縦持ち）の位置：左上 */
+    top: 120px;
+    /* タイトルの下あたり */
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    /* ボタン間の隙間 */
+}
+
+/* アクションコンテナは縦持ち時は少し下にずらす */
+#controls-right-container {
+    top: 300px;
+    /* D-Padの下あたり */
+}
+
+
+/* --- 横持ち（ランドスケープ）時のレイアウト上書き --- */
+@media (orientation: landscape) {
+
+    /* 左側コンテナ：左下へ移動 */
+    #controls-left-container {
+        top: auto;
+        /* 上の指定を解除 */
+        bottom: 30px;
+        /* 下からの位置 */
+        left: 30px;
+        /* 左からの位置 */
+
+        /* 少し大きくして操作しやすく */
+        transform: scale(1.1);
+        transform-origin: bottom left;
+    }
+
+    /* 右側コンテナ：右下へ移動 */
+    #controls-right-container {
+        top: auto;
+        /* 上の指定を解除 */
+        left: auto;
+        /* 左の指定を解除 */
+        bottom: 30px;
+        /* 下からの位置 */
+        right: 30px;
+        /* 右からの位置 */
+
+        /* ボタンを横並びにする */
+        flex-direction: row-reverse;
+        /* 右端基準で並べる */
+        align-items: flex-end;
+        gap: 20px;
+
+        /* 少し大きくして操作しやすく */
+        transform: scale(1.1);
+        transform-origin: bottom right;
+    }
+
+    /* ボタンのスタイル調整（横持ち時） */
+    #jump-btn,
+    #sg-get-btn,
+    #toggle-view-btn,
+    #dpad-view {
+        /* よりボタンらしく丸くする */
+        border-radius: 50px;
+        padding: 15px 25px;
+        font-size: 16px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* チュートリアルは邪魔なので隠す */
+    #tutorial,
+    #sg-instructions {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.5s ease;
+    }
+}
+
+
+/* === UI Base Layout (Fixed Absolute Positioning) === */
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* UIの隙間はクリック透過 */
+    z-index: 1000;
+    font-family: 'Segoe UI', sans-serif;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+/* 各エリア内のボタンはクリック可能に */
+#ui-container>div {
+    pointer-events: auto;
+}
+
+/* --- 1. 左上エリア --- */
+#hud-top-left {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+}
+
+#hud-top-left h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #FFD700;
+}
+
+#score {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+#tutorial-hint {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-top: 5px;
+}
+
+/* --- 2. 左下エリア (移動) --- */
+#controls-bottom-left {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+/* D-Pad Style */
+#dpad {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.dpad-middle {
+    display: flex;
+    gap: 50px;
+    /* 十字キーの真ん中を空ける */
+}
+
+#dpad button {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 10px;
+    color: white;
+    font-size: 20px;
+    backdrop-filter: blur(4px);
+    touch-action: manipulation;
+    /* ダブルタップ拡大防止 */
+    cursor: pointer;
+}
+
+#dpad button:active,
+#dpad button.active {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+#dpad-view {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid white;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+/* --- 3. 右下エリア (アクション) --- */
+#controls-bottom-right {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+}
+
+/* Action Buttons */
+#jump-btn,
+#sg-get-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid white;
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    touch-action: manipulation;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#jump-btn {
+    background: rgba(0, 100, 255, 0.5);
+    /* 青系 */
+    color: white;
+}
+
+#jump-btn:active {
+    background: rgba(0, 100, 255, 0.8);
+    transform: scale(0.95);
+}
+
+#sg-get-btn {
+    background: rgba(255, 215, 0, 0.8);
+    /* 金色 */
+    color: black;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* アニメーション定義 */
+@keyframes popIn {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* --- レスポンシブ調整 --- */
+/* 横持ち（Landscape）の時は、左右の距離を少し広げて持ちやすくする */
+@media (orientation: landscape) {
+    #controls-bottom-left {
+        left: 50px;
+        bottom: 20px;
+    }
+
+    #controls-bottom-right {
+        right: 50px;
+        bottom: 20px;
+    }
+}
+
+
+/* === ファミコン風 十字キーデザイン === */
+#controls-bottom-left {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    /* 十字キーだけなのでシンプルに配置 */
+}
+
+#dpad-cross {
+    display: grid;
+    grid-template-columns: 50px 50px 50px;
+    /* ボタンサイズ */
+    grid-template-rows: 50px 50px 50px;
+    gap: 0;
+    /* 隙間をなくして一体化 */
+
+    /* 全体のフィルタ効果（半透明ガラス風） */
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+}
+
+/* D-Padのボタン共通設定 */
+#dpad-cross button,
+#dpad-center {
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.25);
+    /* 半透明グレー */
+    border: none;
+    color: white;
+    font-size: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+    touch-action: manipulation;
+    cursor: pointer;
+}
+
+/* 中央のパーツ（装飾用） */
+#dpad-center {
+    background: rgba(255, 255, 255, 0.25);
+    /* 矢印などを入れたければここに content 追加 */
+}
+
+/* 角丸の処理：十字型に見えるように外側の角だけ丸くする */
+#dpad-up {
+    border-radius: 10px 10px 0 0;
+}
+
+#dpad-down {
+    border-radius: 0 0 10px 10px;
+}
+
+#dpad-left {
+    border-radius: 10px 0 0 10px;
+}
+
+#dpad-right {
+    border-radius: 0 10px 10px 0;
+}
+
+/* 押した時のリアクション */
+#dpad-cross button:active,
+#dpad-cross button.active {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+
+/* --- 3. 右下エリア (アクション・縦並び) --- */
+#controls-bottom-right {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+
+    display: flex;
+    flex-direction: column;
+    /* ★縦並びに変更 */
+    gap: 15px;
+    /* 上下の隙間 */
+    align-items: center;
+}
+
+/* アクションボタン共通 */
+.action-btn {
+    width: 70px;
+    /* 縦並びなので少し小さめに */
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    color: white;
+    font-size: 32px;
+    /* アイコンを大きく */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.1s;
+    cursor: pointer;
+}
+
+.action-btn:active {
+    transform: scale(0.9);
+}
+
+/* 個別カラー */
+.view-btn {
+    background: rgba(0, 100, 255, 0.6);
+}
+
+.get-btn {
+    background: rgba(255, 50, 50, 0.8);
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* --- 横持ち（Landscape）時の微調整 --- */
+@media (orientation: landscape) {
+
+    /* 横持ち時は少し中央寄りに配置して、親指が届きやすくする */
+    #controls-bottom-left {
+        bottom: 40px;
+        left: 60px;
+    }
+
+    #controls-bottom-right {
+        bottom: 40px;
+        right: 60px;
+        /* 横持ちなら横並びに戻しても良いが、今回は縦並び維持で統一 */
+    }
+}
+/* === アクションボタン最適化 (Pickup) === */
+.action-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.8);
+    background: rgba(0, 0, 0, 0.3); /* 背景は少し暗く */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+    
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    /* 文字(🦅)のサイズ */
+    font-size: 32px; 
+    padding: 0;
+    overflow: hidden; /* はみ出し防止 */
+    transition: transform 0.1s;
+}
+
+.pickup-btn {
+    background: rgba(255, 50, 50, 0.8); 
+    /* 出現アニメーション */
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* ボタン内の画像調整 */
+.pickup-btn img {
+    width: 60%;  /* ボタンのicon比率 */
+    height: auto;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); /* 画像にも影 */
+    pointer-events: none; /* クリック透過 */
+}
+
+
+/* === ボタン色修正（優先度強化） === */
+button.view-btn {
+    background-color: rgba(0, 100, 255, 0.8) !important; /* 強制的に青 */
+    box-shadow: 0 0 15px rgba(0, 100, 255, 0.4); /* 青い発光感 */
+}
+
+button.pickup-btn {
+    background-color: rgba(255, 50, 50, 0.8) !important; /* 強制的に赤 */
+    box-shadow: 0 0 15px rgba(255, 50, 50, 0.4);
+}
+
+/* === PC/iPad 大画面時のサイズ調整 === */
+@media (min-width: 768px) {
+    /* ボタン枠自体の拡大 */
+    .action-btn {
+        width: 100px;
+        height: 100px;
+        border-width: 4px;
+    }
+
+    /* 🦅 (絵文字) の巨大化 */
+    button.view-btn {
+        font-size: 60px;
+        line-height: 100px;
+    }
+
+    /* 🧲 (画像) の巨大化 */
+    button.pickup-btn img {
+        width: 80%;
+        height: auto;
+    }
+
+    /* D-Padの文字サイズも大きく */
+    #dpad-cross button {
+        font-size: 40px;
+    }
+}
+
+
+/* === 🦅 サイズ強制適用 (PC/iPad) === */
+@media (min-width: 768px) {
+    button.view-btn {
+        font-size: 60px !important;
+        line-height: 100px;
+        padding: 0;
+    }
+}
+

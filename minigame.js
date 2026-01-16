@@ -42,6 +42,31 @@ const GameLibrary = {
     }
 };
 
+// =============================
+//  Seasonal Color Palette
+// =============================
+// ★現在の季節設定 ('spring', 'summer', 'autumn', 'winter')
+let currentSeason = 'winter';
+
+// 季節ごとのパーティクルカラーパレット
+const seasonalColors = {
+    spring: [0xFF69B4, 0xFFB7C5, 0x00FF00, 0xFFFF00], // ピンク、桜色、緑、黄色
+    summer: [0x0000FF, 0x00FFFF, 0xFFD700, 0xFFA500], // 青、水色、金、オレンジ
+    autumn: [0xFF4500, 0xD2691E, 0x8B4513, 0xFFD700], // 紅葉色、茶色、金
+    winter: [0xFFFFFF, 0x87CEEB, 0x4169E1, 0xB0E0E6], // 白、空色、ロイヤルブルー、淡水色
+    default: [0xFFD700, 0xFFFFFF] // フォールバック
+};
+
+// 季節ごとの形状パレット
+const seasonalShapes = {
+    spring: ['🌸', '🌷', '🌱', '✨'],
+    summer: ['🌻', '🌊', '🍦', '✨'],
+    autumn: ['🍁', '🍂', '🍄', '✨'],
+    // ★修正: 赤くなる '♥' を削除し、色変更可能な '♡' のみにする
+    winter: ['❄️', '⛄', '♡', '✨', '●'],
+    default: ['✨', '●', '★']
+};
+
 let currentActiveGameId = null;
 
 /* DOM Elements */
@@ -708,7 +733,8 @@ const SearchGame = (() => {
             groundColor: 0x3FA34D, // Green
         },
         winter: {
-            groundColor: 0xEDEDED, // Snow White/Grey
+            // groundColor: 0x87CEEB, // ← 前回の水色
+            groundColor: 0xE0FFFF,    // ★修正: 影の中でも明るく見えるLightCyan
         }
     };
 
@@ -1779,7 +1805,7 @@ const SearchGame = (() => {
 
     function setupGameUI() {
         container.innerHTML = `
-            <!-- Loading Overlay (prevents initial flicker) -->
+            <!-- Loading Overlay -->
             <div id="sg-loading-overlay" style="
                 position: fixed;
                 top: 0;
@@ -1798,12 +1824,9 @@ const SearchGame = (() => {
                 text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
             ">Now Loading...</div>
             
-            <div id="sg-ui" style="position:absolute; top:20px; left:20px; color:#fff; z-index:100; font-family:sans-serif; pointer-events:none; text-shadow: 2px 2px 4px #000000; font-size: 1.2rem; font-weight: bold;">
-                <div>🪙 ポテコイン</div>
-                <div style="margin-top:8px;">🪙 コイン: <span id="sg-coin-counter">0</span>/10</div>
-            </div>
-            
-            <!-- SKIP Button for Opening Cinematic -->
+            <div id="sg-canvas-container" style="width:100%; height:100%; background: #1a1a1a;"></div>
+
+            <!-- SKIP Button -->
             <div id="sg-skip-btn" style="
                 position: absolute;
                 top: 80px;
@@ -1822,10 +1845,8 @@ const SearchGame = (() => {
                 user-select: none;
                 -webkit-tap-highlight-color: transparent;
             ">SKIP ▶</div>
-            
-            <div id="sg-canvas-container" style="width:100%; height:100%; background: #1a1a1a;"></div>
-            
-            <!-- Crosshair for aiming - color changes based on target -->
+
+            <!-- Crosshair -->
             <style>
                 #sg-crosshair .crosshair-h, #sg-crosshair .crosshair-v { background: white; transition: background 0.15s; }
                 #sg-crosshair .crosshair-circle { border-color: white; transition: border-color 0.15s; }
@@ -1838,90 +1859,268 @@ const SearchGame = (() => {
                 <div class="crosshair-circle" style="width:8px; height:8px; border:2px solid white; border-radius:50%; position:absolute; left:-6px; top:-6px; opacity:0.7;"></div>
             </div>
 
-            
-            <!-- D-Pad Controller (Grid Layout 3x3) -->
-            <div id="sg-dpad" style="position:absolute; bottom:calc(120px + env(safe-area-inset-bottom)); left:calc(20px + env(safe-area-inset-left)); z-index:200; user-select:none;">
-                <style>
-                    .dpad-btn {
-                        width: 70px;
-                        height: 70px;
-                        background: rgba(255,255,255,0.3);
-                        border: 2px solid rgba(255,255,255,0.6);
-                        border-radius: 12px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-size: 28px;
-                        color: white;
-                        cursor: pointer;
-                        touch-action: manipulation;
-                        transition: background 0.1s;
-                        user-select: none;
-                    }
-                    .dpad-btn:active, .dpad-btn.active {
-                        background: rgba(255,255,255,0.6);
-                    }
-                    /* 視点ボタン専用スタイル */
-                    #dpad-view {
-                        font-size: 24px;
-                        background: rgba(0,0,0,0.4); 
-                        border-color: rgba(255,255,255,0.8);
-                    }
-                </style>
-                <div style="display:grid; grid-template-columns: 70px 70px 70px; grid-template-rows: 70px 70px 70px; gap:5px;">
-                    <div></div>
-                    <button class="dpad-btn" id="dpad-up">▲</button>
-                    <div></div>
-                    
-                    <button class="dpad-btn" id="dpad-left">◀</button>
-                    <button class="dpad-btn" id="dpad-view">🦅</button>
-                    <button class="dpad-btn" id="dpad-right">▶</button>
-                    
-                    <div></div>
-                    <button class="dpad-btn" id="dpad-down">▼</button>
-                    <div></div>
+            <!-- NEW UI CONTAINER (Fixed Absolute Layout) -->
+            <div id="ui-container">
+                
+                <div id="hud-top-left">
+                    <h1>ポテトコイン</h1>
+                    <div id="score">コイン: <span id="sg-coin-counter">0</span>/10</div>
+                    <div id="tutorial-hint" style="display:none;">🎮 移動: D-Pad / 🦅 視点切替</div>
                 </div>
+
+                <div id="controls-bottom-left">
+                    <!-- Fused D-Pad (CSS Grid) -->
+                    <div id="dpad-cross">
+                        <div class="dpad-empty"></div> <button id="dpad-up">▲</button>   <div class="dpad-empty"></div> 
+                        <button id="dpad-left">◀</button> <div id="dpad-center"></div>   <button id="dpad-right">▶</button>
+                        <div class="dpad-empty"></div> <button id="dpad-down">▼</button> <div class="dpad-empty"></div> 
+                    </div>
+                </div>
+
+                <div id="controls-bottom-right">
+                    <!-- Vertical Stack -->
+                    <button id="btn-action-pickup" class="action-btn pickup-btn" style="display: none;">
+                        <img src="assets/horseshoe_magnet.png" alt="GET">
+                    </button>
+                    
+                    <button id="toggle-view-btn" class="action-btn view-btn">🦅</button>
+                </div>
+                
             </div>
-            
-            <!-- GET! button (floats above target coin) -->
-            <button id="sg-get-btn" style="
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 65px;
-                height: 65px;
-                background: linear-gradient(145deg, #FFD700, #FFA500);
-                border: 4px solid #FFFFFF;
-                border-radius: 50%;
-                font-size: 13px;
-                font-weight: bold;
-                color: #333;
-                text-shadow: 1px 1px 0px #fff;
-                cursor: pointer;
-                z-index: 300;
-                box-shadow: 0 6px 20px rgba(255,215,0,0.6), 0 0 15px rgba(255,255,255,0.4);
-                touch-action: manipulation;
-                pointer-events: auto;
-                transition: transform 0.1s;
-            ">🖐️<br>GET!</button>
-            <style>
-                #sg-get-btn:active {
-                    transform: scale(0.85);
-                    background: linear-gradient(145deg, #FFA500, #FF8C00);
-                }
-            </style>
-            
-            <!-- Instructions -->
-            <div id="sg-instructions" style="position:absolute; bottom:20px; left:20px; color:#fff; z-index:100; font-family:sans-serif; text-shadow: 1px 1px 2px #000; font-size: 0.85rem; opacity:0.8; pointer-events:none;">
-                <div>🎮 移動: WASD / D-Pad</div>
-                <div>👁️ 視点: 画面スワイプ</div>
-                <div>🎯 コインに近づくとGETボタン出現！</div>
-            </div>
-
-
-
         `;
+
+        // ★追加: 視点切替ボタンのイベントリスナー (新ID対応)
+        // DOM挿入直後なので、ここでイベントを設定する
+        setTimeout(() => {
+            bindUIEvents(); // Bind listeners
+        }, 100);
+    }
+
+    // === UI Event Binding Helper ===
+    function bindUIEvents() {
+        // 1. 視点切替
+        const toggleViewBtn = document.getElementById('toggle-view-btn');
+        if (toggleViewBtn) {
+            const toggleHandler = (e) => {
+                e.preventDefault(); e.stopPropagation();
+                // Toggle Logic
+                if (typeof cameraDistance !== 'undefined') {
+                    const isTPS = (cameraDistance > 0.5);
+                    cameraDistance = isTPS ? 0.0 : 8.0; // Toggle
+                    console.log('View Mode:', isTPS ? 'FPS' : 'TPS');
+                    // Visual Feedback
+                    toggleViewBtn.classList.add('active');
+                    setTimeout(() => toggleViewBtn.classList.remove('active'), 100);
+                }
+            };
+            toggleViewBtn.onclick = toggleHandler;
+            toggleViewBtn.ontouchstart = toggleHandler;
+        }
+
+        // 2. PICKUPボタン (🧲) - 共通関数を使う簡略版
+        const pickupBtn = document.getElementById('btn-action-pickup');
+        if (pickupBtn) {
+            pickupBtn.onclick = null; // イベントの多重登録を防ぐ
+
+            pickupBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                console.log("🧲 Clicked!");
+
+                // 半径3m以内のコインを探す
+                if (typeof playerPosition === 'undefined' || !scene) {
+                    console.log("playerPosition or scene undefined");
+                    return;
+                }
+
+                let nearestDist = 3.0;
+                let targetCoin = null;
+
+                scene.traverse((obj) => {
+                    if (obj.userData.isCoin && !obj.userData.collected) {
+                        const worldPos = new THREE.Vector3();
+                        obj.getWorldPosition(worldPos);
+                        const dist = playerPosition.distanceTo(worldPos);
+                        if (dist < nearestDist) {
+                            nearestDist = dist;
+                            targetCoin = obj;
+                        }
+                    }
+                });
+
+                // 見つけたら共通関数に投げるだけ！
+                if (targetCoin) {
+                    collectCoin(targetCoin);
+                    pickupBtn.style.display = 'none'; // ボタンは消す
+                } else {
+                    console.log("No coin in range");
+                }
+            };
+
+            // スマホのタッチ対応
+            pickupBtn.ontouchend = (e) => { e.preventDefault(); pickupBtn.click(); };
+        }
+    }
+
+    // === Update UI (Visibility Logic) ===
+    function updateUI() {
+        const pickupBtn = document.getElementById('btn-action-pickup');
+        if (!pickupBtn || typeof playerPosition === 'undefined') return;
+
+        let nearCoinFound = false;
+
+        // Scan for coins near player
+        scene.traverse((obj) => {
+            if (obj.userData.isCoin && !obj.userData.collected) {
+                const worldPos = new THREE.Vector3();
+                obj.getWorldPosition(worldPos);
+                if (playerPosition.distanceTo(worldPos) < 2.5) {
+                    nearCoinFound = true;
+                }
+            }
+        });
+
+        // Toggle Display
+        if (nearCoinFound) {
+            if (pickupBtn.style.display !== 'flex') {
+                pickupBtn.style.display = 'flex';
+                // Reset Animation
+                pickupBtn.style.animation = 'none';
+                void pickupBtn.offsetWidth;
+                pickupBtn.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            }
+        } else {
+            if (pickupBtn.style.display !== 'none') {
+                pickupBtn.style.display = 'none';
+            }
+        }
+    }
+
+    // === Coin Collection Helper (Delta Time対応版) ===
+    /**
+     * コイン取得時の共通処理関数 (Delta Time対応)
+     * @param {THREE.Object3D} coinObj - 取得対象のコイン
+     */
+    function collectCoin(coinObj) {
+        if (!coinObj || coinObj.userData.collected) return;
+
+        // 1. ステータス更新
+        coinObj.userData.collected = true;
+
+        // コインのワールド座標を保存してから削除
+        const coinWorldPos = new THREE.Vector3();
+        coinObj.getWorldPosition(coinWorldPos);
+        scene.remove(coinObj);
+
+        // 2. スコア加算
+        if (window.sgItemData) {
+            window.sgItemData.collected++;
+            const counter = document.getElementById('sg-coin-counter');
+            if (counter) counter.textContent = window.sgItemData.collected;
+        }
+
+        // 3. 効果音
+        try {
+            const audio = new AudioContext();
+            const osc = audio.createOscillator();
+            const gain = audio.createGain();
+            osc.connect(gain);
+            gain.connect(audio.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audio.currentTime);
+            gain.gain.setValueAtTime(0.1, audio.currentTime);
+            osc.start();
+            osc.stop(audio.currentTime + 0.1);
+        } catch (err) { console.warn("Audio error:", err); }
+
+        // 4. ★パーティクルエフェクト (Delta Time対応版)
+        const particleCount = 15;
+
+        // 季節設定の取得
+        const colors = (typeof seasonalColors !== 'undefined' && typeof currentSeason !== 'undefined')
+            ? (seasonalColors[currentSeason] || seasonalColors['default'])
+            : [0xFFFFFF, 0x87CEEB];
+        const shapes = (typeof seasonalShapes !== 'undefined' && typeof currentSeason !== 'undefined')
+            ? (seasonalShapes[currentSeason] || ['●'])
+            : ['●', '★'];
+
+        for (let i = 0; i < particleCount; i++) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const context = canvas.getContext('2d');
+
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const shape = shapes[Math.floor(Math.random() * shapes.length)];
+
+            context.fillStyle = '#' + color.toString(16).padStart(6, '0');
+            context.font = '24px sans-serif';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(shape, 16, 16);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                depthTest: false
+            });
+            const sprite = new THREE.Sprite(material);
+
+            // 発生位置
+            sprite.position.copy(coinWorldPos);
+            sprite.position.x += (Math.random() - 0.5) * 0.3;
+            sprite.position.y += (Math.random() - 0.5) * 0.3;
+            sprite.position.z += (Math.random() - 0.5) * 0.3;
+
+            // サイズ
+            sprite.scale.set(0.13, 0.13, 0.13);
+
+            // 速度ベクトル
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.08,
+                Math.random() * 0.08,
+                (Math.random() - 0.5) * 0.08
+            );
+
+            scene.add(sprite);
+
+            // ★時間管理用の変数
+            let lastTime = performance.now();
+
+            const animateSprite = () => {
+                if (material.opacity <= 0) {
+                    scene.remove(sprite);
+                    material.dispose();
+                    texture.dispose();
+                    return;
+                }
+
+                // ★Delta Time計算 (秒単位)
+                const now = performance.now();
+                const dt = Math.min((now - lastTime) / 1000, 0.1);
+                lastTime = now;
+
+                // 60FPS基準のタイムスケール
+                const timeScale = dt * 60;
+
+                // 移動 (速度 × タイムスケール)
+                sprite.position.x += velocity.x * timeScale;
+                sprite.position.y += velocity.y * timeScale;
+                sprite.position.z += velocity.z * timeScale;
+
+                // 減速 (空気抵抗)
+                velocity.multiplyScalar(Math.pow(0.95, timeScale));
+
+                // フェードアウト
+                material.opacity -= 0.03 * timeScale;
+
+                requestAnimationFrame(animateSprite);
+            };
+            animateSprite();
+        }
+
+        console.log(`✨ Coin collected (${currentSeason} + DeltaTime) at:`, coinWorldPos);
     }
 
 
@@ -2125,9 +2324,56 @@ const SearchGame = (() => {
                 cameraDistance = isTPS ? 8.0 : 0.0; // 距離切り替え
                 viewBtn.style.background = isTPS ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)";
             };
-            viewBtn.addEventListener('touchstart', toggleView, { passive: false });
-            viewBtn.addEventListener('click', toggleView); // PC対応
+            // viewBtn.addEventListener('touchstart', toggleView, { passive: false });
+            // viewBtn.addEventListener('click', toggleView); // PC対応
+            // ★REMOVED: Old dpad-view listener (Moved to bindUIEvents)
         }
+
+        // ★追加: カーソル変更用のRaycaster (マウス移動時に常時判定)
+        const hoverRaycaster = new THREE.Raycaster();
+
+        // PC用: マウス移動時のカーソル変化
+        renderer.domElement.addEventListener('mousemove', (event) => {
+            if (!isPlaying) return;
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            // 座標計算
+            const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            hoverRaycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
+
+            // コインと自販機を判定対象にする
+            const intersects = hoverRaycaster.intersectObjects(scene.children, true);
+            let isHovering = false;
+
+            // ★修正: シンプルなループに戻す (壁抜け判定なし)
+            for (const hit of intersects) {
+                // 距離制限: 2.5m以内
+                if (hit.distance > 2.5) continue;
+
+                const obj = hit.object;
+
+                // 親を遡ってターゲット確認
+                let targetGroup = obj;
+                while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                    targetGroup = targetGroup.parent;
+                }
+
+                // ターゲットが見つかったら即反応 (手前の障害物は無視)
+                if (targetGroup.userData.isVendingMachine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
+                    isHovering = true;
+                    break; // 見つかった時点で終了
+                }
+            }
+
+            // ★変更: オリジナル磁石カーソルを適用
+            // url('パス') x座標 y座標, バックアップ(auto)
+            // 64x64ピクセルの中心(32 32)を判定位置にする
+            document.body.style.cursor = isHovering
+                ? "url('assets/horseshoe_magnet.png') 32 32, auto"
+                : 'default';
+        });
 
         // ★ 新・インタラクション機能 (コインをクリックで拾う)
         const handleInputInteraction = (event) => {
@@ -2155,96 +2401,36 @@ const SearchGame = (() => {
             mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
 
             // Raycaster発射
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(scene.children, true);
+            const clickRaycaster = new THREE.Raycaster();
+            clickRaycaster.setFromCamera(mouse, camera);
+            const intersects = clickRaycaster.intersectObjects(scene.children, true);
 
+            // ★修正: シンプルなループに戻す (壁抜け判定なし)
             for (const hit of intersects) {
-                // 距離チェック (5メートル以内のみ有効)
-                if (hit.distance > 5.0) continue;
+                // 距離制限: 2.5m以内
+                if (hit.distance > 2.5) continue;
 
                 const obj = hit.object;
 
-                // コイン判定 (親グループを遡ってチェック)
+                // 親を遡ってターゲット確認
                 let targetGroup = obj;
-                while (targetGroup.parent && !targetGroup.userData.isCoin && targetGroup !== scene) {
+                while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
                     targetGroup = targetGroup.parent;
                 }
 
-                // ★自販機は無視して、コインだけを判定
-                if (targetGroup.userData.isCoin && !targetGroup.userData.collected) {
-                    // コインゲット処理！ (既存の処理を流用)
-                    // 効果音
-                    const audio = new AudioContext();
-                    const osc = audio.createOscillator();
-                    const gain = audio.createGain();
-                    osc.connect(gain);
-                    gain.connect(audio.destination);
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, audio.currentTime);
-                    gain.gain.setValueAtTime(0.1, audio.currentTime);
-                    osc.start();
-                    osc.stop(audio.currentTime + 0.1);
+                const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
+                const isVending = targetGroup.userData.isVendingMachine;
 
-                    // データ更新 & 削除
-                    scene.remove(targetGroup);
-                    if (window.sgItemData) {
-                        window.sgItemData.collected++;
-                        const counter = document.getElementById('sg-coin-counter');
-                        if (counter) counter.textContent = window.sgItemData.collected;
-                    }
+                // ターゲットが見つかったらアクション実行
+                if (isCoin) {
+                    // コインゲット処理！ (Helper利用)
+                    collectCoin(targetGroup, clientX, clientY);
+                    return; // 1個取ったら処理終了
 
-                    // ★Fix: 派手な取得エフェクト (視認性強化版)
-                    const colors = ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF', '#FF4500']; // オレンジレッド追加
-                    const pCount = 30; // 粒子数を30個に増量
-
-                    for (let i = 0; i < pCount; i++) {
-                        const el = document.createElement('div');
-
-                        // ランダムサイズ (12px ~ 20px)
-                        const size = 12 + Math.random() * 8;
-                        const isCircle = Math.random() > 0.5; // 丸と四角を半々に
-
-                        // スタイルを直接指定
-                        Object.assign(el.style, {
-                            position: 'fixed',
-                            left: `${clientX}px`,
-                            top: `${clientY}px`,
-                            width: `${size}px`,
-                            height: `${size}px`,
-                            backgroundColor: colors[Math.floor(Math.random() * colors.length)],
-                            borderRadius: isCircle ? '50%' : '0%', // 丸か四角か
-                            zIndex: '10000',
-                            pointerEvents: 'none',
-                            boxShadow: '0 0 10px rgba(255, 255, 255, 0.8)', // 発光強化
-                            transform: `rotate(${Math.random() * 360}deg)` // 初期回転
-                        });
-
-                        document.body.appendChild(el);
-
-                        // 飛び散る方向と距離 (爆発力を強化)
-                        const angle = Math.random() * Math.PI * 2;
-                        const velocity = 60 + Math.random() * 90; // 60px〜150px飛び散る
-                        const tx = Math.cos(angle) * velocity;
-                        const ty = Math.sin(angle) * velocity;
-                        const rot = (Math.random() - 0.5) * 720; // 回転量
-
-                        // ★Fix: 余韻たっぷりアニメーション (ぱぁ～～ん！)
-                        el.animate([
-                            // 0%: 発生
-                            { transform: 'translate(0, 0) scale(1) rotate(0deg)', opacity: 1, offset: 0 },
-                            // 70%: まだハッキリ残っている (ここが余韻)
-                            { transform: `translate(${tx * 0.8}px, ${ty * 0.8}px) scale(0.8) rotate(${rot * 0.8}deg)`, opacity: 0.8, offset: 0.7 },
-                            // 100%: 消失
-                            { transform: `translate(${tx}px, ${ty}px) scale(0) rotate(${rot}deg)`, opacity: 0, offset: 1 }
-                        ], {
-                            duration: 1500 + Math.random() * 1000, // 1.5秒〜2.5秒 (かなり長く)
-                            easing: 'cubic-bezier(0.1, 1, 0.1, 1)', // 勢いよく飛び出し、あとはゆっくり漂う
-                            fill: 'forwards'
-                        }).onfinish = () => el.remove();
-                    }
-
-                    return; // 1回につき1個だけ
+                } else if (isVending) {
+                    console.log("Vending Machine Clicked");
+                    // 自販機処理があればここに記述
+                    return;
                 }
             }
         };
@@ -2679,7 +2865,7 @@ const SearchGame = (() => {
             { x: -5, y: 15, z: 25 },
             { x: 12, y: 14, z: 8 }
         ];
-
+ 
         cloudPositions.forEach(pos => {
             const cloudGroup = new THREE.Group();
             // Main body
@@ -2701,7 +2887,7 @@ const SearchGame = (() => {
             );
             puff2.position.set(1.8, 0.3, -0.3);
             cloudGroup.add(puff2);
-
+ 
             cloudGroup.position.set(pos.x, pos.y, pos.z);
             cloudGroup.rotation.y = Math.random() * Math.PI;
             scene.add(cloudGroup);
@@ -2902,38 +3088,32 @@ const SearchGame = (() => {
             }
         );
 
-        // === LOAD FBX MODEL: Vending Machine ===
-        const VENDING_TARGET_HEIGHT = 2.0; // Target height: 2m (typical vending machine)
+        // === LOAD FBX MODEL: Vending Machine (Test Ver) ===
+        const VENDING_TARGET_HEIGHT = 2.0; // 目標高さ 2m
 
+        // ★修正: テスト用モデル 'vending_test.fbx' を読み込む
         loader.load(
-            'models/vending_machine.fbx',
+            'models/vending_test.fbx',
             (vendingFbx) => {
-                console.log('FBX Loaded: vending_machine.fbx');
+                console.log('FBX Loaded: vending_test.fbx');
 
-                // === AUTO-SIZE NORMALIZATION using Box3 ===
+                // === AUTO-SIZE NORMALIZATION ===
                 const vendingBox = new THREE.Box3().setFromObject(vendingFbx);
                 const vendingSize = new THREE.Vector3();
                 vendingBox.getSize(vendingSize);
-
-                const vendingOriginalHeight = vendingSize.y;
-                console.log('Vending Machine Original Height:', vendingOriginalHeight.toFixed(3));
-
-                // Calculate scale factor
-                const vendingScaleFactor = VENDING_TARGET_HEIGHT / vendingOriginalHeight;
+                const vendingScaleFactor = VENDING_TARGET_HEIGHT / (vendingSize.y > 0 ? vendingSize.y : 1.0);
                 vendingFbx.scale.setScalar(vendingScaleFactor);
-                console.log('Vending Machine Applied Scale:', vendingScaleFactor.toFixed(6));
 
-                // Recalculate bounding box for ground contact
+                // 位置調整
                 const scaledVendingBox = new THREE.Box3().setFromObject(vendingFbx);
                 const vendingOffsetY = -scaledVendingBox.min.y;
-
-                // Position next to slide (left side)
                 vendingFbx.position.set(-11, vendingOffsetY, -8);
-                // Face toward player/slide (rotated 90° clockwise)
-                vendingFbx.rotation.y = 0;
-                console.log('Vending machine placed at (-11, 0, -8)');
 
-                // === Material, Shadow, and Special Effects ===
+                // ★修正: 反時計回りに90度回転させる
+                vendingFbx.rotation.y = Math.PI / 2;
+
+                // === Standard Settings (No Mesh Smoothing) ===
+                // 三角形対策の加工は行わず、最低限の見た目設定のみ適用
                 vendingFbx.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -2941,29 +3121,25 @@ const SearchGame = (() => {
 
                         const childName = child.name.toLowerCase();
 
-                        // Water/Glass: Transparency
+                        // ガラス・水部分の透過設定 (クローンして適用)
                         if (childName.includes('water') || childName.includes('glass')) {
-                            // Clone material to avoid affecting other models sharing the same material
                             if (Array.isArray(child.material)) {
                                 child.material = child.material.map(m => {
                                     const cloned = m.clone();
                                     cloned.transparent = true;
                                     cloned.opacity = 0.5;
-                                    cloned.depthWrite = false;
                                     return cloned;
                                 });
-                            } else {
+                            } else if (child.material) {
                                 const cloned = child.material.clone();
                                 cloned.transparent = true;
                                 cloned.opacity = 0.5;
-                                cloned.depthWrite = false;
                                 child.material = cloned;
                             }
                             child.userData.skipOutline = true;
-                            console.log('Vending: Transparency applied to (Cloned Material):', child.name);
                         }
 
-                        // Light: Emission
+                        // ライト部分の発光設定
                         if (childName.includes('light')) {
                             const mats = Array.isArray(child.material) ? child.material : [child.material];
                             mats.forEach(m => {
@@ -2972,53 +3148,28 @@ const SearchGame = (() => {
                                     m.emissiveIntensity = 2.0;
                                 }
                             });
-                            console.log('Vending: Emission applied to:', child.name);
                         }
                     }
                 });
 
                 scene.add(vendingFbx);
 
-                // Add edge outlines
-                addEdgesOutline(vendingFbx, 15, 0x000000);
-                console.log('Vending machine: Edge outlines applied');
+                // アウトライン追加
+                if (typeof window.addEdgesOutline === 'function') {
+                    window.addEdgesOutline(vendingFbx, 15, 0x000000);
+                }
 
-                // ▼ Added: Transparent HitBox for Aim Interaction
+                // HitBox (Interaction)
                 const hitBoxGeo = new THREE.BoxGeometry(1.5, 2.5, 1.5);
-                const hitBoxMat = new THREE.MeshBasicMaterial({
-                    visible: false, // Transparent
-                    wireframe: true // Set true for debugging
-                });
+                const hitBoxMat = new THREE.MeshBasicMaterial({ visible: false });
                 const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
-
-                // Align with vending machine
                 hitBox.position.copy(vendingFbx.position);
-                hitBox.position.y += 1.0; // Raise center
-
-                // Identification flag
+                hitBox.position.y += 1.0;
                 hitBox.userData.isVendingMachine = true;
-
                 scene.add(hitBox);
-
-                // Add collision data
-                if (!window.sgVendingCollision) {
-                    window.sgVendingCollision = [];
-                }
-                window.sgVendingCollision.push({
-                    x: -11,
-                    z: -8,
-                    radius: 0.8
-                });
             },
-            (progress) => {
-                if (progress.total > 0) {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                    console.log(`Loading vending_machine.fbx: ${percent}%`);
-                }
-            },
-            (error) => {
-                console.error('Error loading vending_machine.fbx:', error);
-            }
+            undefined,
+            (error) => console.error('Error loading vending_test.fbx:', error)
         );
 
         // === LOAD FBX MODEL: Coin (collectible game items) ===
@@ -4038,6 +4189,9 @@ const SearchGame = (() => {
         if (currentState === GameState.PLAYING) {
             // Gameplay Update
             if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
+
+            // ★ UI Update (Coin Button)
+            updateUI();
 
 
             // Coin Rotation (3.0 rad/sec)
