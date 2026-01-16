@@ -8,7 +8,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'summer', // 'spring', 'summer', 'autumn', 'winter'
+    currentSeason: 'autumn', // 'spring', 'summer', 'autumn', 'winter'
     debugMode: true          // ★trueなら、ロード/OPを飛ばしていきなりゲーム開始
 };
 
@@ -748,15 +748,23 @@ const SearchGame = (() => {
 
     // === Season-specific Model Config ===
     const SEASON_CONFIG = {
+        spring: {
+            openingNPC: { model: 'models/potatokun_normal.fbx', height: 1.5 },
+            gameplayNPC: { model: 'models/potatokun_sitting.fbx', height: 1.0 }
+        },
         summer: {
             openingNPC: {
-                model: 'models/potatokun_thristy.fbx', // ★修正: 実際のファイル名に合わせてスペル修正
+                model: 'models/potatokun_thristy.fbx',
                 height: 1.5,
             },
             gameplayNPC: {
                 model: 'models/potatokun_sitting.fbx',
                 height: 1.0,
             },
+        },
+        autumn: {
+            openingNPC: { model: 'models/potatokun_normal.fbx', height: 1.5 },
+            gameplayNPC: { model: 'models/potatokun_sitting.fbx', height: 1.0 }
         },
         winter: {
             openingNPC: {
@@ -772,11 +780,23 @@ const SearchGame = (() => {
 
     // === Season-specific Dialog Lines ===
     const OPENING_LINES = {
+        spring: [
+            { time: 0, text: 'ポテトくん「ふわぁ〜… ぽかぽかして ねむいなぁ…」', color: '#FF69B4' },
+            { time: 4000, text: 'あ！ 公園の桜が 満開だね！', color: '#87CEFA' },
+            { time: 7000, text: 'お花見したいけど、のどが渇いちゃった…', color: '#87CEFA' },
+            { time: 10000, text: 'コインを集めて、ジュースでお花見パーティーしよう！', color: '#FFA500' },
+        ],
         summer: [
             { time: 0, text: 'ポテトくん「はぁ〜… あついよ〜… のどカラカラ…」', color: '#FFAE00' },
             { time: 4000, text: 'あれれ？ ポテトくん、とっても困ってる！', color: '#87CEFA' },
             { time: 7000, text: 'こんな暑さじゃ、元気も出ないよね…', color: '#87CEFA' },
-            { time: 10000, text: 'よし！ 公園に落ちているコインを集めて\nジュースを買ってあげよう！', color: '#87CEFA' },
+            { time: 10000, text: 'よし！ 公園に落ちているコインを集めて\\nジュースを買ってあげよう！', color: '#87CEFA' },
+        ],
+        autumn: [
+            { time: 0, text: 'ポテトくん「ぐぅ〜…… お腹すいたなぁ……」', color: '#D2691E' },
+            { time: 4000, text: '涼しくなってきて、食欲が止まらないよ！', color: '#FF8C00' },
+            { time: 7000, text: 'あ！ あんなところに焼き芋……じゃなくてコインが！', color: '#D2691E' },
+            { time: 10000, text: 'コインを集めて、秋の味覚をお腹いっぱい食べよう！', color: '#8B4513' },
         ],
         winter: [
             { time: 0, text: 'ポテトくん「ぶるる… さむい… からだが こおりそう…」', color: '#FFAE00' },
@@ -788,12 +808,17 @@ const SearchGame = (() => {
 
     // === Season Visuals (Ground Color etc.) ===
     const SEASON_VISUALS = {
+        spring: {
+            groundColor: 0x98FB98, // PaleGreen (若草色)
+        },
         summer: {
             groundColor: 0x3FA34D, // Green
         },
+        autumn: {
+            groundColor: 0xDEB887, // BurlyWood (落ち葉や枯れ草の色)
+        },
         winter: {
-            // groundColor: 0x87CEEB, // ← 前回の水色
-            groundColor: 0xE0FFFF,    // ★修正: 影の中でも明るく見えるLightCyan
+            groundColor: 0xE0FFFF, // LightCyan
         }
     };
 
@@ -2244,21 +2269,37 @@ const SearchGame = (() => {
 
         // ★ 環境設定（空・光・フォグ）
         const ENV_CONFIG = {
+            spring: {
+                background: 0xE0FFFF, // 淡い空色
+                fog: 0xFFF0F5,        // ★重要: ラベンダーブラッシュ（桜色の霞）
+                lightPos: { x: 20, y: 40, z: 20 }, // 夏より少し低い
+                lightIntensity: 1.3,  // 柔らかい日差し
+                ambientColor: 0xFFF5EE, // シーシェル（暖かみのある白）
+                ambientIntensity: 0.9   // 優しく全体を照らす
+            },
             summer: {
                 background: 0xBFEFFF, // パステルブルー
                 fog: 0x90EE90,        // 薄緑
                 lightPos: { x: 20, y: 50, z: 20 }, // 夏は太陽が高い
                 lightIntensity: 1.6,   // ★明るく
                 ambientColor: 0x808080, // 少し明るめのグレー
-                ambientIntensity: 1.1   // 環境光を上げて全体を明るく
+                ambientIntensity: 1.5   // 環境光を上げて影をさらに明るく
+            },
+            autumn: {
+                background: 0xFFE4B5, // モカシン (夕暮れに近い淡いオレンジ)
+                fog: 0xFFDAB9,        // ピーチパフ (暖色の霞)
+                lightPos: { x: 20, y: 30, z: 20 }, // 夏より低く、冬より高い
+                lightIntensity: 1.4,  // 夕日のような強さ
+                ambientColor: 0x8B4513, // サドルブラウン (暖かみのある影)
+                ambientIntensity: 1.0
             },
             winter: {
-                background: 0xE6E6FA, // ラベンダー（魔法の冬）
-                fog: 0xE6E6FA,        // ★重要: フォグもラベンダーにして遠くを馴染ませる
-                lightPos: { x: 20, y: 15, z: 20 }, // ★冬は太陽が低い（影が伸びる）
-                lightIntensity: 1.2,
-                ambientColor: 0x404040,
-                ambientIntensity: 0.9
+                background: 0xE6E6FA, // ラベンダー（冬の空）
+                fog: 0xE6E6FA,        // 霧も同色で馴染ませる
+                lightPos: { x: 20, y: 25, z: 20 }, // 太陽は低い位置（影が伸びる）
+                lightIntensity: 1.2,    // 夏(1.6)より日差しを弱くする
+                ambientColor: 0x666688, // 青みがかったグレー（冷たい影の色）
+                ambientIntensity: 1.0   // 雪の反射で影もそこそこ明るくする
             }
         };
 
@@ -3423,13 +3464,24 @@ const SearchGame = (() => {
 
             // ★ 葉っぱ専用カラーパレット
             const TREE_PALETTES = {
+                spring: [
+                    0xFFB7C5, // 桜色 (Cherry Blossom)
+                    0xFF69B4, // ホットピンク (アクセント)
+                    0xFFC0CB, // ピンク
+                    0xFFF0F5  // 淡いピンク
+                ],
                 summer: [
                     0x66BB6A, // 鮮やかな緑
                     0x43A047, // 少し濃い緑
                     0x81C784, // 淡い緑
                     0x9CCC65  // 黄緑
                 ],
-                // ★【決定】冬の配色：魔法の冬（ファンタジー）
+                autumn: [
+                    0xFF4500, // オレンジレッド (真っ赤な紅葉)
+                    0xD2691E, // チョコレート (茶色い葉)
+                    0xFF8C00, // ダークオレンジ
+                    0xFFD700  // ゴールド (銀杏)
+                ],
                 winter: [
                     0xE6E6FA, // ラベンダー (薄紫)
                     0xF8F8FF, // ゴーストホワイト (青み白)
@@ -3628,8 +3680,11 @@ const SearchGame = (() => {
             // 2. Trees
             if (window.setTreeSeason) window.setTreeSeason(seasonName);
 
-            // 3. Environment (Sky, Fog, Sun) ★追加
+            // 3. Environment (Sky, Fog, Sun)
             if (window.setEnvironmentSeason) window.setEnvironmentSeason(seasonName);
+
+            // 4. Clouds ★追加
+            if (window.setCloudSeason) window.setCloudSeason(seasonName);
         };
 
         // Call the new tree spawning function
@@ -4405,59 +4460,80 @@ const SearchGame = (() => {
 
 
     // ==========================================
-    // 雲 (Cloud) の配置
-    // models/cloud.fbx を読み込んでランダム配置
+    // 雲 (Cloud) の配置と季節カラー管理
     // ==========================================
     function spawnClouds() {
         console.log("--- spawnClouds CALLED ---");
+
+        window.sgCloudObjects = []; // 雲管理用配列
+
+        // ★ 雲の色パレット (Emissive発光色)
+        const CLOUD_COLORS = {
+            spring: 0x443344, // ほんのり桜色
+            summer: 0x333333, // 通常の白（グレー発光）
+            autumn: 0x663322, // ★夕暮れ（赤みのある暖色グレー）
+            winter: 0x444455  // 雪雲（青みのあるグレー）
+        };
+
+        // ★ 雲の色変更関数
+        window.setCloudSeason = (seasonName) => {
+            console.log(`Setting Cloud Season to: ${seasonName}`);
+            const colorHex = CLOUD_COLORS[seasonName] || CLOUD_COLORS.summer;
+
+            window.sgCloudObjects.forEach(cloud => {
+                cloud.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // エミッシブカラー（発光色）を変更して色味を変える
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(colorHex);
+                        }
+                    }
+                });
+            });
+        };
 
         const loader = new FBXLoader();
         loader.load('models/cloud.fbx', (masterCloud) => {
             console.log("Cloud Loaded: cloud.fbx");
 
-            // マテリアル調整 (必要に応じて)
             masterCloud.traverse((child) => {
                 if (child.isMesh) {
-                    child.castShadow = true;       // 地面に影を落とす
-                    child.receiveShadow = false;   // 雲自体は影を受けない(明るく)
+                    child.castShadow = true;
+                    child.receiveShadow = false;
 
-                    // 白く発光させて「明るい雲」にする場合 (暗くなるのを防ぐ)
                     if (child.material) {
-                        // 遠景のフォグ(緑色)の影響を受けないようにする
-                        child.material.fog = false;
-
-                        // 既存のマテリアル設定を維持しつつ、少し明るくする
+                        child.material.fog = false; // フォグの影響を受けない
+                        // 初期色設定
                         if (child.material.emissive) {
-                            child.material.emissive.setHex(0x333333);
+                            child.material.emissive.setHex(CLOUD_COLORS.summer);
                         }
                     }
                 }
             });
 
-            // ランダム配置する数
             const cloudCount = 15;
-
             for (let i = 0; i < cloudCount; i++) {
                 const cloud = masterCloud.clone();
-
-                // ランダム座標 (公園全体を覆う広さ)
-                const x = (Math.random() - 0.5) * 100; // -50 ~ 50
-                const z = (Math.random() - 0.5) * 100; // -50 ~ 50
-                const y = 15 + Math.random() * 10;     // 高さ 15 ~ 25m
+                const x = (Math.random() - 0.5) * 100;
+                const z = (Math.random() - 0.5) * 100;
+                const y = 15 + Math.random() * 10;
 
                 cloud.position.set(x, y, z);
-
-                // ランダム回転
                 cloud.rotation.y = Math.random() * Math.PI * 2;
-
-                // ランダムスケール (大小をつける)
-                const scale = 0.8 + Math.random() * 0.7; // 0.8 ~ 1.5倍
-                cloud.scale.setScalar(scale);
+                cloud.scale.setScalar(0.8 + Math.random() * 0.7);
 
                 scene.add(cloud);
+                window.sgCloudObjects.push(cloud);
             }
 
-            console.log(`${cloudCount} clouds placed in the sky.`);
+            console.log(`${cloudCount} clouds placed.`);
+
+            // ★現在の季節を適用
+            if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
+                window.setCloudSeason(GameConfig.currentSeason);
+            } else {
+                window.setCloudSeason('summer');
+            }
 
         }, undefined, (error) => {
             console.error("Error loading cloud.fbx:", error);
@@ -4472,14 +4548,24 @@ const SearchGame = (() => {
 
         // ★ 季節ごとのカラーパレット定義 (ここをいじれば色が変えられます)
         const GRASS_PALETTES = {
+            spring: [
+                0x90EE90, // LightGreen
+                0x98FB98, // PaleGreen
+                0xADFF2F  // GreenYellow (新芽の色)
+            ],
             summer: [
                 0x66BB6A, // 鮮やかな緑
                 0x43A047, // 少し濃い緑
                 0x81C784, // 淡い緑
                 0x9CCC65  // 黄緑っぽい緑
             ],
+            autumn: [
+                0xCD853F, // ペルー (乾いた土色)
+                0xDAA520, // ゴールデンロッド (枯れ草色)
+                0x8B4513  // サドルブラウン
+            ],
             winter: [
-                0xDDDDDD, // 仮: 冬の色（後で相談しましょう！）
+                0xDDDDDD, // 冬の色
             ]
         };
 
