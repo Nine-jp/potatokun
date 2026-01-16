@@ -6,6 +6,12 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 /* Mini-Game System Controller */
 
+// ★季節管理＆開発設定の司令塔
+const GameConfig = {
+    currentSeason: 'summer', // 'spring', 'summer', 'autumn', 'winter'
+    debugMode: true          // ★trueなら、ロード/OPを飛ばしていきなりゲーム開始
+};
+
 const GameLibrary = {
     'potato-action': {
         title: "ポテトくんパクパク",
@@ -45,8 +51,7 @@ const GameLibrary = {
 // =============================
 //  Seasonal Color Palette
 // =============================
-// ★現在の季節設定 ('spring', 'summer', 'autumn', 'winter')
-let currentSeason = 'winter';
+// ★季節設定は GameConfig.currentSeason で一元管理
 
 // 季節ごとのパーティクルカラーパレット
 const seasonalColors = {
@@ -145,6 +150,42 @@ function initGameSystem() {
     // Initial setup for specific games
     PotatoAction.setup(activeGameContainer);
     SearchGame.setup(activeGameContainer);
+
+    // ★追加: デバッグモードなら即座にポテコインゲームを起動
+    if (GameConfig.debugMode) {
+        console.log("🚀 DEBUG MODE: Auto-launching SearchGame...");
+
+        // メニューなどをスキップして表示状態にする
+        scrollPos = window.pageYOffset;
+        if (overlay) overlay.classList.remove('hidden');
+        if (menuContainer) menuContainer.classList.add('hidden');
+        if (introContainer) introContainer.classList.add('hidden');
+        if (activeGameContainer) activeGameContainer.classList.remove('hidden');
+        if (gameOverContainer) gameOverContainer.classList.add('hidden');
+
+        document.body.classList.add('modal-open');
+
+        // ゲーム開始
+        currentActiveGameId = '3d-search';
+        GameLibrary[currentActiveGameId].start();
+
+        // UIアニメーションのリセット
+        setTimeout(() => {
+            const uiElements = [
+                document.getElementById('hud-top-left'),
+                document.getElementById('controls-bottom-left'),
+                document.getElementById('controls-bottom-right')
+            ];
+            uiElements.forEach(el => {
+                if (el) {
+                    el.style.animation = 'none';
+                    el.offsetHeight;
+                    el.style.animation = '';
+                    el.style.opacity = '1';
+                }
+            });
+        }, 100);
+    }
 }
 
 
@@ -703,13 +744,13 @@ const SearchGame = (() => {
         SUMMER: 'summer',
         WINTER: 'winter',
     };
-    let currentSeason = SEASON.WINTER; // ← ここを書き換えるだけで季節切り替え
+    // ★季節は GameConfig.currentSeason で一元管理
 
     // === Season-specific Model Config ===
     const SEASON_CONFIG = {
         summer: {
             openingNPC: {
-                model: 'models/potatokun_thirsty.fbx',
+                model: 'models/potatokun_thristy.fbx', // ★修正: 実際のファイル名に合わせてスペル修正
                 height: 1.5,
             },
             gameplayNPC: {
@@ -959,9 +1000,11 @@ const SearchGame = (() => {
                 // Wait, start(options) -> inside setTimeout, 'options' variable is available via closure.
             }
 
-            // Let's use the 'options' argument from start(options) directly.
-            if (options && options.skipOpening) {
-                console.log("Skipping Opening Sequence (Test Mode)");
+            // ★デバッグモードなら強制的にskipOpeningを有効化
+            const shouldSkip = (options && options.skipOpening) || GameConfig.debugMode;
+
+            if (shouldSkip) {
+                console.log("🚀 DEBUG MODE: Skipping Opening Sequence");
 
                 // Hide Loading Overlay
                 const overlay = document.getElementById('sg-loading-overlay');
@@ -1136,19 +1179,46 @@ const SearchGame = (() => {
         shiverFrame = 0;
     }
 
+    // === Gameplay Shiver Effect ===
+    let gameShiverTime = 0;
+    function updateGameplayShiver(dt) {
+        // ★修正: currentSeason -> GameConfig.currentSeason
+        if (GameConfig.currentSeason !== 'winter' || !gameplayNPC) return;
+
+        gameShiverTime += dt;
+
+        // 1. 高速振動 (High Frequency)
+        const rapidShake = Math.sin(gameShiverTime * 60);
+
+        // 2. 強弱の波 (Envelope)
+        const slowWave = Math.sin(gameShiverTime * 1.0) + Math.sin(gameShiverTime * 2.3) * 0.5;
+
+        let intensity = 0.005;
+        if (slowWave > 0.2) {
+            intensity += slowWave * 0.05;
+        }
+
+        // Apply Rotation Shake
+        gameplayNPC.rotation.y = rapidShake * intensity;
+
+        // Apply Position Shake
+        const posConfig = NPC_CONFIG.gameplay || { position: { x: -13 } }; // 安全策
+        gameplayNPC.position.x = posConfig.position.x + (rapidShake * intensity * 0.05);
+    }
+
     // === Season-agnostic Effect Control ===
     function createSeasonEffects(model) {
-        if (currentSeason === SEASON.SUMMER) {
+        if (GameConfig.currentSeason === SEASON.SUMMER) {
             createSweatEffects(model);
-        } else if (currentSeason === SEASON.WINTER) {
+        } else if (GameConfig.currentSeason === SEASON.WINTER) {
             createFreezingEffects(model);
         }
     }
 
     function updateSeasonEffects() {
-        if (currentSeason === SEASON.SUMMER) {
+        if (GameConfig.currentSeason === SEASON.SUMMER) {
             updateSweatEffects();
-        } else if (currentSeason === SEASON.WINTER) {
+        } else if (GameConfig.currentSeason === SEASON.WINTER) {
             updateFreezingEffects();
         }
     }
@@ -1170,7 +1240,7 @@ const SearchGame = (() => {
      */
     function spawnOpeningNPC(onComplete) {
         const posConfig = NPC_CONFIG.opening;
-        const seasonConfig = SEASON_CONFIG[currentSeason].openingNPC;
+        const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].openingNPC;
 
         // 既存の破棄
         if (openingNPC) {
@@ -1181,7 +1251,7 @@ const SearchGame = (() => {
         loader.load(
             seasonConfig.model,
             (fbx) => {
-                console.log('FBX Loaded: Opening NPC (' + currentSeason + ')');
+                console.log('FBX Loaded: Opening NPC (' + GameConfig.currentSeason + ')');
 
                 // スケール調整
                 const box = new THREE.Box3().setFromObject(fbx);
@@ -1237,7 +1307,7 @@ const SearchGame = (() => {
      */
     function spawnGameplayNPC() {
         const posConfig = NPC_CONFIG.gameplay;
-        const seasonConfig = SEASON_CONFIG[currentSeason].gameplayNPC;
+        const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].gameplayNPC;
 
         // 既存の破棄
         if (gameplayNPC) {
@@ -1248,7 +1318,7 @@ const SearchGame = (() => {
         loader.load(
             seasonConfig.model,
             (fbx) => {
-                console.log('FBX Loaded: Gameplay NPC (' + currentSeason + ')');
+                console.log('FBX Loaded: Gameplay NPC (' + GameConfig.currentSeason + ')');
 
                 // スケール調整
                 const box = new THREE.Box3().setFromObject(fbx);
@@ -1315,7 +1385,7 @@ const SearchGame = (() => {
 
         loader.load(banzaiPath, (fbx) => {
             // スケール調整 (Opening NPCと同一ロジック)
-            const seasonConfig = SEASON_CONFIG[currentSeason].openingNPC;
+            const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].openingNPC;
             const box = new THREE.Box3().setFromObject(fbx);
             const size = new THREE.Vector3();
             box.getSize(size);
@@ -1549,7 +1619,7 @@ const SearchGame = (() => {
         if (overlay) overlay.style.display = 'none';
 
         // --- Dialog Sequence (Season-based) ---
-        const lines = OPENING_LINES[currentSeason];
+        const lines = OPENING_LINES[GameConfig.currentSeason];
         lines.forEach(line => {
             if (line.time === 0) {
                 showTapText(window.innerWidth / 2, window.innerHeight * 0.7, line.text, line.color);
@@ -2056,12 +2126,9 @@ const SearchGame = (() => {
         const particleCount = 15;
 
         // 季節設定の取得
-        const colors = (typeof seasonalColors !== 'undefined' && typeof currentSeason !== 'undefined')
-            ? (seasonalColors[currentSeason] || seasonalColors['default'])
-            : [0xFFFFFF, 0x87CEEB];
-        const shapes = (typeof seasonalShapes !== 'undefined' && typeof currentSeason !== 'undefined')
-            ? (seasonalShapes[currentSeason] || ['●'])
-            : ['●', '★'];
+        const season = GameConfig.currentSeason;
+        const colors = seasonalColors[season] || seasonalColors['default'];
+        const shapes = seasonalShapes[season] || ['●'];
 
         for (let i = 0; i < particleCount; i++) {
             const canvas = document.createElement('canvas');
@@ -2138,7 +2205,7 @@ const SearchGame = (() => {
             animateSprite();
         }
 
-        console.log(`✨ Coin collected (${currentSeason} + DeltaTime) at:`, coinWorldPos);
+        console.log(`✨ Coin collected (${GameConfig.currentSeason} + DeltaTime) at:`, coinWorldPos);
     }
 
 
@@ -2180,12 +2247,18 @@ const SearchGame = (() => {
             summer: {
                 background: 0xBFEFFF, // パステルブルー
                 fog: 0x90EE90,        // 薄緑
-                lightPos: { x: 20, y: 50, z: 20 } // 夏は太陽が高い
+                lightPos: { x: 20, y: 50, z: 20 }, // 夏は太陽が高い
+                lightIntensity: 1.6,   // ★明るく
+                ambientColor: 0x808080, // 少し明るめのグレー
+                ambientIntensity: 1.1   // 環境光を上げて全体を明るく
             },
             winter: {
                 background: 0xE6E6FA, // ラベンダー（魔法の冬）
                 fog: 0xE6E6FA,        // ★重要: フォグもラベンダーにして遠くを馴染ませる
-                lightPos: { x: 20, y: 15, z: 20 } // ★冬は太陽が低い（影が伸びる）
+                lightPos: { x: 20, y: 15, z: 20 }, // ★冬は太陽が低い（影が伸びる）
+                lightIntensity: 1.2,
+                ambientColor: 0x404040,
+                ambientIntensity: 0.9
             }
         };
 
@@ -2201,16 +2274,25 @@ const SearchGame = (() => {
                 scene.fog.color.setHex(config.fog);
             }
 
-            // 3. 太陽の位置（影の長さ）
+            // 3. 太陽の位置と強さ
             if (window.sgSunLight) {
                 window.sgSunLight.position.set(
                     config.lightPos.x,
                     config.lightPos.y,
                     config.lightPos.z
                 );
+                window.sgSunLight.intensity = config.lightIntensity;
                 // 影カメラの更新
                 window.sgSunLight.updateMatrixWorld();
             }
+
+            // 4. 環境光の調整
+            scene.traverse((child) => {
+                if (child.isAmbientLight) {
+                    child.color.setHex(config.ambientColor);
+                    child.intensity = config.ambientIntensity;
+                }
+            });
         };
 
         camera = new THREE.PerspectiveCamera(75, width / height, 0.05, 1000); // Wider FOV, closer near plane
@@ -2778,7 +2860,7 @@ const SearchGame = (() => {
 
 
 
-        const visualConfig = SEASON_VISUALS[currentSeason] || SEASON_VISUALS.summer;
+        const visualConfig = SEASON_VISUALS[GameConfig.currentSeason] || SEASON_VISUALS.summer;
         const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(100, 100),
             new THREE.MeshLambertMaterial({ color: visualConfig.groundColor })
@@ -2897,7 +2979,7 @@ const SearchGame = (() => {
             { x: -5, y: 15, z: 25 },
             { x: 12, y: 14, z: 8 }
         ];
- 
+     
         cloudPositions.forEach(pos => {
             const cloudGroup = new THREE.Group();
             // Main body
@@ -2919,7 +3001,7 @@ const SearchGame = (() => {
             );
             puff2.position.set(1.8, 0.3, -0.3);
             cloudGroup.add(puff2);
- 
+     
             cloudGroup.position.set(pos.x, pos.y, pos.z);
             cloudGroup.rotation.y = Math.random() * Math.PI;
             scene.add(cloudGroup);
@@ -3528,7 +3610,7 @@ const SearchGame = (() => {
                 }
 
                 // Initialize Season
-                window.setTreeSeason('winter');
+                window.setTreeSeason(GameConfig.currentSeason);
 
             },
                 undefined,
@@ -3554,7 +3636,7 @@ const SearchGame = (() => {
         spawnTrees();
 
         // Initialize Game Season (sets grass and trees)
-        window.setGameSeason('winter');
+        window.setGameSeason(GameConfig.currentSeason);
 
 
         /* REMOVED OLD TREE LOADING LOGIC */
@@ -3583,7 +3665,7 @@ const SearchGame = (() => {
         const slideGroup = new THREE.Group();
         const slideMaterial = new THREE.MeshLambertMaterial({ color: 0xFFB6C1 }); // Light pink
         const woodMaterial = new THREE.MeshLambertMaterial({ color: 0xDEB887 }); // Burlywood
-    
+     
         // Platform (stacked blocks)
         for (let y = 0; y < 3; y++) {
             const block = new THREE.Mesh(
@@ -3606,7 +3688,7 @@ const SearchGame = (() => {
         slideModel = slideGroup; // Store reference
         slideGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(slideGroup, 20, 0x000000);
-    
+     
         // === ジャングルジム (Jungle Gym) at (5, 0, -5) - Pastel Yellow wireframe ===
         const gymGroup = new THREE.Group();
         const gymMaterial = new THREE.MeshLambertMaterial({ color: 0xFFE4B5, wireframe: true }); // Moccasin
@@ -3620,7 +3702,7 @@ const SearchGame = (() => {
         scene.add(gymGroup);
         gymGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(gymGroup, 20, 0x000000);
-    
+     
         // === ベンチ (Bench) at (10, 0, 8) - Pastel Brown ===
         const benchGroup = new THREE.Group();
         const benchMaterial = new THREE.MeshLambertMaterial({ color: 0xD2B48C }); // Tan
@@ -3652,15 +3734,15 @@ const SearchGame = (() => {
         scene.add(benchGroup);
         benchGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(benchGroup, 20, 0x000000);
-    
+     
         // === 大きな木 (Big Tree) - REMOVED, now using Tree_test.fbx ===
         // Old primitive tree deleted - all trees are now FBX models
-    
+     
         // === 砂場 (Sandbox) at (0, 0, 12) - Cream color ===
-    
+     
         const sandMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFACD }); // Lemon chiffon
         const sandEdgeMaterial = new THREE.MeshLambertMaterial({ color: 0xBC8F8F }); // Rosy brown
-    
+     
         // Sand
         const sandbox = new THREE.Mesh(
             new THREE.BoxGeometry(6, 0.4, 6),
@@ -3668,7 +3750,7 @@ const SearchGame = (() => {
         );
         sandbox.position.set(0, 0.2, 12);
         scene.add(sandbox);
-    
+     
         // Edge (frame)
         const edgePositions = [
             [0, 0.4, 9], [0, 0.4, 15], [-3, 0.4, 12], [3, 0.4, 12]
@@ -3682,12 +3764,12 @@ const SearchGame = (() => {
             edge.position.set(ex, ey, ez);
             scene.add(edge);
         });
-    
+     
         // === 噴水 (Fountain) at (0, 0, -12) - Voxel style (square) ===
         const fountainGroup = new THREE.Group();
         const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0xB0C4DE }); // Light steel blue
         const waterMaterial = new THREE.MeshLambertMaterial({ color: 0x87CEFA, transparent: true, opacity: 0.7 });
-    
+     
         // Base (square)
         const fountainBase = new THREE.Mesh(
             new THREE.BoxGeometry(6, 1, 6),
@@ -3695,7 +3777,7 @@ const SearchGame = (() => {
         );
         fountainBase.position.y = 0.5;
         fountainGroup.add(fountainBase);
-    
+     
         // Water surface
         const fountainWater = new THREE.Mesh(
             new THREE.BoxGeometry(5, 0.3, 5),
@@ -3703,7 +3785,7 @@ const SearchGame = (() => {
         );
         fountainWater.position.y = 0.85;
         fountainGroup.add(fountainWater);
-    
+     
         // Center pillar (stacked cubes)
         for (let y = 0; y < 3; y++) {
             const pillar = new THREE.Mesh(
@@ -3717,7 +3799,7 @@ const SearchGame = (() => {
         scene.add(fountainGroup);
         fountainGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         addEdgesOutline(fountainGroup, 20, 0x000000);
-    
+     
         // === 茂み (Bushes) - Voxel style (cubes) ===
         const bushMaterial = new THREE.MeshLambertMaterial({ color: 0x98FB98 }); // Pale green
         const bushPositions = [[15, 0], [-5, 15], [12, -8], [-15, -15]];
@@ -4242,37 +4324,6 @@ const SearchGame = (() => {
         }
     }
 
-    // === Gameplay Shiver Effect ===
-    let gameShiverTime = 0;
-    function updateGameplayShiver(dt) {
-        if (currentSeason !== SEASON.WINTER || !gameplayNPC) return;
-
-        gameShiverTime += dt;
-
-        // 1. 高速振動 (High Frequency) - 「ブルブル」の源
-        // 60 rad/s = approx 10Hz (fast vibrate)
-        const rapidShake = Math.sin(gameShiverTime * 60);
-
-        // 2. 強弱の波 (Envelope) - 「緩急」
-        // 異なる周期の波を合成して、不規則なリズムを作る
-        // slowWave: -1.5 ~ 1.5 程度をゆっくり変動
-        const slowWave = Math.sin(gameShiverTime * 1.0) + Math.sin(gameShiverTime * 2.3) * 0.5;
-
-        // Intensity Calc:
-        // Base shiver (small)
-        let intensity = 0.005;
-
-        // Strong shiver when wave is high (thresholding)
-        if (slowWave > 0.2) {
-            intensity += slowWave * 0.05; // Max approx 0.08
-        }
-
-        // Apply Rotation Shake
-        gameplayNPC.rotation.y = rapidShake * intensity;
-
-        // Apply Position Shake (Subtle)
-        gameplayNPC.position.x = NPC_CONFIG.gameplay.position.x + (rapidShake * intensity * 0.05);
-    }
 
     function updateAim() {
         // === AIM DETECTION (Raycaster from center of screen) ===
@@ -4519,8 +4570,8 @@ const SearchGame = (() => {
 
             console.log(`${grassCount} grass patches placed.`);
 
-            // ★ 読み込み完了直後に「冬」の色を適用！
-            window.setGrassSeason('winter');
+            // ★修正: GameConfig.currentSeason を使用
+            window.setGrassSeason(GameConfig.currentSeason);
 
         }, undefined, (error) => {
             console.error("Error loading grass.fbx:", error);
@@ -4665,6 +4716,11 @@ const SearchGame = (() => {
 })();
 
 
+
+// ★季節の初期化（草・木・空の色を適用）
+if (typeof window.setGameSeason === 'function') {
+    window.setGameSeason(GameConfig.currentSeason);
+}
 
 // Init
 initGameSystem();
