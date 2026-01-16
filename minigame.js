@@ -2205,6 +2205,20 @@ const SearchGame = (() => {
         renderer.shadowMap.enabled = true;
         canvasContainer.appendChild(renderer.domElement);
 
+        // === リサイズ・画面回転時の処理 ===
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            // カメラのアスペクト比を修正
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            // レンダラーのサイズを修正
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            console.log("Window resized:", window.innerWidth, window.innerHeight);
+        }
+
         // === EdgesGeometry Outline Function ===
         /**
          * オブジェクトにエッジライン（輪郭線）を追加する関数

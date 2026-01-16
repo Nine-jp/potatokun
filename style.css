@@ -1835,3 +1835,480 @@ button.pickup-btn {
     }
 }
 
+
+/* ========================================
+   FULLSCREEN OVERLAY UI SYSTEM
+======================================== */
+
+/* ゲームキャンバスを全画面化 */
+#sg-canvas-container {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: transparent !important;
+}
+
+#sg-canvas-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* UIコンテナをオーバーレイ化 */
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* ボタン以外は透過 */
+    z-index: 200;
+}
+
+/* HUD上部左 */
+#hud-top-left {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    pointer-events: auto;
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+}
+
+#hud-top-left h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+#hud-top-left #score {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+/* D-Pad: 左下固定 */
+#controls-bottom-left {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    pointer-events: auto;
+}
+
+#dpad-cross {
+    display: grid;
+    grid-template-columns: repeat(3, 50px);
+    grid-template-rows: repeat(3, 50px);
+    gap: 2px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+    padding: 5px;
+}
+
+#dpad-cross button {
+    width: 50px;
+    height: 50px;
+    border: none;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 20px;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#dpad-cross button:active {
+    background: rgba(255, 255, 255, 0.9);
+    transform: scale(0.95);
+}
+
+#dpad-center {
+    background: transparent !important;
+}
+
+.dpad-empty {
+    background: transparent;
+}
+
+/* アクションボタン: 右下固定 */
+#controls-bottom-right {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.action-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.8);
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 32px;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s, background 0.2s;
+}
+
+.action-btn:active {
+    transform: scale(0.9);
+}
+
+/* 色の強制適用 */
+button.view-btn {
+    background-color: rgba(0, 100, 255, 0.8) !important;
+    box-shadow: 0 0 15px rgba(0, 100, 255, 0.4);
+}
+
+button.pickup-btn {
+    background-color: rgba(255, 50, 50, 0.8) !important;
+    box-shadow: 0 0 15px rgba(255, 50, 50, 0.4);
+}
+
+.pickup-btn img {
+    width: 60%;
+    height: auto;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+    pointer-events: none;
+}
+
+/* PC/iPad 大画面時のサイズ調整 */
+@media (min-width: 768px) {
+    .action-btn {
+        width: 100px;
+        height: 100px;
+        border-width: 4px;
+    }
+
+    button.view-btn {
+        font-size: 60px !important;
+        line-height: 100px;
+        padding: 0;
+    }
+
+    button.pickup-btn img {
+        width: 80%;
+    }
+
+    #dpad-cross {
+        grid-template-columns: repeat(3, 60px);
+        grid-template-rows: repeat(3, 60px);
+    }
+
+    #dpad-cross button {
+        width: 60px;
+        height: 60px;
+        font-size: 28px;
+    }
+}
+
+/* popIn アニメーション */
+@keyframes popIn {
+    0% { transform: scale(0); opacity: 0; }
+    80% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+
+/* === 十字キー (D-Pad) の修復 - ファミコン風 === */
+#dpad-cross {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    width: 160px;
+    height: 160px;
+    z-index: 1000;
+    
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 0 !important; /* 隙間をなくして一体化 */
+    
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+}
+
+#dpad-cross button {
+    width: 100%;
+    height: 100%;
+    background-color: #333 !important;
+    border: 1px solid #222 !important;
+    color: white;
+    font-size: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    border-radius: 0 !important;
+    margin: 0;
+    padding: 0;
+}
+
+#dpad-cross button:active {
+    background-color: #555 !important;
+}
+
+/* 上ボタン */
+#dpad-up {
+    grid-column: 2;
+    grid-row: 1;
+    border-radius: 10px 10px 0 0 !important;
+}
+
+/* 左ボタン */
+#dpad-left {
+    grid-column: 1;
+    grid-row: 2;
+    border-radius: 10px 0 0 10px !important;
+}
+
+/* 中央の埋め合わせ */
+#dpad-center, #dpad-center-fill {
+    grid-column: 2;
+    grid-row: 2;
+    background-color: #333 !important;
+    border: 1px solid #222 !important;
+}
+
+/* 右ボタン */
+#dpad-right {
+    grid-column: 3;
+    grid-row: 2;
+    border-radius: 0 10px 10px 0 !important;
+}
+
+/* 下ボタン */
+#dpad-down {
+    grid-column: 2;
+    grid-row: 3;
+    border-radius: 0 0 10px 10px !important;
+}
+
+/* 空きスペースを非表示 */
+.dpad-empty {
+    display: none !important;
+}
+
+
+/* === 十字キー (D-Pad) 一体型デザイン === */
+#controls-bottom-left {
+    position: absolute !important;
+    bottom: 20px !important;
+    left: 20px !important;
+    pointer-events: auto !important;
+}
+
+#dpad-cross {
+    width: 160px !important;
+    height: 160px !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-rows: repeat(3, 1fr) !important;
+    gap: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+#dpad-cross button,
+#dpad-center {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #444 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: white !important;
+    font-size: 28px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#dpad-cross button:active {
+    background-color: #666 !important;
+}
+
+/* 上ボタン - 上部だけ丸く */
+#dpad-up {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    border-radius: 15px 15px 0 0 !important;
+}
+
+/* 左ボタン - 左部だけ丸く */
+#dpad-left {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    border-radius: 15px 0 0 15px !important;
+}
+
+/* 中央 - 同じ色で埋める */
+#dpad-center {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    background-color: #444 !important;
+    cursor: default;
+}
+
+/* 右ボタン - 右部だけ丸く */
+#dpad-right {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    border-radius: 0 15px 15px 0 !important;
+}
+
+/* 下ボタン - 下部だけ丸く */
+#dpad-down {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    border-radius: 0 0 15px 15px !important;
+}
+
+/* 空きスペースを完全非表示 */
+.dpad-empty {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+
+/* === 十字キー最終修正 - 角丸＆半透明 === */
+#dpad-cross button,
+#dpad-cross #dpad-center {
+    background-color: rgba(128, 128, 128, 0.6) !important; /* 薄いグレー + 半透明 */
+}
+
+#dpad-cross button:active {
+    background-color: rgba(180, 180, 180, 0.8) !important;
+}
+
+#dpad-up {
+    border-top-left-radius: 15px !important;
+    border-top-right-radius: 15px !important;
+}
+
+#dpad-left {
+    border-top-left-radius: 15px !important;
+    border-bottom-left-radius: 15px !important;
+}
+
+#dpad-right {
+    border-top-right-radius: 15px !important;
+    border-bottom-right-radius: 15px !important;
+}
+
+#dpad-down {
+    border-bottom-left-radius: 15px !important;
+    border-bottom-right-radius: 15px !important;
+}
+
+
+/* === 十字キー 8箇所の角丸修正 === */
+/* 上ボタン: 左上と右上を丸める */
+#dpad-up {
+    border-top-left-radius: 20px !important;
+    border-top-right-radius: 20px !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+/* 左ボタン: 左上と左下を丸める */
+#dpad-left {
+    border-top-left-radius: 20px !important;
+    border-bottom-left-radius: 20px !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+/* 右ボタン: 右上と右下を丸める */
+#dpad-right {
+    border-top-right-radius: 20px !important;
+    border-bottom-right-radius: 20px !important;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+/* 下ボタン: 左下と右下を丸める */
+#dpad-down {
+    border-bottom-left-radius: 20px !important;
+    border-bottom-right-radius: 20px !important;
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+}
+
+/* 中央は角丸なし */
+#dpad-center {
+    border-radius: 0 !important;
+}
+
+
+/* === 十字キー デザイン修正 (優先度・色調整) === */
+
+/* ボタンと中央の共通設定 (色: 明るい半透明グレー) */
+#dpad-cross button,
+#dpad-cross #dpad-center {
+    background-color: rgba(255, 255, 255, 0.3) !important; 
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    box-shadow: none !important;
+}
+
+/* 押した時 */
+#dpad-cross button:active {
+    background-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* 角丸設定 (IDセレクタを連結して優先度を最強にする) */
+/* 上ボタン: 上の角2つ */
+#dpad-cross #dpad-up {
+    border-radius: 15px 15px 0 0 !important;
+}
+
+/* 左ボタン: 左の角2つ */
+#dpad-cross #dpad-left {
+    border-radius: 15px 0 0 15px !important;
+}
+
+/* 右ボタン: 右の角2つ */
+#dpad-cross #dpad-right {
+    border-radius: 0 15px 15px 0 !important;
+}
+
+/* 下ボタン: 下の角2つ */
+#dpad-cross #dpad-down {
+    border-radius: 0 0 15px 15px !important;
+}
+
+/* 中央: 角丸なし */
+#dpad-cross #dpad-center {
+    border-radius: 0 !important;
+}
+
+
+/* === 十字キー 仕切り線を削除 === */
+#dpad-cross button,
+#dpad-cross #dpad-center {
+    border: none !important;
+}
+
