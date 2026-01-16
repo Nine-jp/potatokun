@@ -101,6 +101,24 @@ function initGameSystem() {
         // Launch Potecoin Game
         currentActiveGameId = '3d-search';
         GameLibrary[currentActiveGameId].start();
+
+        // ★UI要素のアニメーションをリプレイ（スライドイン演出）
+        setTimeout(() => {
+            const uiElements = [
+                document.getElementById('hud-top-left'),
+                document.getElementById('controls-bottom-left'),
+                document.getElementById('controls-bottom-right')
+            ];
+
+            uiElements.forEach(el => {
+                if (el) {
+                    el.style.animation = 'none';
+                    el.offsetHeight; // trigger reflow
+                    el.style.animation = '';
+                    el.style.opacity = '1';
+                }
+            });
+        }, 100);
     });
 
     // Close Button (Portal Level)

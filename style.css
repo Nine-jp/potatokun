@@ -2312,3 +2312,88 @@ button.pickup-btn {
     border: none !important;
 }
 
+
+/* ========================================
+   UI Animation & Transition Enhancement
+======================================== */
+
+/* === A. ボタン共通アニメーション（押し感） === */
+button:active, 
+.action-btn:active, 
+#dpad-cross button:active,
+.game-card:active {
+    transform: scale(0.92) !important;
+    transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* アクションボタンの呼吸アニメーション */
+@keyframes breathe {
+    0%, 100% { transform: scale(1); box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
+    50% { transform: scale(1.05); box-shadow: 0 6px 12px rgba(0,0,0,0.6); }
+}
+
+.pickup-btn {
+    animation: breathe 2s infinite ease-in-out;
+}
+
+.pickup-btn:active {
+    animation: none;
+}
+
+/* === B. フェードトランジション === */
+#minigame-container,
+#game-menu,
+#game-intro,
+#active-game-container,
+#common-game-over,
+#ui-container {
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    opacity: 1;
+    visibility: visible;
+}
+
+/* 非表示状態（フェードアウト） */
+.fade-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: scale(1.05);
+}
+
+/* === C. HUD スライドイン演出 === */
+@keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-50px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(50px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInTop {
+    from { opacity: 0; transform: translateY(-50px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* HUD要素にスライドイン適用 */
+#hud-top-left {
+    animation: slideInTop 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+#controls-bottom-left {
+    animation: slideInLeft 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s forwards;
+    opacity: 0;
+}
+
+#controls-bottom-right {
+    animation: slideInRight 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s forwards;
+    opacity: 0;
+}
+
+/* アニメーション後に表示を維持 */
+#controls-bottom-left,
+#controls-bottom-right {
+    animation-fill-mode: forwards;
+}
+
