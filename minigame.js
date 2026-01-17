@@ -3243,89 +3243,6 @@ const SearchGame = (() => {
             }
         );
 
-        // === LOAD FBX MODEL: Vending Machine (Test Ver) ===
-        const VENDING_TARGET_HEIGHT = 2.0; // 目標高さ 2m
-
-        // ★修正: テスト用モデル 'vending_test.fbx' を読み込む
-        loader.load(
-            'models/vending_test.fbx',
-            (vendingFbx) => {
-                console.log('FBX Loaded: vending_test.fbx');
-
-                // === AUTO-SIZE NORMALIZATION ===
-                const vendingBox = new THREE.Box3().setFromObject(vendingFbx);
-                const vendingSize = new THREE.Vector3();
-                vendingBox.getSize(vendingSize);
-                const vendingScaleFactor = VENDING_TARGET_HEIGHT / (vendingSize.y > 0 ? vendingSize.y : 1.0);
-                vendingFbx.scale.setScalar(vendingScaleFactor);
-
-                // 位置調整
-                const scaledVendingBox = new THREE.Box3().setFromObject(vendingFbx);
-                const vendingOffsetY = -scaledVendingBox.min.y;
-                vendingFbx.position.set(-11, vendingOffsetY, -8);
-
-                // ★修正: 反時計回りに90度回転させる
-                vendingFbx.rotation.y = Math.PI / 2;
-
-                // === Standard Settings (No Mesh Smoothing) ===
-                // 三角形対策の加工は行わず、最低限の見た目設定のみ適用
-                vendingFbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-
-                        const childName = child.name.toLowerCase();
-
-                        // ガラス・水部分の透過設定 (クローンして適用)
-                        if (childName.includes('water') || childName.includes('glass')) {
-                            if (Array.isArray(child.material)) {
-                                child.material = child.material.map(m => {
-                                    const cloned = m.clone();
-                                    cloned.transparent = true;
-                                    cloned.opacity = 0.5;
-                                    return cloned;
-                                });
-                            } else if (child.material) {
-                                const cloned = child.material.clone();
-                                cloned.transparent = true;
-                                cloned.opacity = 0.5;
-                                child.material = cloned;
-                            }
-                            child.userData.skipOutline = true;
-                        }
-
-                        // ライト部分の発光設定
-                        if (childName.includes('light')) {
-                            const mats = Array.isArray(child.material) ? child.material : [child.material];
-                            mats.forEach(m => {
-                                if (m.emissive) {
-                                    m.emissive.setHex(0xFFFFFF);
-                                    m.emissiveIntensity = 2.0;
-                                }
-                            });
-                        }
-                    }
-                });
-
-                scene.add(vendingFbx);
-
-                // アウトライン追加
-                if (typeof window.addEdgesOutline === 'function') {
-                    window.addEdgesOutline(vendingFbx, 15, 0x000000);
-                }
-
-                // HitBox (Interaction)
-                const hitBoxGeo = new THREE.BoxGeometry(1.5, 2.5, 1.5);
-                const hitBoxMat = new THREE.MeshBasicMaterial({ visible: false });
-                const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
-                hitBox.position.copy(vendingFbx.position);
-                hitBox.position.y += 1.0;
-                hitBox.userData.isVendingMachine = true;
-                scene.add(hitBox);
-            },
-            undefined,
-            (error) => console.error('Error loading vending_test.fbx:', error)
-        );
 
         // === LOAD FBX MODEL: Coin (collectible game items) ===
         const COIN_TARGET_SIZE = 0.5; // Target diameter: 50cm
@@ -3708,173 +3625,195 @@ const SearchGame = (() => {
 
 
 
+    // ==========================================
+    // 公園遊具・設備 (Park Assets) の一括配置
+    // ==========================================
     function createParkAssets() {
-        // ===== VOXEL STYLE PARK - All BoxGeometry, Pastel Colors =====
-        // ★【修正】古いボクセルアセットの生成を全停止（全削除）
-        // これにより、画面からベンチやジムなどが消えます。
+        console.log("--- createParkAssets (FBX List) CALLED ---");
 
-        console.log("Old voxel park assets skipped (Clean state for FBX)");
+        // ★休憩所エリアの基準位置 (ここを変えれば自販機とゴミ箱が一緒に動きます！)
+        const REST_AREA = { x: -11.0, y: 0, z: -8.0 };
 
-        /*
-        // === 滑り台 (Slide) at (-8, 0, -8) - Pastel Pink ===
-        const slideGroup = new THREE.Group();
-        const slideMaterial = new THREE.MeshLambertMaterial({ color: 0xFFB6C1 }); // Light pink
-        const woodMaterial = new THREE.MeshLambertMaterial({ color: 0xDEB887 }); // Burlywood
-     
-        // Platform (stacked blocks)
-        for (let y = 0; y < 3; y++) {
-            const block = new THREE.Mesh(
-                new THREE.BoxGeometry(2, 1, 2),
-                woodMaterial
-            );
-            block.position.set(0, 0.5 + y, 0);
-            slideGroup.add(block);
-        }
-        // Slide slope (tilted box)
-        const slope = new THREE.Mesh(
-            new THREE.BoxGeometry(1.8, 0.3, 5),
-            slideMaterial
-        );
-        slope.position.set(0, 1.5, 2.8);
-        slope.rotation.x = Math.PI / 5;
-        slideGroup.add(slope);
-        slideGroup.position.set(-8, 0, -8);
-        scene.add(slideGroup);
-        slideModel = slideGroup; // Store reference
-        slideGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-        addEdgesOutline(slideGroup, 20, 0x000000);
-     
-        // === ジャングルジム (Jungle Gym) at (5, 0, -5) - Pastel Yellow wireframe ===
-        const gymGroup = new THREE.Group();
-        const gymMaterial = new THREE.MeshLambertMaterial({ color: 0xFFE4B5, wireframe: true }); // Moccasin
-        const gymFrame = new THREE.Mesh(
-            new THREE.BoxGeometry(6, 5, 6),
-            gymMaterial
-        );
-        gymFrame.position.y = 2.5;
-        gymGroup.add(gymFrame);
-        gymGroup.position.set(5, 0, -5);
-        scene.add(gymGroup);
-        gymGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-        addEdgesOutline(gymGroup, 20, 0x000000);
-     
-        // === ベンチ (Bench) at (10, 0, 8) - Pastel Brown ===
-        const benchGroup = new THREE.Group();
-        const benchMaterial = new THREE.MeshLambertMaterial({ color: 0xD2B48C }); // Tan
-        // Seat
-        const benchSeat = new THREE.Mesh(
-            new THREE.BoxGeometry(4, 0.4, 1.2),
-            benchMaterial
-        );
-        benchSeat.position.y = 1;
-        benchGroup.add(benchSeat);
-        // Back
-        const benchBack = new THREE.Mesh(
-            new THREE.BoxGeometry(4, 1.2, 0.3),
-            benchMaterial
-        );
-        benchBack.position.set(0, 1.6, -0.5);
-        benchGroup.add(benchBack);
-        // Legs (boxes)
-        const legMaterial = new THREE.MeshLambertMaterial({ color: 0x8B7355 });
-        for (let x of [-1.5, 1.5]) {
-            const leg = new THREE.Mesh(
-                new THREE.BoxGeometry(0.4, 1, 0.8),
-                legMaterial
-            );
-            leg.position.set(x, 0.5, 0);
-            benchGroup.add(leg);
-        }
-        benchGroup.position.set(10, 0, 8);
-        scene.add(benchGroup);
-        benchGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-        addEdgesOutline(benchGroup, 20, 0x000000);
-     
-        // === 大きな木 (Big Tree) - REMOVED, now using Tree_test.fbx ===
-        // Old primitive tree deleted - all trees are now FBX models
-     
-        // === 砂場 (Sandbox) at (0, 0, 12) - Cream color ===
-     
-        const sandMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFACD }); // Lemon chiffon
-        const sandEdgeMaterial = new THREE.MeshLambertMaterial({ color: 0xBC8F8F }); // Rosy brown
-     
-        // Sand
-        const sandbox = new THREE.Mesh(
-            new THREE.BoxGeometry(6, 0.4, 6),
-            sandMaterial
-        );
-        sandbox.position.set(0, 0.2, 12);
-        scene.add(sandbox);
-     
-        // Edge (frame)
-        const edgePositions = [
-            [0, 0.4, 9], [0, 0.4, 15], [-3, 0.4, 12], [3, 0.4, 12]
+        // ★アセット管理リスト
+        const ASSET_CONFIG = [
+            // ---------------------------------------------------
+            // [1] ベンチ
+            // ---------------------------------------------------
+            {
+                name: 'Bench',
+                path: 'models/bench.fbx',
+                pos: { x: 10, y: 0, z: 8 },
+                rot: { y: -45 },
+                scale: 1.0,
+                onLoad: (obj) => { }
+            },
+            // ---------------------------------------------------
+            // [2] 象さん噴水
+            // ---------------------------------------------------
+            {
+                name: 'Fountain_New',
+                path: 'models/fountain.fbx',
+                pos: { x: 0, y: 0, z: -12 },
+                rot: { y: 0 },
+                scale: 2.5,
+                onLoad: (obj) => { }
+            },
+            // ---------------------------------------------------
+            // [3] 自販機 (Vending Machine) - 休憩所の主役
+            // ---------------------------------------------------
+            {
+                name: 'VendingMachine',
+                path: 'models/vending_test.fbx',
+                pos: { x: REST_AREA.x, y: REST_AREA.y, z: REST_AREA.z }, // 基準位置
+                rot: { y: 90 }, // 横向き
+                scale: 1.0, // onLoad内で自動調整
+                onLoad: (obj) => {
+                    // --- サイズ調整 (高さ2m) ---
+                    const box = new THREE.Box3().setFromObject(obj);
+                    const size = new THREE.Vector3();
+                    box.getSize(size);
+                    const scaleFactor = 2.0 / (size.y > 0 ? size.y : 1.0);
+                    obj.scale.setScalar(scaleFactor);
+
+                    // --- 位置調整 (地面に接地) ---
+                    const scaledBox = new THREE.Box3().setFromObject(obj);
+                    const offsetY = -scaledBox.min.y;
+                    obj.position.set(REST_AREA.x, REST_AREA.y + offsetY, REST_AREA.z);
+
+                    // --- 美肌化 & マテリアル設定 ---
+                    obj.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+
+                            if (child.material) {
+                                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                                mats.forEach(m => {
+                                    m.flatShading = true; // ★魔法のコード
+                                    m.needsUpdate = true;
+
+                                    // ライト部分の発光
+                                    if (child.name.toLowerCase().includes('light') && m.emissive) {
+                                        m.emissive.setHex(0xFFFFFF);
+                                        m.emissiveIntensity = 2.0;
+                                    }
+                                });
+                            }
+                            // ガラス透過
+                            const name = child.name.toLowerCase();
+                            if (name.includes('water') || name.includes('glass')) {
+                                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                                mats.forEach(m => { m.transparent = true; m.opacity = 0.5; });
+                                child.userData.skipOutline = true;
+                            }
+                        }
+                    });
+
+                    // --- 判定用ボックス ---
+                    const hitBox = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.5, 2.5, 1.5),
+                        new THREE.MeshBasicMaterial({ visible: false })
+                    );
+                    hitBox.position.copy(obj.position);
+                    hitBox.position.y += 1.0;
+                    hitBox.userData.isVendingMachine = true;
+                    scene.add(hitBox);
+                }
+            },
+            // ---------------------------------------------------
+            // [4] ゴミ箱 (RecycleBin) - 自販機の相棒
+            // ---------------------------------------------------
+            {
+                name: 'RecycleBin',
+                path: 'models/RecycleBin.fbx',
+                // ★位置は「自販機の場所 + Z方向に1.1m」として定義！
+                pos: { x: REST_AREA.x, y: REST_AREA.y, z: REST_AREA.z + 1.1 },
+                rot: { y: 90 }, // 自販機と同じ向き
+                scale: 1.0,
+                onLoad: (obj) => {
+                    // --- 美肌化 (フラットシェーディング) ---
+                    obj.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(m => {
+                                m.flatShading = true; // ★ここにも魔法を適用！
+                                m.needsUpdate = true;
+                            });
+                        }
+                    });
+                }
+            },
+            // ---------------------------------------------------
+            // [5] シーソー
+            // ---------------------------------------------------
+            {
+                name: 'Seesaw',
+                path: 'models/seesaw.fbx',
+                pos: { x: -15, y: 0.6, z: 10 },
+                rot: { y: 30 },
+                scale: 1.0,
+            },
+            // ---------------------------------------------------
+            // [6] 滑り台
+            // ---------------------------------------------------
+            {
+                name: 'Slide',
+                path: 'models/slide.fbx',
+                pos: { x: -8, y: 0, z: -8 },
+                rot: { y: 180 },
+                scale: 1.5,
+            }
         ];
-        edgePositions.forEach(([ex, ey, ez], idx) => {
-            const isHorizontal = idx < 2;
-            const edge = new THREE.Mesh(
-                new THREE.BoxGeometry(isHorizontal ? 7 : 0.5, 0.6, isHorizontal ? 0.5 : 7),
-                sandEdgeMaterial
-            );
-            edge.position.set(ex, ey, ez);
-            scene.add(edge);
-        });
-     
-        // === 噴水 (Fountain) at (0, 0, -12) - Voxel style (square) ===
-        const fountainGroup = new THREE.Group();
-        const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0xB0C4DE }); // Light steel blue
-        const waterMaterial = new THREE.MeshLambertMaterial({ color: 0x87CEFA, transparent: true, opacity: 0.7 });
-     
-        // Base (square)
-        const fountainBase = new THREE.Mesh(
-            new THREE.BoxGeometry(6, 1, 6),
-            stoneMaterial
-        );
-        fountainBase.position.y = 0.5;
-        fountainGroup.add(fountainBase);
-     
-        // Water surface
-        const fountainWater = new THREE.Mesh(
-            new THREE.BoxGeometry(5, 0.3, 5),
-            waterMaterial
-        );
-        fountainWater.position.y = 0.85;
-        fountainGroup.add(fountainWater);
-     
-        // Center pillar (stacked cubes)
-        for (let y = 0; y < 3; y++) {
-            const pillar = new THREE.Mesh(
-                new THREE.BoxGeometry(0.6, 0.8, 0.6),
-                stoneMaterial
-            );
-            pillar.position.y = 1.2 + y * 0.7;
-            fountainGroup.add(pillar);
-        }
-        fountainGroup.position.set(0, 0, -12);
-        scene.add(fountainGroup);
-        fountainGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-        addEdgesOutline(fountainGroup, 20, 0x000000);
-     
-        // === 茂み (Bushes) - Voxel style (cubes) ===
-        const bushMaterial = new THREE.MeshLambertMaterial({ color: 0x98FB98 }); // Pale green
-        const bushPositions = [[15, 0], [-5, 15], [12, -8], [-15, -15]];
-        bushPositions.forEach(([x, z]) => {
-            // Cluster of small cubes
-            const bushGroup = new THREE.Group();
-            const offsets = [[0, 0, 0], [0.6, 0.3, 0], [-0.6, 0.2, 0], [0, 0.2, 0.6], [0, 0.4, -0.5]];
-            offsets.forEach(([ox, oy, oz]) => {
-                const cube = new THREE.Mesh(
-                    new THREE.BoxGeometry(1, 1, 1),
-                    bushMaterial
-                );
-                cube.position.set(ox, 0.5 + oy, oz);
-                bushGroup.add(cube);
+
+        const loader = new FBXLoader();
+
+        ASSET_CONFIG.forEach(config => {
+            loader.load(config.path, (fbx) => {
+                console.log(`[Asset Loaded] ${config.name}`);
+
+                // 1. サイズ計測ログ
+                const box = new THREE.Box3().setFromObject(fbx);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                console.log(`  🔍 ${config.name} Raw Size: W${size.x.toFixed(2)} x H${size.y.toFixed(2)} x D${size.z.toFixed(2)}`);
+
+                // 2. 基本トランスフォーム適用
+                fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
+                if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
+
+                const finalScale = config.scale || 1.0;
+                fbx.scale.setScalar(finalScale);
+
+                // 3. 影とマテリアルの共通設定
+                fbx.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if (child.material) {
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(m => {
+                                if (m.emissive) m.emissive.setHex(0x000000);
+                            });
+                        }
+                    }
+                });
+
+                // 4. アウトライン
+                if (typeof window.addEdgesOutline === 'function') {
+                    window.addEdgesOutline(fbx, 15, 0x000000);
+                }
+
+                // 5. 個別ロジック実行 (コールバック)
+                if (config.onLoad) {
+                    config.onLoad(fbx);
+                }
+
+                scene.add(fbx);
+
+            }, undefined, (error) => {
+                console.warn(`Error loading ${config.name}:`, error);
             });
-            bushGroup.position.set(x, 0, z);
-            scene.add(bushGroup);
-            bushGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
         });
-        */
     }
 
 
