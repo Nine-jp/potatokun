@@ -3640,139 +3640,159 @@ const SearchGame = (() => {
     // 公園遊具・設備 (Park Assets) の一括配置
     // ==========================================
     function createParkAssets() {
-        console.log("--- createParkAssets (FBX List) CALLED ---");
+        console.log("--- createParkAssets (Unified) CALLED ---");
 
-        // ★休憩所エリアの基準位置 (ここを変えれば自販機とゴミ箱が一緒に動きます！)
+        // 衝突判定リストの初期化 (安全策)
+        if (!window.sgExtraObstacles) window.sgExtraObstacles = []; // 四角い判定用
+        if (!window.sgFountainCollision) window.sgFountainCollision = []; // 丸い判定用(象さん含む)
+
+        // ★休憩所エリア定義
         const REST_AREA = { x: -11.0, y: 0, z: -8.0 };
 
-        // ★アセット管理リスト
         const ASSET_CONFIG = [
-            // ---------------------------------------------------
-            // [1] ベンチ
-            // ---------------------------------------------------
+            // [1] ベンチ (衝突判定なし: すり抜けOK)
             {
                 name: 'Bench',
                 path: 'models/bench.fbx',
                 pos: { x: 10, y: 0, z: 8 },
                 rot: { y: -45 },
-                scale: 1.0,
-                onLoad: (obj) => { }
+                scale: 1.0
             },
-            // ---------------------------------------------------
-            // [2] 象さん噴水
-            // ---------------------------------------------------
+            // [2] 象さん噴水 (衝突判定: あり・円形)
             {
                 name: 'Fountain_New',
                 path: 'models/fountain.fbx',
                 pos: { x: 0, y: 0, z: -12 },
                 rot: { y: 0 },
                 scale: 2.5,
-                onLoad: (obj) => { }
+                collision: true,
+                collisionType: 'cylinder', // 丸い判定
+                collisionScale: 0.4, // 半径の調整 (少し小さめにするとスムーズ)
+                onLoad: (obj) => {
+                    // 水の透過処理
+                    obj.traverse((child) => {
+                        if (child.isMesh && child.name.toLowerCase().includes('water')) {
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(m => {
+                                m.transparent = true;
+                                m.opacity = 0.6;
+                                m.depthWrite = false;
+                                m.needsUpdate = true;
+                            });
+                            child.userData.skipOutline = true;
+                        }
+                    });
+                }
             },
-            // ---------------------------------------------------
-            // [3] 自販機 (Vending Machine) - 休憩所の主役
-            // ---------------------------------------------------
+            // [3] 自販機 (衝突判定: あり・四角)
             {
                 name: 'VendingMachine',
                 path: 'models/vending_test.fbx',
-                pos: { x: REST_AREA.x, y: REST_AREA.y, z: REST_AREA.z }, // 基準位置
-                rot: { y: 90 }, // 横向き
-                scale: 1.0, // onLoad内で自動調整
+                pos: { x: REST_AREA.x, y: REST_AREA.y, z: REST_AREA.z },
+                rot: { y: 90 },
+                scale: 1.0,
+                collision: true, // 四角い判定ON
                 onLoad: (obj) => {
-                    // --- サイズ調整 (高さ2m) ---
+                    // 高さ調整
                     const box = new THREE.Box3().setFromObject(obj);
-                    const size = new THREE.Vector3();
-                    box.getSize(size);
-                    const scaleFactor = 2.0 / (size.y > 0 ? size.y : 1.0);
+                    const size = new THREE.Vector3(); box.getSize(size);
+                    const scaleFactor = 2.0 / (size.y || 1);
                     obj.scale.setScalar(scaleFactor);
-
-                    // --- 位置調整 (地面に接地) ---
                     const scaledBox = new THREE.Box3().setFromObject(obj);
-                    const offsetY = -scaledBox.min.y;
-                    obj.position.set(REST_AREA.x, REST_AREA.y + offsetY, REST_AREA.z);
+                    obj.position.y -= scaledBox.min.y;
 
-                    // --- 美肌化 & マテリアル設定 ---
-                    obj.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-
-                            if (child.material) {
-                                const mats = Array.isArray(child.material) ? child.material : [child.material];
-                                mats.forEach(m => {
-                                    m.flatShading = true; // ★魔法のコード
-                                    m.needsUpdate = true;
-
-                                    // ライト部分の発光
-                                    if (child.name.toLowerCase().includes('light') && m.emissive) {
-                                        m.emissive.setHex(0xFFFFFF);
-                                        m.emissiveIntensity = 2.0;
-                                    }
-                                });
-                            }
+                    // 美肌化
+                    obj.traverse(c => {
+                        if (c.isMesh && c.material) {
+                            const mats = Array.isArray(c.material) ? c.material : [c.material];
+                            mats.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
                             // ガラス透過
-                            const name = child.name.toLowerCase();
-                            if (name.includes('water') || name.includes('glass')) {
-                                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            if (c.name.toLowerCase().includes('glass') || c.name.toLowerCase().includes('water')) {
                                 mats.forEach(m => { m.transparent = true; m.opacity = 0.5; });
-                                child.userData.skipOutline = true;
+                                c.userData.skipOutline = true;
                             }
                         }
                     });
 
-                    // --- 判定用ボックス ---
-                    const hitBox = new THREE.Mesh(
-                        new THREE.BoxGeometry(1.5, 2.5, 1.5),
-                        new THREE.MeshBasicMaterial({ visible: false })
-                    );
-                    hitBox.position.copy(obj.position);
-                    hitBox.position.y += 1.0;
+                    // インタラクション用HitBox
+                    const hitBox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.5, 1.5), new THREE.MeshBasicMaterial({ visible: false }));
+                    hitBox.position.copy(obj.position); hitBox.position.y += 1.0;
                     hitBox.userData.isVendingMachine = true;
                     scene.add(hitBox);
                 }
             },
-            // ---------------------------------------------------
-            // [4] ゴミ箱 (RecycleBin) - 自販機の相棒
-            // ---------------------------------------------------
+            // [4] ゴミ箱 (衝突判定: あり・四角)
             {
                 name: 'RecycleBin',
                 path: 'models/RecycleBin.fbx',
-                // ★位置は「自販機の場所 + Z方向に1.1m」として定義！
-                pos: { x: REST_AREA.x, y: REST_AREA.y, z: REST_AREA.z + 1.1 },
-                rot: { y: 90 }, // 自販機と同じ向き
+                pos: { x: REST_AREA.x, y: REST_AREA.y, z: REST_AREA.z + 1.1 }, // 自販機の隣
+                rot: { y: 90 },
                 scale: 1.0,
+                collision: true, // 四角い判定ON
                 onLoad: (obj) => {
-                    // --- 美肌化 (フラットシェーディング) ---
-                    obj.traverse((child) => {
-                        if (child.isMesh && child.material) {
-                            const mats = Array.isArray(child.material) ? child.material : [child.material];
-                            mats.forEach(m => {
-                                m.flatShading = true; // ★ここにも魔法を適用！
-                                m.needsUpdate = true;
-                            });
+                    obj.traverse(c => {
+                        if (c.isMesh && c.material) {
+                            const mats = Array.isArray(c.material) ? c.material : [c.material];
+                            mats.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
                         }
                     });
                 }
             },
-            // ---------------------------------------------------
-            // [5] シーソー
-            // ---------------------------------------------------
+            // [5] シーソー (衝突判定: なし)
             {
                 name: 'Seesaw',
                 path: 'models/seesaw.fbx',
                 pos: { x: -15, y: 0.6, z: 10 },
                 rot: { y: 30 },
-                scale: 1.0,
+                scale: 1.0
             },
-            // ---------------------------------------------------
-            // [6] 滑り台
-            // ---------------------------------------------------
+            // [6] 滑り台 (衝突判定: なし・登れる仕様)
             {
                 name: 'Slide',
                 path: 'models/slide.fbx',
                 pos: { x: -8, y: 0, z: -8 },
                 rot: { y: 180 },
-                scale: 1.5,
+                scale: 1.5
+            },
+            // [7] 土管 (旧 spawnDokan から移植) - 特殊判定
+            {
+                name: 'Dokan',
+                path: 'models/ceramic_pipe.fbx',
+                pos: { x: 14, y: 0, z: 12 }, // 初期値(後で補正)
+                rot: { y: 90 }, // Z軸向き
+                scale: 2.0,
+                // collision: false, // 特殊なので自動判定は使わない
+                onLoad: (obj) => {
+                    // 位置補正(底面合わせ)
+                    obj.updateMatrixWorld(true);
+                    const box = new THREE.Box3().setFromObject(obj);
+                    obj.position.y -= box.min.y;
+
+                    // フラットシェーディング
+                    obj.traverse(c => {
+                        if (c.isMesh) {
+                            c.userData.ignoreGround = true; // 地面判定除外
+                            if (c.material) {
+                                const mats = Array.isArray(c.material) ? c.material : [c.material];
+                                mats.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
+                            }
+                        }
+                    });
+
+                    // 天井板 (判定用不可視)
+                    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 3.2), new THREE.MeshBasicMaterial({ visible: false }));
+                    roof.position.set(14, 2.0, 12);
+                    scene.add(roof);
+
+                    // 壁判定 (手動追加)
+                    const pipeLength = (box.max.z - box.min.z);
+                    const gap = 0.5; const thick = 0.1;
+                    window.sgExtraObstacles.push(
+                        { minX: 14 - gap - thick, maxX: 14 - gap, minZ: 12 - pipeLength / 2, maxZ: 12 + pipeLength / 2 },
+                        { minX: 14 + gap, maxX: 14 + gap + thick, minZ: 12 - pipeLength / 2, maxZ: 12 + pipeLength / 2 }
+                    );
+                    console.log("Dokan unified setup complete");
+                }
             }
         ];
 
@@ -3782,50 +3802,68 @@ const SearchGame = (() => {
             loader.load(config.path, (fbx) => {
                 console.log(`[Asset Loaded] ${config.name}`);
 
-                // 1. サイズ計測ログ
-                const box = new THREE.Box3().setFromObject(fbx);
-                const size = new THREE.Vector3();
-                box.getSize(size);
-                console.log(`  🔍 ${config.name} Raw Size: W${size.x.toFixed(2)} x H${size.y.toFixed(2)} x D${size.z.toFixed(2)}`);
-
-                // 2. 基本トランスフォーム適用
+                // 基本設定
                 fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
                 if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
+                fbx.scale.setScalar(config.scale || 1.0);
 
-                const finalScale = config.scale || 1.0;
-                fbx.scale.setScalar(finalScale);
-
-                // 3. 影とマテリアルの共通設定
+                // 影・マテリアル共通設定
                 fbx.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
                         if (child.material) {
                             const mats = Array.isArray(child.material) ? child.material : [child.material];
-                            mats.forEach(m => {
-                                if (m.emissive) m.emissive.setHex(0x000000);
-                            });
+                            mats.forEach(m => { if (m.emissive) m.emissive.setHex(0x000000); });
                         }
                     }
                 });
 
-                // 4. アウトライン
+                // アウトライン
                 if (typeof window.addEdgesOutline === 'function') {
                     window.addEdgesOutline(fbx, 15, 0x000000);
                 }
 
-                // 5. 個別ロジック実行 (コールバック)
-                if (config.onLoad) {
-                    config.onLoad(fbx);
+                // ★ 自動衝突判定システム (Auto Collision System)
+                if (config.collision) {
+                    fbx.updateMatrixWorld(true); // 座標確定
+                    const box = new THREE.Box3().setFromObject(fbx);
+
+                    if (config.collisionType === 'cylinder') {
+                        // 丸い判定 (Fountain, Tree like)
+                        const size = new THREE.Vector3(); box.getSize(size);
+                        const radius = (Math.max(size.x, size.z) / 2) * (config.collisionScale || 0.8);
+
+                        window.sgFountainCollision.push({
+                            x: fbx.position.x,
+                            z: fbx.position.z,
+                            radius: radius
+                        });
+                        console.log(`  🚧 Collision(Cylinder) added for ${config.name}: R=${radius.toFixed(2)}`);
+
+                    } else {
+                        // 四角い判定 (Default)
+                        // マージンを少し狭くして「見た目通り」にする
+                        const margin = 0.1;
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x + margin,
+                            maxX: box.max.x - margin,
+                            minZ: box.min.z + margin,
+                            maxZ: box.max.z - margin
+                        });
+                        console.log(`  🚧 Collision(Box) added for ${config.name}`);
+                    }
                 }
+
+                // 個別処理実行
+                if (config.onLoad) config.onLoad(fbx);
 
                 scene.add(fbx);
 
-            }, undefined, (error) => {
-                console.warn(`Error loading ${config.name}:`, error);
-            });
+            }, undefined, (error) => console.warn(`Error loading ${config.name}:`, error));
         });
     }
+
 
 
 
@@ -4615,142 +4653,17 @@ const SearchGame = (() => {
     }
 
     // ==========================================
-    // 土管 (Dokan) の特別配置
-    // 中は通り抜け可能、上にも乗れる
+    // 土管 (旧関数) - createParkAssets に統合済み
     // ==========================================
     function spawnDokan() {
-        console.log("--- spawnDokan CALLED ---");
-
-        loader.load('models/ceramic_pipe.fbx', (fbx) => {
-            console.log("Dokan Loaded: ceramic_pipe.fbx");
-
-            // スケールと回転を設定
-            fbx.scale.setScalar(2.0);  // 2倍サイズ
-            // 【修正】土管の向きを90度回転させ、Z軸（通路の向き）に合わせる
-            fbx.rotation.set(0, Math.PI / 2, 0);
-
-            // バウンディングボックスを計算して底面をY=0に設置
-            fbx.updateMatrixWorld(true);
-            const box = new THREE.Box3().setFromObject(fbx);
-            const bottomY = box.min.y; // モデルの最下部Y
-            const groundY = 0 - bottomY; // 底面をY=0に合わせるオフセット
-
-            fbx.position.set(14, groundY, 12);
-
-            // デバッグログ
-            console.log('Dokan bounding box min:', box.min.toArray());
-            console.log('Dokan bounding box max:', box.max.toArray());
-            console.log('Dokan ground offset:', groundY);
-            console.log('Dokan final position:', fbx.position.toArray());
-
-            // ★【修正】土管モデル自体は「地面判定」から除外する
-            // これにより、中に入っても天井にワープせず、地面を歩けるようになる
-            fbx.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    // 地面判定（Raycaster）で無視させるフラグ
-                    child.userData.ignoreGround = true;
-                }
-            });
-
-            scene.add(fbx);
-
-            // アウトライン追加
-            if (typeof window.addEdgesOutline === 'function') {
-                window.addEdgesOutline(fbx, 20, 0x000000);
-            }
-
-            // ★【追加】上に乗るための「透明な天井板」を作成
-            // 土管のサイズ(Scale 2.0)に合わせて調整
-            const roofGeo = new THREE.BoxGeometry(1.6, 0.2, 3.2);
-            const roofMat = new THREE.MeshBasicMaterial({
-                color: 0x00FF00,
-                wireframe: true,
-                visible: false    // ★【修正】不可視に変更 (判定のみ有効)
-            });
-            const roof = new THREE.Mesh(roofGeo, roofMat);
-
-            // 土管の天辺付近に配置
-            roof.position.set(14, 2.0, 12);
-            scene.add(roof);
-            console.log('Dokan roof platform added at:', roof.position.toArray());
-
-            console.log('Dokan added to scene at:', fbx.position.toArray());
-
-            // ★【修正】実測サイズに基づく衝突判定の生成
-            // バウンディングボックスから正確なサイズを取得
-            fbx.updateMatrixWorld(true);
-            const pipeBox = new THREE.Box3().setFromObject(fbx);
-
-            const pipeWidthX = pipeBox.max.x - pipeBox.min.x; // 幅
-            const pipeHeight = pipeBox.max.y - pipeBox.min.y; // 高さ (Y)
-            const pipeLength = pipeBox.max.z - pipeBox.min.z; // 長さ (Z)
-
-            console.log(`Dokan Collision: H=${pipeHeight.toFixed(2)}, L=${pipeLength.toFixed(2)}`);
-
-            // 土管の中心座標
-            const dokanX = 14;
-            const dokanZ = 12;
-
-            // ★パラメータ設定
-            const innerGap = 0.5;  // 中心から内壁まで0.5m (通路幅1.0m)
-            const wallThick = 0.1; // ★壁の厚さを0.1mに変更 (激薄設定)
-
-            // 衝突判定のリセット
-            window.sgExtraObstacles = [];
-
-            // 左の壁 (Z方向の長さは実測値 pipeLength を使用)
-            window.sgExtraObstacles.push({
-                minX: dokanX - innerGap - wallThick,
-                maxX: dokanX - innerGap,
-                minZ: dokanZ - pipeLength / 2,
-                maxZ: dokanZ + pipeLength / 2
-            });
-
-            // 右の壁
-            window.sgExtraObstacles.push({
-                minX: dokanX + innerGap,
-                maxX: dokanX + innerGap + wallThick,
-                minZ: dokanZ - pipeLength / 2,
-                maxZ: dokanZ + pipeLength / 2
-            });
-
-            // ★デバッグ表示 (実測サイズに合わせる)
-            const debugGroup = new THREE.Group();
-            debugGroup.name = 'DokanDebugWalls';
-
-            // ★【修正】調整完了につき非表示にする (判定は残る)
-            debugGroup.visible = false;
-
-            window.sgExtraObstacles.forEach(obs => {
-                const w = obs.maxX - obs.minX;
-                const h = pipeHeight; // ★高さも実測値に合わせる (約2mになるはず)
-                const d = obs.maxZ - obs.minZ; // ここが自動的に3.0mになります
-                const x = (obs.minX + obs.maxX) / 2;
-                const z = (obs.minZ + obs.maxZ) / 2;
-
-                const boxMesh = new THREE.Mesh(
-                    new THREE.BoxGeometry(w, h, d),
-                    new THREE.MeshBasicMaterial({ color: 0xFF0000, wireframe: true })
-                );
-                // 高さは地面(0)から積み上げるので y = h/2
-                boxMesh.position.set(x, h / 2, z);
-                debugGroup.add(boxMesh);
-            });
-            scene.add(debugGroup);
-            console.log('Dokan debug walls hidden (Physics active)');
-
-        }, undefined, (error) => {
-            console.error("Error loading ceramic_pipe.fbx:", error);
-        });
+        console.log("spawnDokan is deprecated. Logic moved to createParkAssets.");
     }
+
 
     // spawnDokan() は initThreeJS() 内から呼び出す（scene初期化後）
 
     return { setup, init, start, stop };
 })();
-
 
 
 // ★季節の初期化（草・木・空の色を適用）
