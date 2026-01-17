@@ -3293,9 +3293,17 @@ const SearchGame = (() => {
 
                 // === Game coin positions (10 coins spread around park) ===
                 const coinPositions = [
-                    { x: -15, z: -15 }, { x: 15, z: -15 }, { x: -15, z: 15 },
-                    { x: 15, z: 15 }, { x: -20, z: 0 }, { x: 20, z: 0 },
-                    { x: 0, z: -20 }, { x: 8, z: 18 }, { x: -10, z: -20 }, { x: 12, z: -18 }
+                    { x: -15, z: -15 },
+                    { x: 15, z: -15 },
+                    { x: -15, z: 15 },
+                    { x: 15, z: 15 },
+                    { x: -20, z: 0 },
+                    { x: 20, z: 0 },
+                    { x: 0, z: -20 },
+                    { x: 8, z: 18 },
+                    { x: -10, z: -20 },
+                    // ★修正: さらに下げて 0.5 にする (0.7 -> 0.5)
+                    { x: 14, y: 0.5, z: 12 }
                 ];
 
                 window.sgGameCoins = []; // For rotation animation
@@ -3303,7 +3311,10 @@ const SearchGame = (() => {
 
                 coinPositions.forEach((pos, index) => {
                     const coin = masterCoin.clone();
-                    coin.position.set(pos.x, 1.0, pos.z); // Float 1m above ground
+
+                    // ★修正: pos.y が指定されていればそれを使い、なければデフォルトの 1.0 を使う
+                    const posY = (pos.y !== undefined) ? pos.y : 1.0;
+                    coin.position.set(pos.x, posY, pos.z);
 
                     // Collection flag
                     coin.userData.isCoin = true;
