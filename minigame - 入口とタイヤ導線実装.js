@@ -3981,6 +3981,17 @@ const SearchGame = (() => {
                 
                 window.parkGroup.add(tire);
                 
+                // ★削除: 衝突判定のコードを消しました！
+                // これでタイヤの上をスルスル歩けるようになります
+                /*
+                window.sgExtraObstacles.push({ 
+                    minX: pos.x - 0.2, maxX: pos.x + 0.2, 
+                    minZ: pos.z - 0.5, maxZ: pos.z + 0.5 
+                }); 
+                */
+                
+                // 草の除外エリア（これは残しておきます）
+                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(pos.x, pos.z, 1.0);
             });
 
             // 砂場
