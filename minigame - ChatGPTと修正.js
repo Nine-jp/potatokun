@@ -107,25 +107,25 @@ function initGameSystem() {
         currentActiveGameId = '3d-search';
         GameLibrary[currentActiveGameId].start();
 
-        // ★UI要素のアニメーションをリプレイ
-        setTimeout(() => {
-            const uiElements = [
-                document.getElementById('hud-top-left'),
-                document.getElementById('controls-bottom-left'),
-                document.getElementById('controls-bottom-right')
-            ];
+            // ★UI要素のアニメーションをリプレイ
+            setTimeout(() => {
+                const uiElements = [
+                    document.getElementById('hud-top-left'),
+                    document.getElementById('controls-bottom-left'),
+                    document.getElementById('controls-bottom-right')
+                ];
 
-            uiElements.forEach(el => {
-                if (el) {
-                    el.style.animation = 'none';
-                    el.offsetHeight; // trigger reflow
-                    el.style.animation = '';
-                    el.style.opacity = '1';
-                }
-            });
-        }, 100);
-    });
-
+                uiElements.forEach(el => {
+                    if (el) {
+                        el.style.animation = 'none';
+                        el.offsetHeight; // trigger reflow
+                        el.style.animation = '';
+                        el.style.opacity = '1';
+                    }
+                });
+            }, 100);
+        });
+ 
     // Close Button (Portal Level)
     const closeBtn = document.getElementById('portal-close-btn');
     if (closeBtn) closeBtn.addEventListener('click', closePortal);
@@ -683,99 +683,32 @@ const SearchGame = (() => {
     let container;
     let scene, camera, renderer, controls;
 
-    // ★★★ ParkState ★★★
-    const ParkState = {
-        vegetationMode: 'forestOnly'
-        // 'forestOnly' | 'allOff' | 'allOn'
-    };
-
-    // ★★★ Forest Area Definition ★★★
-    // ★★★ Forest Area Definition ★★★
-    function isInsideForestArea(x, z) {
-        // Zone A（左上）を森林エリアとする
-        // ★修正: North = -Z, South = +Z
-        // Forest is South-East?
-        // Old: x < -2 && z > 2 (NW?) for Forest? Wait, original code:
-        // "Zone A（左上）を森林エリアとする" -> (x < -2 && z > 2)
-        // If we invert Z, it becomes (x < -2 && z < -2).
-        // Let's stick to mechanical inversion: z > 2 becomes z < -2.
-        return (x < -2 && z < -2);
-    }
-
-    // ★★★ Park Zone Definition ★★★
-    function getParkZone(x, z) {
-
-        // 十字路
-        if (Math.abs(x) < 5 || Math.abs(z) < 5) return 'crossroad';
-
-        // 中央広場（噴水）
-        if (x * x + z * z < 100) return 'plaza';
-
-        // 北西：更地（建設予定）
-        // Old: x < -2 && z > 2. Inverted Z: x < -2 && z < -2.
-        // North = -Z. So z < -2 is North. x < -2 is West. NW. Correct.
-        if (x < -2 && z < -2) return 'construction';
-
-        // 北東：休憩エリア
-        // Old: x > 2 && z > 2. Inverted Z: x > 2 && z < -2.
-        // North = -Z. z < -2 is North. x > 2 is East. NE. Correct.
-        if (x > 2 && z < -2) return 'rest';
-
-        // 南西：遊具エリア
-        // Old: x < -2 && z < -2. Inverted Z: x < -2 && z > 2.
-        // South = +Z. z > 2 is South. x < -2 is West. SW. Correct.
-        if (x < -2 && z > 2) return 'playground';
-
-        // 南東：森林エリア
-        // Old: x > 2 && z < -2. Inverted Z: x > 2 && z > 2.
-        // South = +Z. z > 2 is South. x > 2 is East. SE. Correct.
-        if (x > 2 && z > 2) return 'forest';
-
-        return 'unknown';
-    }
-
-    // ★★★ ExclusionManager ★★★
+    // ★★★ ExclusionManager (Scoped properly) ★★★
+    // initThreeJSの外に置くことで、createParkAssetsなど他の関数からも確実にアクセス可能にする
     const ExclusionManager = (() => {
         const zones = [];
-
+        // 固定ルール (Zone D, 道路, 広場)
         function checkStaticRules(x, z) {
+            // ★十字路 (Crossroads): X軸またはZ軸の幅10m (±5m) を除外
+            if (Math.abs(x) < 5 || Math.abs(z) < 5) return true;
 
-            const zone = getParkZone(x, z);
-            console.log(`x:${x.toFixed(1)} z:${z.toFixed(1)} => ${zone}`);
+            if (x > 2 && z > 2) return true; // Zone D (右上のエリア)
+            if (x * x + z * z < 100) return true; // 中央広場 (半径10m)
 
-            // --- ParkState による制御 ---
-            if (ParkState.vegetationMode === 'allOff') {
-                return true;
-            }
+            // 遊具エリア (Zone B) を草木禁止にする
+            if (x > 2 && z < -2) return true;
 
-            if (ParkState.vegetationMode === 'forestOnly') {
-                return zone !== 'forest';
-            }
+            // 北側スタート地点周辺 (半径3m) を立ち入り禁止
+            if (x * x + (z + 27) ** 2 < 9) return true;
 
-            // --- エリア別の禁止ルール ---
-            if (zone === 'crossroad') return true;
-            if (zone === 'plaza') return true;
-            if (zone === 'rest') return true;
-            if (zone === 'construction') return true;
-            if (zone === 'playground') return true;
-
-            // forest のみ許可
-            if (zone === 'forest') return false;
-
-            return true;
+            return false;
         }
-
         return {
             addCircle: (x, z, r) => zones.push({ x, z, r }),
-            isBlocked: (x, z) =>
-                checkStaticRules(x, z) ||
-                zones.some(zItem =>
-                    (x - zItem.x) ** 2 + (z - zItem.z) ** 2 < zItem.r ** 2
-                ),
+            isBlocked: (x, z) => checkStaticRules(x, z) || zones.some(zItem => (x - zItem.x) ** 2 + (z - zItem.z) ** 2 < zItem.r ** 2),
             reset: () => { zones.length = 0; }
         };
     })();
-
 
     // === Game State Management ===
     const GameState = {
@@ -823,17 +756,16 @@ const SearchGame = (() => {
     let cameraPitch = 0; // Vertical look angle
 
     // === NPC Position/Rotation Constants (Shared across seasons) ===
-    // ★修正: North = -Z System. Inverted Z coordinates.
     const NPC_CONFIG = {
         opening: {
-            position: { x: -11, z: 5 },  // Old: -5. Inverted: 5
-            rotation: 0,
+            position: { x: -11, z: -5 },  // カメラ演出位置
+            rotation: 0,                   // 正面向き
         },
         gameplay: {
-            position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
-            rotation: 0,
+            position: { x: -13, z: -8 },  // 自販機の左側
+            rotation: 0,                   // 正面向き
         },
-        vendingMachine: { x: -11, z: 8 } // Old: -8. Inverted: 8
+        vendingMachine: { x: -11, z: -8 }
     };
 
     // === Season System ===
@@ -1138,27 +1070,14 @@ const SearchGame = (() => {
 
                 // Position Player (Start Point)
                 if (typeof playerPosition !== 'undefined') {
-                    // ★修正: 北側入り口へ (North = -Z)
-                    // Old: -27. Wait, checking logic.
-                    // If Old "North" was +Z, then -27 was South?
-                    // Let's stick to INVERTING whatever was there to flip the world.
-                    // Old: -27. Inverted: 27.
-                    // But standard park entrance is usually South (+Z).
-                    // If we want "North Entrance", and North is -Z, then -27 is correct.
-                    // Let's assume the user wants the player at the "Entrance".
-                    // If Old Code said "North side entrance (Z = -27)", and Old North was +Z... then -27 was South?
-                    // Confusion.
-                    // Let's simply INVERT Z.
-                    // Old: -27 -> New: 27.
-                    // New 27 is South (+Z).
-                    // If the user wants a North (-Z) coordinate system, South is +Z.
-                    playerPosition.set(0, 0.6, 27);
+                    // ★修正: 北側入り口へ (Z = -27)
+                    playerPosition.set(0, 0.6, -27);
 
                     // ★修正: プレイヤーの体は南向き(0)
                     if (typeof playerFacing !== 'undefined') playerFacing = 0;
 
-                    // ★修正: カメラは0度で北(噴水の方)を向かせる
-                    if (typeof cameraAngle !== 'undefined') cameraAngle = 0;
+                    // ★修正: カメラは180度回転させて南(公園の方)を向かせる
+                    if (typeof cameraAngle !== 'undefined') cameraAngle = Math.PI;
                 }
 
                 // Show UI
@@ -1660,13 +1579,12 @@ const SearchGame = (() => {
         // ★Reset Camera Variables for FPS
         cameraDistance = 0.0; // Force FPS
 
-        // Synced Position: Starts at Z=-2 (safe distance from Vending Machine at Z=8)
-        // Old: 2. Inverted: -2.
-        playerPosition.set(-11, 0.6, -2);
+        // Synced Position: Starts at Z=2 (safe distance from Vending Machine at Z=-8)
+        playerPosition.set(-11, 0.6, 2);
 
-       // Sync Camera Angle to look at Vending Machine (North/Negative Z)
-       cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
-       cameraPitch = 0;       // Level
+        // Sync Camera Angle to look at Vending Machine (North/Negative Z)
+        cameraAngle = Math.PI; // PI = Looking -Z (North) in this logic
+        cameraPitch = 0;       // Level
 
         // Apply immediately so render doesn't flicker
         camera.position.copy(playerPosition);
@@ -1715,7 +1633,7 @@ const SearchGame = (() => {
             // Fallback UI
             const dpad = document.getElementById('sg-dpad');
             if (dpad) dpad.style.display = 'grid';
-            if (typeof playerPosition !== 'undefined') playerPosition.set(-13, 0.6, 5); // Old: -5. Inverted: 5.
+            if (typeof playerPosition !== 'undefined') playerPosition.set(-13, 0.6, -5);
             showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
         }
 
@@ -1753,9 +1671,9 @@ const SearchGame = (() => {
         createSeasonEffects(npc);
 
         // --- Camera Work ---
-        const baseCamPos = new THREE.Vector3(-11, 1.0, 2.5); // Old: -2.5. Inverted: 2.5
+        const baseCamPos = new THREE.Vector3(-11, 1.0, -2.5);
         camera.position.copy(baseCamPos);
-        camera.lookAt(-11, 0.5, 5); // Old: -5. Inverted: 5
+        camera.lookAt(-11, 0.5, -5);
 
         // --- Hide Loading Overlay ---
         const overlay = document.getElementById('sg-loading-overlay');
@@ -1849,7 +1767,7 @@ const SearchGame = (() => {
                         // Assets Init (Hidden at start)
                         if (banzaiNPC) {
                             banzaiNPC.visible = false; // Hidden until Step 3
-                            banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                            banzaiNPC.position.set(-10.5, 0, -7.0);
                             banzaiNPC.rotation.y = -Math.PI / 8;
                         } else {
                             // Emergency Spawn check
@@ -1857,7 +1775,7 @@ const SearchGame = (() => {
                                 if (banzaiNPC) {
                                     addEndingObject(banzaiNPC);
                                     banzaiNPC.visible = false;
-                                    banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                                    banzaiNPC.position.set(-10.5, 0, -7.0);
                                     banzaiNPC.rotation.y = -Math.PI / 8;
                                 }
                             });
@@ -2455,13 +2373,7 @@ const SearchGame = (() => {
         };
 
         camera = new THREE.PerspectiveCamera(75, width / height, 0.05, 1000); // Wider FOV, closer near plane
-        camera = new THREE.PerspectiveCamera(75, width / height, 0.05, 1000); // Wider FOV, closer near plane
-        camera.position.set(0, 0.6, -25); // Old: 25. Inverted: -25. (North Entrance?)
-        // If 25 was "Entrance", and we Invert, it becomes -25.
-        // If North = -Z, then -25 is North.
-        // Standard park entrance is often South (+Z).
-        // Let's assume standard inversion: 25 -> -25.
-        camera.rotation.order = 'YXZ'; // Important for FPS camera
+        camera.position.set(0, 0.6, 25); // POTATO HEIGHT (60cm) at park entrance
         camera.rotation.order = 'YXZ'; // Important for FPS camera
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -2575,9 +2487,7 @@ const SearchGame = (() => {
 
         // Player position tracking (separate from camera)
         // playerPosition is now Module Scope
-        // Player position tracking (separate from camera)
-        // playerPosition is now Module Scope
-        playerPosition.set(0, 0.6, -25); // Old: 25. Inverted: -25.
+        playerPosition.set(0, 0.6, 25);
         let playerFacing = Math.PI; // Direction player is facing
 
         // Pinch zoom tracking
@@ -3418,18 +3328,18 @@ const SearchGame = (() => {
                 });
 
                 // === Game coin positions (10 coins spread around park) ===
-                // ★修正: Inverted Z Coordinates
                 const coinPositions = [
-                    { x: -15, z: 15 },  // Old: -15 -> 15
-                    { x: 15, z: 15 },   // Old: -15 -> 15
-                    { x: -15, z: -15 }, // Old: 15 -> -15
-                    { x: 15, z: -15 },  // Old: 15 -> -15
+                    { x: -15, z: -15 },
+                    { x: 15, z: -15 },
+                    { x: -15, z: 15 },
+                    { x: 15, z: 15 },
                     { x: -20, z: 0 },
                     { x: 20, z: 0 },
-                    { x: 0, z: 20 },    // Old: -20 -> 20
-                    { x: 8, z: -18 },   // Old: 18 -> -18
-                    { x: -10, z: 20 },  // Old: -20 -> 20
-                    { x: 14, y: 0.5, z: -12 } // Old: 12 -> -12
+                    { x: 0, z: -20 },
+                    { x: 8, z: 18 },
+                    { x: -10, z: -20 },
+                    // ★修正: さらに下げて 0.5 にする (0.7 -> 0.5)
+                    { x: 14, y: 0.5, z: 12 }
                 ];
 
                 window.sgGameCoins = []; // For rotation animation
@@ -3498,7 +3408,8 @@ const SearchGame = (() => {
             }
         );
 
-
+        // === 土管 (Dokan) の読み込み ===
+        spawnDokan();
         // === 雲 (Clouds) の生成 ===
         spawnClouds();
         // === 草 (Grass) の生成 ===
@@ -3521,6 +3432,8 @@ const SearchGame = (() => {
         function spawnTrees() {
             console.log("--- spawnTrees CALLED (Trees Restored & Benches Integrated) ---");
 
+            // 禁止エリアをリセット
+            if (typeof ExclusionManager !== 'undefined') ExclusionManager.reset();
 
             // ★ 葉っぱ専用カラーパレット
             const TREE_PALETTES = {
@@ -3641,6 +3554,10 @@ const SearchGame = (() => {
                     addBench(4, b, -90); addBench(4, -b, -90);
                     addBench(-4, b, 90); addBench(-4, -b, 90);
                 }
+
+                // 個別ベンチ (遊具エリア端 & ゾウさん噴水付近)
+                addBench(3.6, -28, -90);
+                addBench(-8, 14, -45);
             });
 
             // ===================================
@@ -3716,8 +3633,9 @@ const SearchGame = (() => {
 
                     if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
 
-                    // forest っぽさは全体で均一に
-                    if (Math.random() > 0.25) continue;
+                    const inZoneA = (x < 0 && z < 0);
+                    const probability = inZoneA ? 0.9 : 0.2;
+                    if (Math.random() > probability) continue;
 
                     if (isTooClose(x, z)) continue;
 
@@ -3823,9 +3741,9 @@ const SearchGame = (() => {
 
 
 
-    // ==========================================
-    // 公園遊具・設備 (Park Assets) の一括配置
-    // ==========================================
+// ==========================================
+// 公園遊具・設備 (Park Assets) の一括配置
+// ==========================================
     function createParkAssets() {
         console.log("--- createParkAssets (Cleaned) CALLED ---");
 
@@ -3834,7 +3752,7 @@ const SearchGame = (() => {
             if (!window.sgFountainCollision) window.sgFountainCollision = [];
 
             if (window.sgSnowmen) {
-                window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
+                window.sgSnowmen.forEach(s => { if(s.parent) s.parent.remove(s); });
             }
             window.sgSnowmen = [];
 
@@ -3849,12 +3767,12 @@ const SearchGame = (() => {
             // ★★★ 道路 (Roads) の生成 [追加] ★★★
             // 地面(Y=0)よりわずかに浮かせて配置 (Z-fighting防止)
             const roadMat = new THREE.MeshLambertMaterial({ color: 0x808080 }); // グレー
-
+            
             // 南北の道 (Z軸) 幅10m -> 6m
             // 変更点: (10, 100) を (6, 100) にする
             const roadNS = new THREE.Mesh(new THREE.PlaneGeometry(6, 100), roadMat);
             roadNS.rotation.x = -Math.PI / 2;
-            roadNS.position.set(0, 0.02, 0);
+            roadNS.position.set(0, 0.02, 0); 
             roadNS.receiveShadow = true;
             window.parkGroup.add(roadNS);
 
@@ -3862,19 +3780,19 @@ const SearchGame = (() => {
             // 変更点: (100, 10) を (100, 6) にする
             const roadEW = new THREE.Mesh(new THREE.PlaneGeometry(100, 6), roadMat);
             roadEW.rotation.x = -Math.PI / 2;
-            roadEW.position.set(0, 0.025, 0);
+            roadEW.position.set(0, 0.025, 0); 
             roadEW.receiveShadow = true;
             window.parkGroup.add(roadEW);
 
             // ★コインテクスチャ生成
             const createCoinTextures = () => {
                 const size = 128;
-                const cFace = '#ffae00'; const cBorder = '#f05e1c'; const cEye = '#ffffff';
-                const cPupil = '#000000'; const cMouth = '#e83015'; const cPText = '#86c166';
+                const cFace='#ffae00'; const cBorder='#f05e1c'; const cEye='#ffffff'; 
+                const cPupil='#000000'; const cMouth='#e83015'; const cPText='#86c166'; 
                 const borderThickness = 14;
-                const canvasFace = document.createElement('canvas'); canvasFace.width = size; canvasFace.height = size;
+                const canvasFace = document.createElement('canvas'); canvasFace.width=size; canvasFace.height=size;
                 const ctx1 = canvasFace.getContext('2d');
-                ctx1.translate(64, 64); ctx1.rotate(-Math.PI / 2); ctx1.translate(-64, -64);
+                ctx1.translate(64, 64); ctx1.rotate(-Math.PI/2); ctx1.translate(-64, -64);
                 ctx1.fillStyle = cBorder; ctx1.fillRect(0, 0, size, size);
                 ctx1.beginPath(); ctx1.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx1.fillStyle = cFace; ctx1.fill();
                 ctx1.fillStyle = cEye; ctx1.fillRect(35, 32, 20, 45); ctx1.fillRect(73, 32, 20, 45);
@@ -3882,16 +3800,16 @@ const SearchGame = (() => {
                 ctx1.fillStyle = cMouth; ctx1.fillRect(42, 92, 44, 10);
                 const texFace = new THREE.CanvasTexture(canvasFace);
                 texFace.minFilter = THREE.NearestFilter; texFace.magFilter = THREE.NearestFilter;
-                const canvasBack = document.createElement('canvas'); canvasBack.width = size; canvasBack.height = size;
+                const canvasBack = document.createElement('canvas'); canvasBack.width=size; canvasBack.height=size;
                 const ctx2 = canvasBack.getContext('2d');
-                ctx2.translate(64, 64); ctx2.rotate(-Math.PI / 2); ctx2.translate(-64, -64);
-                ctx2.fillStyle = cBorder; ctx2.fillRect(0, 0, size, size);
+                ctx2.translate(64, 64); ctx2.rotate(-Math.PI/2); ctx2.translate(-64, -64);
+                ctx2.fillStyle = cBorder; ctx2.fillRect(0,0,size,size);
                 ctx2.beginPath(); ctx2.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx2.fillStyle = cFace; ctx2.fill();
                 ctx2.fillStyle = cPText; ctx2.font = 'bold 80px sans-serif';
-                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68);
+                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68); 
                 const texBack = new THREE.CanvasTexture(canvasBack);
                 texBack.minFilter = THREE.NearestFilter; texBack.magFilter = THREE.NearestFilter;
-                const canvasSide = document.createElement('canvas'); canvasSide.width = 2; canvasSide.height = 2;
+                const canvasSide = document.createElement('canvas'); canvasSide.width=2; canvasSide.height=2;
                 const ctxSide = canvasSide.getContext('2d'); ctxSide.fillStyle = cBorder; ctxSide.fillRect(0, 0, 2, 2);
                 const texSide = new THREE.CanvasTexture(canvasSide);
                 texSide.minFilter = THREE.NearestFilter; texSide.magFilter = THREE.NearestFilter;
@@ -3899,34 +3817,33 @@ const SearchGame = (() => {
             };
             const coinTex = createCoinTextures();
 
-            const spawnSnowExplosion = (pos) => {
+            const spawnSnowExplosion = (pos) => { 
                 const particleCount = 20; const geo = new THREE.PlaneGeometry(0.15, 0.15); const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide });
-                for (let i = 0; i < particleCount; i++) {
-                    const p = new THREE.Mesh(geo, mat); p.position.copy(pos); p.position.x += (Math.random() - 0.5); p.position.y += (Math.random() - 0.5) + 0.5; p.position.z += (Math.random() - 0.5); p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); scene.add(p);
-                    const velocity = new THREE.Vector3((Math.random() - 0.5) * 0.3, Math.random() * 0.3, (Math.random() - 0.5) * 0.3); let life = 30;
-                    const anim = setInterval(() => { p.position.add(velocity); p.rotation.x += 0.1; velocity.y -= 0.01; life--; if (life <= 0) { scene.remove(p); clearInterval(anim); } }, 16);
+                for(let i=0; i<particleCount; i++) {
+                    const p = new THREE.Mesh(geo, mat); p.position.copy(pos); p.position.x+=(Math.random()-0.5); p.position.y+=(Math.random()-0.5)+0.5; p.position.z+=(Math.random()-0.5); p.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3); scene.add(p);
+                    const velocity=new THREE.Vector3((Math.random()-0.5)*0.3,Math.random()*0.3,(Math.random()-0.5)*0.3); let life=30;
+                    const anim=setInterval(()=>{ p.position.add(velocity); p.rotation.x+=0.1; velocity.y-=0.01; life--; if(life<=0){scene.remove(p);clearInterval(anim);} },16);
                 }
             };
 
-            // ★修正: North = -Z Coordinate System (Inverted Z)
             const ASSET_CONFIG = [
-                { name: 'MainFountain', path: 'models/fountain.fbx', pos: { x: 0, y: 0, z: 0 }, scale: 3.0, rot: { y: 0 }, collision: false, exclusionRadius: 8.0, onLoad: (obj) => { obj.traverse(c => { if (c.name.includes('water')) { c.material.opacity = 0.6; c.castShadow = false; c.userData.skipOutline = true; } }); } },
-                { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: 23 }, rot: { y: 90 }, scale: 3.0, collision: false, exclusionRadius: 8.0 }, // Old z: -23
-                { name: 'Seesaw', path: 'models/seesaw.fbx', pos: { x: 20, y: 0.6, z: 10 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 3.0, onLoad: (obj) => { let plankPart = null; obj.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.name.toLowerCase().includes('plank')) plankPart = c; } }); obj.userData.movingPart = plankPart ? plankPart : obj; } }, // Old z: -10
-                { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: -12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 }, // Old z: 12
-                { name: 'VendingMachine', path: 'models/vending_test.fbx', pos: { x: -12, y: 0, z: -17 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 2.0 }, // Old z: 17
-                { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: -18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 }, // Old z: 18.6
-                {
-                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: 14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, // Old z: -14
+                { name: 'MainFountain', path: 'models/fountain.fbx', pos: { x: 0, y: 0, z: 0 }, scale: 3.0, rot: { y: 0 }, collision: false, exclusionRadius: 8.0, onLoad: (obj) => { obj.traverse(c => { if(c.name.includes('water')) { c.material.opacity=0.6; c.castShadow=false; c.userData.skipOutline = true; }}); } },
+                { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: -23 }, rot: { y: 90 }, scale: 3.0, collision: false, exclusionRadius: 8.0 },
+                { name: 'Seesaw', path: 'models/seesaw.fbx', pos: { x: 20, y: 0.6, z: -10 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 3.0, onLoad: (obj) => { let plankPart = null; obj.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.name.toLowerCase().includes('plank')) plankPart = c; } }); obj.userData.movingPart = plankPart ? plankPart : obj; } },
+                { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: 12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 },
+                { name: 'VendingMachine', path: 'models/vending_test.fbx', pos: { x: -12, y: 0, z: 17 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 2.0 },
+                { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: 18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 },
+                { 
+                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: -14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, 
                     onLoad: (obj) => {
                         try {
                             obj.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(obj); obj.position.y -= box.min.y;
                             obj.traverse(c => { if (c.isMesh) c.userData.ignoreGround = true; });
                             const roof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 3.2), new THREE.MeshBasicMaterial({ visible: false }));
-                            roof.position.copy(obj.position); roof.position.y += 2.0; roof.rotation.y = obj.rotation.y; window.parkGroup.add(roof);
+                            roof.position.copy(obj.position); roof.position.y += 2.0; roof.rotation.y = obj.rotation.y; window.parkGroup.add(roof); 
                             const gap = 0.55; const thick = 0.1;
-                            window.sgExtraObstacles.push({ minX: obj.position.x - gap - thick, maxX: obj.position.x - gap, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 }, { minX: obj.position.x + gap, maxX: obj.position.x + gap + thick, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 });
-                        } catch (e) { console.error("Error in Dokan onLoad:", e); }
+                            window.sgExtraObstacles.push({ minX: obj.position.x-gap-thick, maxX: obj.position.x-gap, minZ: obj.position.z-1.6, maxZ: obj.position.z+1.6 }, { minX: obj.position.x+gap, maxX: obj.position.x+gap+thick, minZ: obj.position.z-1.6, maxZ: obj.position.z+1.6 });
+                        } catch(e) { console.error("Error in Dokan onLoad:", e); }
                     }
                 }
             ];
@@ -3936,16 +3853,16 @@ const SearchGame = (() => {
                 if (typeof ExclusionManager !== 'undefined' && ExclusionManager.addCircle) {
                     ExclusionManager.addCircle(config.pos.x, config.pos.z, config.exclusionRadius || 2.0);
                 }
-
+                
                 loader.load(config.path, (fbx) => {
                     try {
                         fbx.name = config.name;
                         fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
                         if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
                         fbx.scale.setScalar(config.scale || 1.0);
-                        fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                        fbx.traverse(c => { if(c.isMesh) { c.castShadow=true; c.receiveShadow=true; } });
                         if (config.onLoad) config.onLoad(fbx);
-
+                        
                         if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(fbx);
 
                         if (config.collision) {
@@ -3960,51 +3877,49 @@ const SearchGame = (() => {
                             }
                         }
                         window.parkGroup.add(fbx);
-                    } catch (e) { console.error(`Error loading asset ${config.name}:`, e); }
+                    } catch(e) { console.error(`Error loading asset ${config.name}:`, e); }
                 }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
             });
 
             // タイヤ
             const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
-            for (let i = 0; i < 4; i++) {
-                const x = 5.5 + (i * 1.0);
-                const z = 16; // Old: -16. Inverted: 16
-                const tire = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.15, 12, 24), new THREE.MeshLambertMaterial({ color: tireColors[i % 3] }));
-                tire.rotation.y = Math.PI / 2; tire.position.set(x, -0.15, z); tire.castShadow = true;
+            for(let i=0; i<4; i++) {
+                const x = 5.5 + (i * 1.0); 
+                const tire = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.15, 12, 24), new THREE.MeshLambertMaterial({ color: tireColors[i%3] }));
+                tire.rotation.y = Math.PI / 2; tire.position.set(x, -0.15, -16); tire.castShadow=true; 
                 window.parkGroup.add(tire);
-                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
-                window.sgExtraObstacles.push({ minX: x - 0.2, maxX: x + 0.2, minZ: z - 0.5, maxZ: z + 0.5 }); // Corrected range
+                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, -16, 1.2);
+                window.sgExtraObstacles.push({ minX: x-0.2, maxX: x+0.2, minZ: -16.5, maxZ: -15.5 });
             }
 
             // 砂場
             const sandboxGroup = new THREE.Group();
-            sandboxGroup.position.set(10, 0, 23); // Old: -23. Inverted: 23
-            sandboxGroup.scale.setScalar(2);
+            sandboxGroup.position.set(10, 0, -23); sandboxGroup.scale.setScalar(2); 
             const sbW = 4.0; const sbD = 4.0; const sbH = 0.25; const sbThick = 0.15;
             const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
             const sandMat = new THREE.MeshLambertMaterial({ color: 0xF4A460 });
-            const f1 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f1.position.set(0, sbH / 2, -sbD / 2 + sbThick / 2);
-            const f2 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f2.position.set(0, sbH / 2, sbD / 2 - sbThick / 2);
-            const f3 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f3.position.set(-sbW / 2 + sbThick / 2, sbH / 2, 0);
-            const f4 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f4.position.set(sbW / 2 - sbThick / 2, sbH / 2, 0);
-            [f1, f2, f3, f4].forEach(f => { f.castShadow = true; f.receiveShadow = true; sandboxGroup.add(f); });
-            const sand = new THREE.Mesh(new THREE.BoxGeometry(sbW - sbThick * 2, 0.1, sbD - sbThick * 2), sandMat);
-            sand.position.y = 0.05; sand.receiveShadow = true; sandboxGroup.add(sand);
+            const f1 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f1.position.set(0, sbH/2, -sbD/2+sbThick/2);
+            const f2 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f2.position.set(0, sbH/2, sbD/2-sbThick/2);
+            const f3 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD-sbThick*2), woodMat); f3.position.set(-sbW/2+sbThick/2, sbH/2, 0);
+            const f4 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD-sbThick*2), woodMat); f4.position.set(sbW/2-sbThick/2, sbH/2, 0);
+            [f1,f2,f3,f4].forEach(f => { f.castShadow=true; f.receiveShadow=true; sandboxGroup.add(f); });
+            const sand = new THREE.Mesh(new THREE.BoxGeometry(sbW-sbThick*2, 0.1, sbD-sbThick*2), sandMat);
+            sand.position.y = 0.05; sand.receiveShadow=true; sandboxGroup.add(sand);
             const mound = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 16), sandMat);
-            mound.position.set(0.5, 0.3, -0.5); mound.castShadow = true; mound.receiveShadow = true; sandboxGroup.add(mound);
+            mound.position.set(0.5, 0.3, -0.5); mound.castShadow=true; mound.receiveShadow=true; sandboxGroup.add(mound);
             window.parkGroup.add(sandboxGroup);
 
             // 雪だるま
-            const snowmanPositions = [{ x: 11, z: 14 }, { x: 11, z: 16 }, { x: 11, z: 18 }]; // Old: -14, -16, -18. Inverted: 14, 16, 18
+            const snowmanPositions = [ { x: 11, z: -14 }, { x: 11, z: -16 }, { x: 11, z: -18 } ];
             const winnerIndex = Math.floor(Math.random() * snowmanPositions.length);
             const createSnowman = (config, isWinner) => {
                 const snowman = new THREE.Group();
                 snowman.position.set(config.x, 0, config.z); snowman.rotation.y = -Math.PI / 2;
                 snowman.userData.isWinner = isWinner; snowman.userData.hasPaid = false; snowman.userData.isDead = false;
                 const snowMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-                const body = new THREE.Mesh(new THREE.SphereGeometry(0.4), snowMat); body.position.y = 0.4; body.castShadow = true; snowman.add(body);
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.25), snowMat); head.position.y = 0.9; head.castShadow = true; snowman.add(head);
-                const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.25), new THREE.MeshLambertMaterial({ color: 0xFF4444 })); bucket.position.y = 1.15; bucket.rotation.x = -0.2; bucket.castShadow = true; snowman.add(bucket);
+                const body = new THREE.Mesh(new THREE.SphereGeometry(0.4), snowMat); body.position.y = 0.4; body.castShadow=true; snowman.add(body);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.25), snowMat); head.position.y = 0.9; head.castShadow=true; snowman.add(head);
+                const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.25), new THREE.MeshLambertMaterial({ color: 0xFF4444 })); bucket.position.y = 1.15; bucket.rotation.x = -0.2; bucket.castShadow=true; snowman.add(bucket);
                 window.parkGroup.add(snowman);
                 window.sgSnowmen.push(snowman);
                 if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(config.x, config.z, 1.0);
@@ -4020,7 +3935,7 @@ const SearchGame = (() => {
                 coin.userData.isCoin = true; coin.userData.collected = false;
                 scene.add(coin);
                 if (window.sgGameCoins) window.sgGameCoins.push(coin);
-                let velocity = new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.3, (Math.random() - 0.5) * 0.2); let gravity = 0.015;
+                let velocity = new THREE.Vector3((Math.random()-0.5)*0.2, 0.3, (Math.random()-0.5)*0.2); let gravity = 0.015;
                 const dropAnim = setInterval(() => { if (!coin.parent) { clearInterval(dropAnim); return; } coin.position.add(velocity); velocity.y -= gravity; if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); } }, 16);
             };
 
@@ -4059,6 +3974,359 @@ const SearchGame = (() => {
     }
 
 
+
+
+// Hide spots in the park
+const hideSpots = [
+    { name: "滑り台の下", x: -8, y: 0, z: -5, rot: 45 },
+    { name: "ジャングルジムの上", x: 5, y: 5, z: -5, rot: -30 }, // Y=5 to sit on top of frame
+    { name: "ジャングルジムの横", x: 8, y: 0, z: -3, rot: 90 },
+    { name: "ベンチの裏", x: 10, y: 0, z: 9.5, rot: 180 },
+    { name: "大きな木の影", x: -10, y: 0, z: 5, rot: 'peek' }, // Special: face toward center
+    { name: "砂場の隅", x: 2, y: 0, z: 14, rot: 220 },
+    { name: "砂場の反対側", x: -2, y: 0, z: 10, rot: 140 },
+    { name: "噴水のふち", x: 2, y: 0, z: -10, rot: 135 },
+    { name: "噴水の反対側", x: -2, y: 0, z: -14, rot: 0 },
+    { name: "茂みの横", x: 13, y: 0, z: 2, rot: 270 },
+    { name: "入口付近", x: 0, y: 0, z: 20, rot: 180 },
+    { name: "公園の隅", x: -15, y: 0, z: -12, rot: 30 }
+];
+
+
+async function spawnClonesSequential() {
+    models.forEach(m => { if (m.parent) m.parent.remove(m); });
+    models = [];
+
+    const count = 10;
+    targetIndex = Math.floor(Math.random() * count);
+
+    // Shuffle hide spots and pick 10
+    const shuffledSpots = [...hideSpots].sort(() => Math.random() - 0.5);
+    const selectedSpots = shuffledSpots.slice(0, count);
+
+    // Create spots array
+    const spots = [];
+    for (let i = 0; i < count; i++) {
+        const isTarget = (i === targetIndex);
+        const hideSpot = selectedSpots[i];
+
+        const spotGroup = new THREE.Group();
+        // Add small random offset for natural look
+        spotGroup.position.set(
+            hideSpot.x + (Math.random() - 0.5) * 1.5,
+            hideSpot.y,
+            hideSpot.z + (Math.random() - 0.5) * 1.5
+        );
+
+        // Handle rotation - 'peek' means face toward center, otherwise use defined rotation
+        if (hideSpot.rot === 'peek') {
+            // Calculate angle to face toward center (0,0)
+            const angleToCenter = Math.atan2(-hideSpot.z, -hideSpot.x) + Math.PI / 2;
+            spotGroup.rotation.y = angleToCenter + (Math.random() - 0.5) * 0.5;
+        } else {
+            spotGroup.rotation.y = (hideSpot.rot + (Math.random() - 0.5) * 30) * (Math.PI / 180);
+        }
+        spotGroup.userData.isTarget = isTarget;
+        spotGroup.userData.id = i;
+        spotGroup.userData.spotName = hideSpot.name;
+        scene.add(spotGroup);
+        models.push(spotGroup);
+
+        spots.push({ group: spotGroup, isTarget: isTarget, index: i, name: hideSpot.name });
+        }
+
+    // Helper: small delay
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Create voxel-style Potato-kun character (no FBX loading needed!)
+        function createVoxelPotato(isTarget, spotIndex) {
+            const potatoGroup = new THREE.Group();
+
+            // === Body (golden yellow elongated box) ===
+            const bodyColor = isTarget ? 0xDAA520 : 0xFFD700; // Target is slightly darker (fried potato color)
+            const bodyMaterial = new THREE.MeshLambertMaterial({ color: bodyColor });
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(1.2, 2, 0.8),
+                bodyMaterial
+            );
+            body.position.y = 1.5;
+            body.userData.id = spotIndex;
+            body.userData.isTarget = isTarget;
+            potatoGroup.add(body);
+
+            // === Arms (black thin boxes) ===
+            const limbMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            // Left arm
+            const leftArm = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.2, 0.2),
+                limbMaterial
+            );
+            leftArm.position.set(-1, 1.8, 0);
+            leftArm.userData.id = spotIndex;
+            leftArm.userData.isTarget = isTarget;
+            potatoGroup.add(leftArm);
+
+            // Right arm
+            const rightArm = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.2, 0.2),
+                limbMaterial
+            );
+            rightArm.position.set(1, 1.8, 0);
+            rightArm.userData.id = spotIndex;
+            rightArm.userData.isTarget = isTarget;
+            potatoGroup.add(rightArm);
+
+            // === Legs (black thin boxes) ===
+            const leftLeg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.6, 0.2),
+                limbMaterial
+            );
+            leftLeg.position.set(-0.3, 0.3, 0);
+            leftLeg.userData.id = spotIndex;
+            leftLeg.userData.isTarget = isTarget;
+            potatoGroup.add(leftLeg);
+
+            const rightLeg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.6, 0.2),
+                limbMaterial
+            );
+            rightLeg.position.set(0.3, 0.3, 0);
+            rightLeg.userData.id = spotIndex;
+            rightLeg.userData.isTarget = isTarget;
+            potatoGroup.add(rightLeg);
+
+            // === Boxing Gloves (red, larger cubes) ===
+            const gloveMaterial = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
+            const leftGlove = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.5),
+                gloveMaterial
+            );
+            leftGlove.position.set(-1.4, 1.8, 0);
+            leftGlove.userData.id = spotIndex;
+            leftGlove.userData.isTarget = isTarget;
+            potatoGroup.add(leftGlove);
+
+            const rightGlove = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.5),
+                gloveMaterial
+            );
+            rightGlove.position.set(1.4, 1.8, 0);
+            rightGlove.userData.id = spotIndex;
+            rightGlove.userData.isTarget = isTarget;
+            potatoGroup.add(rightGlove);
+
+            // === Shoes (red cubes) ===
+            const leftShoe = new THREE.Mesh(
+                new THREE.BoxGeometry(0.35, 0.2, 0.4),
+                gloveMaterial
+            );
+            leftShoe.position.set(-0.3, 0.05, 0.1);
+            leftShoe.userData.id = spotIndex;
+            leftShoe.userData.isTarget = isTarget;
+            potatoGroup.add(leftShoe);
+
+            const rightShoe = new THREE.Mesh(
+                new THREE.BoxGeometry(0.35, 0.2, 0.4),
+                gloveMaterial
+            );
+            rightShoe.position.set(0.3, 0.05, 0.1);
+            rightShoe.userData.id = spotIndex;
+            rightShoe.userData.isTarget = isTarget;
+            potatoGroup.add(rightShoe);
+
+            // === Face (on front of body) ===
+            // Eyes (white with black pupils)
+            const eyeWhiteMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+            const pupilMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+
+            // Left eye (always open)
+            const leftEyeWhite = new THREE.Mesh(
+                new THREE.BoxGeometry(0.25, 0.3, 0.05),
+                eyeWhiteMaterial
+            );
+            leftEyeWhite.position.set(-0.25, 2.1, 0.43);
+            potatoGroup.add(leftEyeWhite);
+
+            const leftPupil = new THREE.Mesh(
+                new THREE.BoxGeometry(0.12, 0.15, 0.06),
+                pupilMaterial
+            );
+            leftPupil.position.set(-0.25, 2.05, 0.46);
+            potatoGroup.add(leftPupil);
+
+            // Right eye - WINK for target (closed eye), normal for others
+            if (isTarget) {
+                // Winking eye: just a thin horizontal line (closed)
+                const winkLine = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 0.06, 0.05),
+                    pupilMaterial
+                );
+                winkLine.position.set(0.25, 2.05, 0.43);
+                winkLine.userData.id = spotIndex;
+                winkLine.userData.isTarget = true;
+                potatoGroup.add(winkLine);
+            } else {
+                // Normal open eye
+                const rightEyeWhite = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.25, 0.3, 0.05),
+                    eyeWhiteMaterial
+                );
+                rightEyeWhite.position.set(0.25, 2.1, 0.43);
+                potatoGroup.add(rightEyeWhite);
+
+                const rightPupil = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.12, 0.15, 0.06),
+                    pupilMaterial
+                );
+                rightPupil.position.set(0.25, 2.05, 0.46);
+                potatoGroup.add(rightPupil);
+            }
+
+            // Mouth - slightly different color for target (pink vs red)
+            const mouthColor = isTarget ? 0xFF69B4 : 0xCC0000; // Pink for target, red for others
+            const mouthMaterial = new THREE.MeshLambertMaterial({ color: mouthColor });
+            const mouth = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.1, 0.05),
+                mouthMaterial
+            );
+            mouth.position.set(0, 1.6, 0.43);
+            potatoGroup.add(mouth);
+
+            // Apply shadow settings to all potato meshes
+            potatoGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+
+            // Apply edge outlines to potato
+            addEdgesOutline(potatoGroup, 15, 0x000000);
+
+            return potatoGroup;
+        }
+
+
+        // Create all potato characters
+        for (let i = 0; i < spots.length; i++) {
+            const spot = spots[i];
+            const isTarget = spot.isTarget;
+
+            // Create voxel potato
+            const potato = createVoxelPotato(isTarget, spot.index);
+            potato.scale.setScalar(isTarget ? 1.1 : 1.0); // Target slightly bigger
+            spot.group.add(potato);
+
+            await delay(30);
+        }
+    }
+
+
+    function onSelect(event) {
+        if (!isPlaying || !renderer) return;
+
+
+        const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+        const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(models, true);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0].object;
+
+            // Visual feedback: flash the hit model
+            const originalColor = hit.material ? hit.material.emissive?.clone() : null;
+            if (hit.material && hit.material.emissive) {
+                hit.material.emissive.setHex(0xffff00);
+                setTimeout(() => {
+                    if (originalColor) hit.material.emissive.copy(originalColor);
+                    else hit.material.emissive.setHex(0x000000);
+                }, 200);
+            }
+
+            // Text feedback
+            if (hit.userData.isTarget) {
+                showTapText(clientX, clientY, '🎉 あたり！ +100', '#FFD700');
+                score += 100;
+                document.getElementById('sg-score').textContent = score;
+
+                // Confetti effect!
+                const hitPosition = intersects[0].point;
+                spawnConfetti(hitPosition);
+
+                resetRound();
+            } else {
+                const messages = ['タップ！', 'ちがうよ〜', 'ハズレ', 'おしい！', 'ポテト！'];
+                const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+                showTapText(clientX, clientY, randomMsg, '#FFFFFF');
+            }
+        }
+    }
+
+    // Confetti particle effect
+    function spawnConfetti(position) {
+        const confettiColors = [0xFF6B6B, 0x4ECDC4, 0xFFE66D, 0x95E1D3, 0xF38181, 0xAA96DA, 0xFCBAD3];
+        const confettiCount = 30;
+        const confettiPieces = [];
+
+        for (let i = 0; i < confettiCount; i++) {
+            const color = confettiColors[Math.floor(Math.random() * confettiColors.length)];
+            const piece = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.2, 0.2),
+                new THREE.MeshLambertMaterial({ color: color })
+            );
+
+            piece.position.copy(position);
+            piece.position.y += 1;
+
+            // Random velocity
+            piece.userData.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.4,
+                Math.random() * 0.3 + 0.2,
+                (Math.random() - 0.5) * 0.4
+            );
+            piece.userData.rotSpeed = new THREE.Vector3(
+                Math.random() * 0.2,
+                Math.random() * 0.2,
+                Math.random() * 0.2
+            );
+            piece.userData.life = 60; // frames
+
+            scene.add(piece);
+            confettiPieces.push(piece);
+        }
+
+        // Animate confetti
+        function animateConfetti() {
+            let allDead = true;
+            confettiPieces.forEach(piece => {
+                if (piece.userData.life > 0) {
+                    allDead = false;
+                    piece.position.add(piece.userData.velocity);
+                    piece.userData.velocity.y -= 0.015; // gravity
+                    piece.rotation.x += piece.userData.rotSpeed.x;
+                    piece.rotation.y += piece.userData.rotSpeed.y;
+                    piece.rotation.z += piece.userData.rotSpeed.z;
+                    piece.userData.life--;
+
+                    // Fade out
+                    if (piece.userData.life < 20) {
+                        piece.material.transparent = true;
+                        piece.material.opacity = piece.userData.life / 20;
+                    }
+                } else if (piece.parent) {
+                    scene.remove(piece);
+                }
+            });
+
+            if (!allDead) {
+                requestAnimationFrame(animateConfetti);
+            }
+        }
+        animateConfetti();
+    }
+
+
     function showTapText(x, y, text, color) {
         const el = document.createElement('div');
         el.className = 'sg-tap-text';
@@ -4077,6 +4345,14 @@ const SearchGame = (() => {
         setTimeout(() => el.remove(), 1500); // Slightly longer display
     }
 
+    async function resetRound() {
+        // Clear models
+        models.forEach(m => {
+            if (m.parent) m.parent.remove(m);
+        });
+        models = [];
+        await spawnClonesSequential();
+    }
 
     function handleInteraction() {
         // Ignore if not playing or no target
@@ -4465,12 +4741,6 @@ const SearchGame = (() => {
                 // ランダム配置
                 const x = (Math.random() - 0.5) * 50;
                 const z = (Math.random() - 0.5) * 50;
-
-                // ★ ここに1行足すだけ
-                if (ExclusionManager.isBlocked(x, z)) {
-                    continue;
-                }
-
                 grass.position.set(x, 0, z);
 
                 // ランダム回転
@@ -4493,6 +4763,16 @@ const SearchGame = (() => {
             console.error("Error loading grass.fbx:", error);
         });
     }
+
+    // ==========================================
+    // 土管 (旧関数) - createParkAssets に統合済み
+    // ==========================================
+    function spawnDokan() {
+        console.log("spawnDokan is deprecated. Logic moved to createParkAssets.");
+    }
+
+
+    // spawnDokan() は initThreeJS() 内から呼び出す（scene初期化後）
 
     return { setup, init, start, stop };
 })();

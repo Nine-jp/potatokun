@@ -1157,8 +1157,8 @@ const SearchGame = (() => {
                     // ★修正: プレイヤーの体は南向き(0)
                     if (typeof playerFacing !== 'undefined') playerFacing = 0;
 
-                    // ★修正: カメラは0度で北(噴水の方)を向かせる
-                    if (typeof cameraAngle !== 'undefined') cameraAngle = 0;
+                    // ★修正: カメラは180度回転させて南(公園の方)を向かせる
+                    if (typeof cameraAngle !== 'undefined') cameraAngle = Math.PI;
                 }
 
                 // Show UI
@@ -1664,9 +1664,9 @@ const SearchGame = (() => {
         // Old: 2. Inverted: -2.
         playerPosition.set(-11, 0.6, -2);
 
-       // Sync Camera Angle to look at Vending Machine (North/Negative Z)
-       cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
-       cameraPitch = 0;       // Level
+        // Sync Camera Angle to look at Vending Machine (North/Negative Z)
+        cameraAngle = Math.PI; // PI = Looking -Z (North) in this logic
+        cameraPitch = 0;       // Level
 
         // Apply immediately so render doesn't flicker
         camera.position.copy(playerPosition);
