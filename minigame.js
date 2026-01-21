@@ -9,8 +9,6 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
     currentSeason: 'winter', // 'spring', 'summer', 'autumn', 'winter'
-    debugMode: true          // ★trueなら、ロード/OPを飛ばしていきなりゲーム開始
-    currentSeason: 'winter', // 'spring', 'summer', 'autumn', 'winter'
     debugMode: true          // ★true: ロード/OPを飛ばしていきなりゲーム開始
 };
 
@@ -82,43 +80,32 @@ let fabBtn;
 let scrollPos = 0;
 
 /* System Initialization */
-/* System Initialization */
 function initGameSystem() {
-    console.log("initGameSystem Started"); // 起動ログ
-
-    // 1. 必須コンテナの取得
     overlay = document.getElementById('minigame-container');
     menuContainer = document.getElementById('game-menu');
     introContainer = document.getElementById('game-intro');
     activeGameContainer = document.getElementById('active-game-container');
     gameOverContainer = document.getElementById('common-game-over');
-
-    // 2. プレイボタンの取得（もし無くても止まらないようにする）
     fabBtn = document.getElementById('fab-play-game');
 
-    if (!overlay || !activeGameContainer) {
-        console.error("Critical Error: Game containers not found in DOM.");
-        return; // コンテナが無い場合のみ致命的エラーとして停止
-    }
+    if (!fabBtn) return;
 
-    // 3. プレイボタンのイベント設定（ボタンがある場合のみ実行）
-    if (fabBtn) {
-        // TEST MODE: Direct Launch for Playground Dev
-        fabBtn.addEventListener('click', () => {
-            // Prepare UI state directly (Bypass Menu)
-            scrollPos = window.pageYOffset;
-            overlay.classList.remove('hidden');
-            menuContainer.classList.add('hidden'); // Skip Menu
-            introContainer.classList.add('hidden');
-            activeGameContainer.classList.remove('hidden');
-            gameOverContainer.classList.add('hidden');
+    // TEST MODE: Direct Launch for Playground Dev
+    fabBtn.addEventListener('click', () => {
+        // Prepare UI state directly (Bypass Menu)
+        scrollPos = window.pageYOffset;
+        overlay.classList.remove('hidden');
+        menuContainer.classList.add('hidden'); // Skip Menu
+        introContainer.classList.add('hidden');
+        activeGameContainer.classList.remove('hidden');
+        gameOverContainer.classList.add('hidden');
 
-            document.body.classList.add('modal-open');
-            document.body.style.top = `-${scrollPos}px`;
+        document.body.classList.add('modal-open');
+        document.body.style.top = `-${scrollPos}px`;
 
-            // Launch Potecoin Game
-            currentActiveGameId = '3d-search';
-            GameLibrary[currentActiveGameId].start();
+        // Launch Potecoin Game
+        currentActiveGameId = '3d-search';
+        GameLibrary[currentActiveGameId].start();
 
             // ★UI要素のアニメーションをリプレイ
             setTimeout(() => {
@@ -138,10 +125,7 @@ function initGameSystem() {
                 });
             }, 100);
         });
-    } else {
-        console.warn("Warning: 'fab-play-game' button not found. Menu trigger disabled.");
-    }
-
+ 
     // Close Button (Portal Level)
     const closeBtn = document.getElementById('portal-close-btn');
     if (closeBtn) closeBtn.addEventListener('click', closePortal);
@@ -168,7 +152,6 @@ function initGameSystem() {
     if (typeof SearchGame !== 'undefined') SearchGame.setup(activeGameContainer);
 
     // ★追加: デバッグモードなら即座にポテコインゲームを起動
-    // (fabBtnの有無に関わらず実行される安全な場所に配置)
     if (GameConfig.debugMode) {
         console.log("🚀 DEBUG MODE: Auto-launching SearchGame...");
 
@@ -184,11 +167,7 @@ function initGameSystem() {
 
         // ゲーム開始
         currentActiveGameId = '3d-search';
-        if (GameLibrary[currentActiveGameId]) {
-            GameLibrary[currentActiveGameId].start();
-        } else {
-            console.error("Debug Error: '3d-search' game not found in Library.");
-        }
+        GameLibrary[currentActiveGameId].start();
 
         // UIアニメーションのリセット
         setTimeout(() => {
@@ -704,6 +683,32 @@ const SearchGame = (() => {
     let container;
     let scene, camera, renderer, controls;
 
+    // ★★★ ExclusionManager (Scoped properly) ★★★
+    // initThreeJSの外に置くことで、createParkAssetsなど他の関数からも確実にアクセス可能にする
+    const ExclusionManager = (() => {
+        const zones = [];
+        // 固定ルール (Zone D, 道路, 広場)
+        function checkStaticRules(x, z) {
+            if (x > 2 && z > 2) return true; // Zone D
+            if (Math.abs(x) < 5 || Math.abs(z) < 5) return true; // 十字路
+            if (x * x + z * z < 100) return true; // 中央広場
+
+            // ★追加: 遊具エリア (Zone B) を草木禁止にする
+            // (X > 2 かつ Z < -2 のエリア)
+            if (x > 2 && z < -2) return true;
+
+            // ★追加: 北側スタート地点周辺 (半径3m) を立ち入り禁止
+            if (x * x + (z + 27) ** 2 < 9) return true;
+
+            return false;
+        }
+        return {
+            addCircle: (x, z, r) => zones.push({ x, z, r }),
+            isBlocked: (x, z) => checkStaticRules(x, z) || zones.some(zItem => (x - zItem.x) ** 2 + (z - zItem.z) ** 2 < zItem.r ** 2),
+            reset: () => { zones.length = 0; }
+        };
+    })();
+
     // === Game State Management ===
     const GameState = {
         LOADING: 'loading',
@@ -741,6 +746,8 @@ const SearchGame = (() => {
 
     // Player Position (Module Scope)
     let playerPosition = new THREE.Vector3(0, 0.6, 0);
+    // ★追加: プレイヤーの向き (モジュールスコープ)
+    let playerFacing = 0; // 初期値: 南向き
 
     // Camera Control Variables (Module Scope for access from transitionToGameplay)
     let cameraDistance = 0; // 0 = FPS, 10 = max TPS
@@ -1062,7 +1069,14 @@ const SearchGame = (() => {
 
                 // Position Player (Start Point)
                 if (typeof playerPosition !== 'undefined') {
-                    playerPosition.set(-13, 0.6, -5);
+                    // ★修正: 北側入り口へ (Z = -27)
+                    playerPosition.set(0, 0.6, -27);
+
+                    // ★修正: プレイヤーの体は南向き(0)
+                    if (typeof playerFacing !== 'undefined') playerFacing = 0;
+
+                    // ★修正: カメラは180度回転させて南(公園の方)を向かせる
+                    if (typeof cameraAngle !== 'undefined') cameraAngle = Math.PI;
                 }
 
                 // Show UI
@@ -3407,7 +3421,6 @@ const SearchGame = (() => {
         // ==========================================
         // 木 (Tree) の配置と季節カラー管理
         // models/tree.fbx
-        // 木 (Tree) の配置
         // ==========================================
         // ==========================================
         // 木 (Tree) の配置 (Refactor: Benches Integrated)
@@ -3416,7 +3429,6 @@ const SearchGame = (() => {
         // 木 (Tree) と ベンチ (Bench) の配置
         // ==========================================
         function spawnTrees() {
-            console.log("--- spawnTrees CALLED (Mesh-Specific Color) ---");
             console.log("--- spawnTrees CALLED (Trees Restored & Benches Integrated) ---");
 
             // 禁止エリアをリセット
@@ -3460,10 +3472,6 @@ const SearchGame = (() => {
                 const isMultiColor = palette.length > 1;
 
                 window.sgTreeObjects.forEach((tree, index) => {
-                    // 木ごとにランダムな色を決定
-                    const colorHex = isMultiColor
-                        ? palette[index % palette.length]
-                        : palette[0];
                     const colorHex = isMultiColor ? palette[index % palette.length] : palette[0];
                     const leafColorObj = new THREE.Color(colorHex);
                     const trunkColorObj = new THREE.Color(0xFFFFFF); // 幹は常に白(テクスチャ色)
@@ -3477,13 +3485,6 @@ const SearchGame = (() => {
                             // 判定ロジック: 名前に 'leaves', 'leaf', 'canopy' が含まれるか？
                             const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
                             if (child.material.color) {
-                                if (isLeaves) {
-                                    // 葉っぱなら季節の色を適用
-                                    child.material.color.copy(leafColorObj);
-                                } else {
-                                    // 幹なら元の色(白乗算)に戻す
-                                    child.material.color.copy(trunkColorObj);
-                                }
                                 child.material.color.copy(isLeaves ? leafColorObj : trunkColorObj);
                             }
                         }
@@ -3491,10 +3492,78 @@ const SearchGame = (() => {
                 });
             };
 
+            // 並木設定 (Common Config)
+            const AVENUE_OFFSET = 4.0;
+            const AVENUE_START = 10.0;
+            const AVENUE_END = 26.0;
+            const AVENUE_STEP = 4.0;
 
-            const loader = new FBXLoader();
+            // ===================================
+            // 1. ベンチの配置 (Benches)
+            // ===================================
+            const benchLoader = new FBXLoader();
+            benchLoader.load('models/bench.fbx', (masterBench) => {
+                console.log("Master Bench Loaded.");
+                masterBench.scale.setScalar(1.0);
 
-            loader.load('models/tree.fbx', (masterTree) => {
+                masterBench.traverse(c => {
+                    if (c.isMesh) {
+                        c.castShadow = true;
+                        c.receiveShadow = true;
+                    }
+                });
+
+                // アウトライン
+                if (typeof window.applyOutlineRules === 'function') {
+                    window.applyOutlineRules(masterBench);
+                }
+
+                const addBench = (x, z, rotY) => {
+                    const bench = masterBench.clone();
+                    bench.position.set(x, 0, z);
+                    bench.rotation.y = rotY * (Math.PI / 180);
+
+                    // アウトライン再適用
+                    if (typeof window.applyOutlineRules === 'function') {
+                        window.applyOutlineRules(bench);
+                    }
+
+                    // 衝突判定
+                    if (window.sgExtraObstacles) {
+                        const isRotated = Math.abs(rotY) === 90 || Math.abs(rotY) === -90;
+                        const sizeX = isRotated ? 0.6 : 1.5;
+                        const sizeZ = isRotated ? 1.5 : 0.6;
+                        window.sgExtraObstacles.push({
+                            minX: x - sizeX / 2, maxX: x + sizeX / 2,
+                            minZ: z - sizeZ / 2, maxZ: z + sizeZ / 2
+                        });
+                    }
+
+                    scene.add(bench);
+                    if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5);
+                };
+
+                // 並木道のベンチ
+                for (let d = AVENUE_START; d <= AVENUE_END; d += AVENUE_STEP) {
+                    const b = d - 2.0;
+                    // 東西 (Z=±4)
+                    addBench(b, 4, 180); addBench(-b, 4, 180);
+                    addBench(b, -4, 0); addBench(-b, -4, 0);
+                    // 南北 (X=±4)
+                    addBench(4, b, -90); addBench(4, -b, -90);
+                    addBench(-4, b, 90); addBench(-4, -b, 90);
+                }
+
+                // 個別ベンチ (遊具エリア端 & ゾウさん噴水付近)
+                addBench(3.6, -28, -90);
+                addBench(-8, 14, -45);
+            });
+
+            // ===================================
+            // 2. 木の配置 (Trees)
+            // ===================================
+            const treeLoader = new FBXLoader();
+            treeLoader.load('models/tree.fbx', (masterTree) => {
                 console.log('FBX Loaded: tree.fbx');
 
                 // 階層構造と名前の確認ログ
@@ -3505,362 +3574,156 @@ const SearchGame = (() => {
                 window.sgMasterTree = masterTree;
 
                 // マテリアル設定 (クローン必須)
-                // 並木設定 (Common Config)
-                const AVENUE_OFFSET = 4.0;
-                const AVENUE_START = 10.0;
-                const AVENUE_END = 26.0;
-                const AVENUE_STEP = 4.0;
+                masterTree.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
 
-                // ===================================
-                // 1. ベンチの配置 (Benches)
-                // ===================================
-                const benchLoader = new FBXLoader();
-                benchLoader.load('models/bench.fbx', (masterBench) => {
-                    console.log("Master Bench Loaded.");
-                    masterBench.scale.setScalar(1.0);
-
-                    masterBench.traverse(c => {
-                        if (c.isMesh) {
-                            c.castShadow = true;
-                            c.receiveShadow = true;
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(m => m.clone());
+                            } else {
+                                child.material = child.material.clone();
+                            }
+                            // 自己発光リセット
+                            if (child.material.emissive) {
+                                child.material.emissive.setHex(0x000000);
+                            }
                         }
-                    });
-
-                    // アウトライン
-                    if (typeof window.applyOutlineRules === 'function') {
-                        window.applyOutlineRules(masterBench);
+                        child.userData.isTree = true;
                     }
-
-                    const addBench = (x, z, rotY) => {
-                        const bench = masterBench.clone();
-                        bench.position.set(x, 0, z);
-                        bench.rotation.y = rotY * (Math.PI / 180);
-
-                        // アウトライン再適用
-                        if (typeof window.applyOutlineRules === 'function') {
-                            window.applyOutlineRules(bench);
-                        }
-
-                        // 衝突判定
-                        if (window.sgExtraObstacles) {
-                            const isRotated = Math.abs(rotY) === 90 || Math.abs(rotY) === -90;
-                            const sizeX = isRotated ? 0.6 : 1.5;
-                            const sizeZ = isRotated ? 1.5 : 0.6;
-                            window.sgExtraObstacles.push({
-                                minX: x - sizeX / 2, maxX: x + sizeX / 2,
-                                minZ: z - sizeZ / 2, maxZ: z + sizeZ / 2
-                            });
-                        }
-
-                        scene.add(bench);
-                        if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5);
-                    };
-
-                    // 並木道のベンチ
-                    for (let d = AVENUE_START; d <= AVENUE_END; d += AVENUE_STEP) {
-                        const b = d - 2.0;
-                        // 東西 (Z=±4)
-                        addBench(b, 4, 180); addBench(-b, 4, 180);
-                        addBench(b, -4, 0); addBench(-b, -4, 0);
-                        // 南北 (X=±4)
-                        addBench(4, b, -90); addBench(4, -b, -90);
-                        addBench(-4, b, 90); addBench(-4, -b, 90);
-                    }
-
-                    // 個別ベンチ (遊具エリア端 & ゾウさん噴水付近)
-                    addBench(3.6, -28, -90);
-                    addBench(-8, 14, -45);
                 });
 
-                // ===================================
-                // 2. 木の配置 (Trees)
-                // ===================================
-                const treeLoader = new FBXLoader();
-                treeLoader.load('models/tree.fbx', (masterTree) => {
-                    console.log('FBX Loaded: tree.fbx');
+                const treePositions = [];
+                const placedTrees = [];
 
-                    masterTree.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
+                // A. 並木道 (Avenue) - 固定配置
+                const addFixedTree = (x, z) => {
+                    treePositions.push({ x, z });
+                    placedTrees.push({ x, z });
+                    if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.0);
+                };
 
-                            if (child.material) {
-                                if (Array.isArray(child.material)) {
-                                    child.material = child.material.map(m => m.clone());
-                                } else {
-                                    child.material = child.material.clone();
-                                }
-                                // 自己発光リセット
-                                if (child.material.emissive) {
-                                    child.material.emissive.setHex(0x000000);
-                                }
-                            }
-                            child.userData.isTree = true;
-                        }
-                    });
+                for (let d = AVENUE_START; d <= AVENUE_END; d += AVENUE_STEP) {
+                    addFixedTree(d, AVENUE_OFFSET); addFixedTree(d, -AVENUE_OFFSET);
+                    addFixedTree(-d, AVENUE_OFFSET); addFixedTree(-d, -AVENUE_OFFSET);
+                    addFixedTree(AVENUE_OFFSET, d); addFixedTree(-AVENUE_OFFSET, d);
+                    addFixedTree(AVENUE_OFFSET, -d); addFixedTree(-AVENUE_OFFSET, -d);
+                }
 
+                // B. ランダム配置 (Forest)
+                const NUM_TREES = 80;
+                let attempts = 0;
+                const MIN_TREE_DISTANCE = 5.0;
 
-                    // --- Tree Placement Logic ---
-                    const NUM_TREES = 80; // Total standard trees
-                    const treePositions = [];
-                    const placedTrees = [];
-                    const treePositions = [];
-                    const placedTrees = [];
-
-                    // A. 並木道 (Avenue) - 固定配置
-                    const addFixedTree = (x, z) => {
-                        treePositions.push({ x, z });
-                        placedTrees.push({ x, z });
-                        if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.0);
-                    };
-
-                    for (let d = AVENUE_START; d <= AVENUE_END; d += AVENUE_STEP) {
-                        addFixedTree(d, AVENUE_OFFSET); addFixedTree(d, -AVENUE_OFFSET);
-                        addFixedTree(-d, AVENUE_OFFSET); addFixedTree(-d, -AVENUE_OFFSET);
-                        addFixedTree(AVENUE_OFFSET, d); addFixedTree(-AVENUE_OFFSET, d);
-                        addFixedTree(AVENUE_OFFSET, -d); addFixedTree(-AVENUE_OFFSET, -d);
+                function isTooClose(x, z) {
+                    for (const placed of placedTrees) {
+                        const dx = x - placed.x;
+                        const dz = z - placed.z;
+                        if (Math.sqrt(dx * dx + dz * dz) < MIN_TREE_DISTANCE) return true;
                     }
+                    return false;
+                }
 
-                    // B. ランダム配置 (Forest)
-                    const NUM_TREES = 80;
-                    let attempts = 0;
-                    const MIN_TREE_DISTANCE = 5.0;
+                while (treePositions.length < NUM_TREES + 24 && attempts < 1000) {
+                    attempts++;
+                    const x = (Math.random() - 0.5) * 50;
+                    const z = (Math.random() - 0.5) * 50;
 
-                    // Placement Helper
-                    function isTooClose(x, z) {
-                        for (const placed of placedTrees) {
-                            const dx = x - placed.x;
-                            const dz = z - placed.z;
-                            if (Math.sqrt(dx * dx + dz * dz) < MIN_TREE_DISTANCE) return true;
-                        }
-                        return false;
-                    }
+                    if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
 
-                    // 1. Generate Positions (Inner Park)
-                    let attempts = 0;
-                    while (treePositions.length < NUM_TREES && attempts < 500) {
-                        attempts++;
-                        const x = (Math.random() - 0.5) * 50; // -25~25
-                        const z = (Math.random() - 0.5) * 50; // -25~25
+                    const inZoneA = (x < 0 && z < 0);
+                    const probability = inZoneA ? 0.9 : 0.2;
+                    if (Math.random() > probability) continue;
 
-                        // AVOID CENTER (Radius ~12m)
-                        if (x * x + z * z < 144) continue;
+                    if (isTooClose(x, z)) continue;
 
-                        if (!isTooClose(x, z)) {
-                            treePositions.push({ x, z });
-                            placedTrees.push({ x, z });
-                        }
-                        const x = (Math.random() - 0.5) * 50;
-                        const z = (Math.random() - 0.5) * 50;
+                    treePositions.push({ x, z });
+                    placedTrees.push({ x, z });
+                    if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.5);
+                }
 
-                        if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
+                treePositions.forEach((pos, index) => {
+                    const tree = masterTree.clone();
+                    tree.userData.isTree = true; // Mark root
+                    tree.name = `Tree_${index}`;
+                    const scale = 0.8 + Math.random() * 0.4;
+                    tree.scale.setScalar(scale);
+                    const box = new THREE.Box3().setFromObject(tree);
+                    const offsetY = -box.min.y;
+                    tree.position.set(pos.x, offsetY, pos.z);
+                    tree.rotation.y = Math.random() * Math.PI * 2;
+                    scene.add(tree);
 
-                        const inZoneA = (x < 0 && z < 0);
-                        const probability = inZoneA ? 0.9 : 0.2;
-                        if (Math.random() > probability) continue;
+                    window.sgTreeObjects.push(tree);
+                    window.sgTreeCollisions.push({ x: pos.x, z: pos.z, radius: 0.3 * scale });
 
-                        if (isTooClose(x, z)) continue;
+                    if (window.addEdgesOutline) window.addEdgesOutline(tree, 15, 0x000000);
+                });
 
-                        treePositions.push({ x, z });
-                        placedTrees.push({ x, z });
-                        if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.5);
-                    }
+                console.log(`${treePositions.length} trees placed.`);
 
-                    // 2. Clone and Place
-                    window.sgTreeCollisions = []; // Reset collisions
+                // C. 外周の森 (Exterior)
+                const NUM_EXTERIOR = 70;
+                for (let i = 0; i < NUM_EXTERIOR; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 35 + Math.random() * 35; // 35m - 70m radius
+                    const x = Math.cos(angle) * radius;
+                    const z = Math.sin(angle) * radius;
+                    const extTree = masterTree.clone();
+                    extTree.userData.isTree = true;
+                    extTree.name = `ExteriorTree_${i}`;
 
-                    // 実体化 (Placement)
-                    treePositions.forEach((pos, index) => {
-                        const tree = masterTree.clone();
-                        tree.userData.isTree = true; // Mark root
-                        tree.name = `Tree_${index}`;
+                    // Larger Scale for exterior
+                    const scale = 1.2 + Math.random() * 0.8;
+                    extTree.scale.setScalar(scale);
+                    const box = new THREE.Box3().setFromObject(extTree);
+                    const offsetY = -box.min.y;
+                    extTree.position.set(x, offsetY, z);
 
-                        // Random Scale 0.8 ~ 1.2
-                        const scale = 0.8 + Math.random() * 0.4;
-                        tree.scale.setScalar(scale);
+                    extTree.rotation.y = Math.random() * Math.PI * 2;
+                    scene.add(extTree);
+                    window.sgTreeObjects.push(extTree);
 
-                        // Box for ground alignment
-                        const box = new THREE.Box3().setFromObject(tree);
-                        const offsetY = -box.min.y;
-                        tree.position.set(pos.x, offsetY, pos.z);
+                    if (window.addEdgesOutline) window.addEdgesOutline(extTree, 15, 0x000000);
+                }
 
-                        // Random Rotation
-                        tree.rotation.y = Math.random() * Math.PI * 2;
+                if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
 
-                        scene.add(tree);
-                        window.sgTreeObjects.push(tree); // Track
-
-                        // Collision Data
-                        window.sgTreeCollisions.push({
-                            x: pos.x,
-                            z: pos.z,
-                            radius: 0.3 * scale // Rough trunk radius
-                        });
-                        tree.position.set(pos.x, offsetY, pos.z);
-                        tree.rotation.y = Math.random() * Math.PI * 2;
-
-                        scene.add(tree);
-                        window.sgTreeObjects.push(tree);
-                        window.sgTreeCollisions.push({ x: pos.x, z: pos.z, radius: 0.3 * scale });
-
-                        if (window.addEdgesOutline) window.addEdgesOutline(tree, 15, 0x000000);
-                    });
-
-                    console.log(`${treePositions.length} trees placed.`);
-
-                    // C. 外周の森 (Exterior)
-                    const NUM_EXTERIOR = 70;
-                    for (let i = 0; i < NUM_EXTERIOR; i++) {
-                        const angle = Math.random() * Math.PI * 2;
-                        const radius = 35 + Math.random() * 35;
-                        const x = Math.cos(angle) * radius;
-                        const z = Math.sin(angle) * radius;
-                        const extTree = masterTree.clone();
-                        extTree.name = `ExteriorTree_${i}`;
-                        const scale = 1.2 + Math.random() * 0.8;
-                        extTree.scale.setScalar(scale);
-                        const box = new THREE.Box3().setFromObject(extTree);
-                        const offsetY = -box.min.y;
-                        extTree.position.set(x, offsetY, z);
-                        extTree.rotation.y = Math.random() * Math.PI * 2;
-                        scene.add(extTree);
-                        window.sgTreeObjects.push(extTree);
-                        if (window.addEdgesOutline) window.addEdgesOutline(extTree, 15, 0x000000);
-                    }
-
-                    if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
-
-                }, undefined, (e) => console.error(e));
-            }
-        while (treePositions.length < NUM_TREES + 24 && attempts < 1000) {
-                attempts++;
-                const x = (Math.random() - 0.5) * 50;
-                const z = (Math.random() - 0.5) * 50;
-
-                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
-
-                const inZoneA = (x < 0 && z < 0);
-                const probability = inZoneA ? 0.9 : 0.2;
-                if (Math.random() > probability) continue;
-
-                if (isTooClose(x, z)) continue;
-
-                treePositions.push({ x, z });
-                placedTrees.push({ x, z });
-                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.5);
-            }
-
-            treePositions.forEach((pos, index) => {
-                const tree = masterTree.clone();
-                tree.name = `Tree_${index}`;
-                const scale = 0.8 + Math.random() * 0.4;
-                tree.scale.setScalar(scale);
-                const box = new THREE.Box3().setFromObject(tree);
-                const offsetY = -box.min.y;
-                tree.position.set(pos.x, offsetY, pos.z);
-                tree.rotation.y = Math.random() * Math.PI * 2;
-                scene.add(tree);
-
-                window.sgTreeObjects.push(tree);
-                window.sgTreeCollisions.push({ x: pos.x, z: pos.z, radius: 0.3 * scale });
-
-                // Outline
-                if (window.addEdgesOutline) window.addEdgesOutline(tree, 15, 0x000000);
-            });
-            if (window.addEdgesOutline) window.addEdgesOutline(tree, 15, 0x000000);
-        });
-
-        console.log(`${treePositions.length} trees placed.`);
-
-        // 3. Exterior Forest (Dense ring outside)
-        const NUM_EXTERIOR = 70;
-        for (let i = 0; i < NUM_EXTERIOR; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 35 + Math.random() * 35; // 35m - 70m radius
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
-
-            const extTree = masterTree.clone();
-            extTree.userData.isTree = true;
-            extTree.name = `ExteriorTree_${i}`;
-
-            // Larger Scale for exterior
-            const scale = 1.2 + Math.random() * 0.8;
-            extTree.scale.setScalar(scale);
-
-            const box = new THREE.Box3().setFromObject(extTree);
-            const offsetY = -box.min.y;
-            extTree.position.set(x, offsetY, z);
-
-            extTree.rotation.y = Math.random() * Math.PI * 2;
-
-            scene.add(extTree);
-            window.sgTreeObjects.push(extTree);
-
-            if (window.addEdgesOutline) window.addEdgesOutline(extTree, 15, 0x000000);
-        }
-        // 外周の森
-        const NUM_EXTERIOR = 70;
-        for (let i = 0; i < NUM_EXTERIOR; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 35 + Math.random() * 35;
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
-            const extTree = masterTree.clone();
-            extTree.name = `ExteriorTree_${i}`;
-            const scale = 1.2 + Math.random() * 0.8;
-            extTree.scale.setScalar(scale);
-            const box = new THREE.Box3().setFromObject(extTree);
-            const offsetY = -box.min.y;
-            extTree.position.set(x, offsetY, z);
-            extTree.rotation.y = Math.random() * Math.PI * 2;
-            scene.add(extTree);
-            window.sgTreeObjects.push(extTree);
-            if (window.addEdgesOutline) window.addEdgesOutline(extTree, 15, 0x000000);
-        }
-
-        // Initialize Season
-        window.setTreeSeason(GameConfig.currentSeason);
-        if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
-
-    },
-    undefined,
-        (error) => console.error('Error loading tree.fbx:', error)
+            },
+                undefined,
+                (error) => console.error('Error loading tree.fbx:', error)
             );
         }
-    }, undefined, (e) => console.error(e));
-}
 
-// ★ GLOBAL SEASON MANAGER (Comms Tower)
-window.setGameSeason = (seasonName) => {
-    console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
+        // ★ GLOBAL SEASON MANAGER (Comms Tower)
+        window.setGameSeason = (seasonName) => {
+            console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
 
-    // 1. Grass
-    if (window.setGrassSeason) window.setGrassSeason(seasonName);
+            // 1. Grass
+            if (window.setGrassSeason) window.setGrassSeason(seasonName);
 
-    // 2. Trees
-    if (window.setTreeSeason) window.setTreeSeason(seasonName);
+            // 2. Trees
+            if (window.setTreeSeason) window.setTreeSeason(seasonName);
 
-    // 3. Environment (Sky, Fog, Sun)
-    if (window.setEnvironmentSeason) window.setEnvironmentSeason(seasonName);
+            // 3. Environment (Sky, Fog, Sun)
+            if (window.setEnvironmentSeason) window.setEnvironmentSeason(seasonName);
 
-    // 4. Clouds ★追加
-    if (window.setCloudSeason) window.setCloudSeason(seasonName);
-};
+            // 4. Clouds ★追加
+            if (window.setCloudSeason) window.setCloudSeason(seasonName);
+        };
 
-// Call the new tree spawning function
-spawnTrees();
-// 1. Place Park Assets (Registers Exclusion Zones)
-createParkAssets();
+        // 1. Place Park Assets (Registers Exclusion Zones)
+        createParkAssets();
 
-// 2. Place Trees (Registers Exclusion Zones & Respects them)
-spawnTrees();
+        // 2. Place Trees (Registers Exclusion Zones & Respects them)
+        spawnTrees();
 
-// 3. Place Grass (Respects all Exclusion Zones)
-spawnGrass();
+        // 3. Place Grass (Respects all Exclusion Zones)
+        spawnGrass();
 
-// Initialize Game Season (sets grass and trees)
-window.setGameSeason(GameConfig.currentSeason);
+        // Initialize Game Season (sets grass and trees)
+        window.setGameSeason(GameConfig.currentSeason);
 
 
         /* REMOVED OLD TREE LOADING LOGIC */
@@ -3875,219 +3738,44 @@ window.setGameSeason(GameConfig.currentSeason);
         // (Ketchup items REMOVED - now using Coins via FBX loader)
     }
 
+// ==========================================
+// ★ GLOBAL SEASON MANAGER (Comms Tower)
+// ==========================================
+    window.setGameSeason = (seasonName) => {
+        console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
 
+        // 1. Grass
+        if (window.setGrassSeason) window.setGrassSeason(seasonName);
+
+        // 2. Trees
+        if (window.setTreeSeason) window.setTreeSeason(seasonName);
+
+        // 3. Environment (Sky, Fog, Sun)
+        if (window.setEnvironmentSeason) window.setEnvironmentSeason(seasonName);
+
+        // 4. Clouds
+        if (window.setCloudSeason) window.setCloudSeason(seasonName);
+    };
 
 // ==========================================
 // 公園遊具・設備 (Park Assets) の一括配置
 // ==========================================
-function createParkAssets() {
-    console.log("--- createParkAssets (Unified) CALLED ---");
-    // ==========================================
-    // 公園遊具・設備 (Park Assets) の一括配置
-    // ==========================================
-    // ==========================================
-    // 公園遊具・設備 (Park Assets) の一括配置
-    // ==========================================
     function createParkAssets() {
-        console.log("--- createParkAssets (Benches Removed -> Moved to spawnTrees) CALLED ---");
+        console.log("--- createParkAssets (Cleaned) CALLED ---");
 
-        // 衝突判定リストの初期化 (安全策)
-        if (!window.sgExtraObstacles) window.sgExtraObstacles = []; // 四角い判定用
-        if (!window.sgFountainCollision) window.sgFountainCollision = []; // 丸い判定用(象さん含む)
-
-        // ★休憩所エリア定義
-        const REST_AREA = { x: -11.0, y: 0, z: -8.0 };
-
-        const ASSET_CONFIG = [
-            // [1] ベンチ (衝突判定なし: すり抜けOK)
-            {
-                name: 'Bench',
-                path: 'models/bench.fbx',
-                pos: { x: 10, y: 0, z: 8 },
-                rot: { y: -45 },
-                scale: 1.0
-            },
-            // [2] 象さん噴水 (衝突判定: あり・円形)
-            {
-                name: 'Fountain_New',
-                path: 'models/fountain.fbx',
-                pos: { x: 0, y: 0, z: -12 },
-                rot: { y: 0 },
-                scale: 2.5,
-                collision: true,
-                collisionType: 'cylinder', // 丸い判定
-                collisionScale: 0.4, // 半径の調整 (少し小さめにするとスムーズ)
-                onLoad: (obj) => {
-                    // 水の透過処理
-                    obj.traverse((child) => {
-                        if (child.isMesh && child.name.toLowerCase().includes('water')) {
-                            const mats = Array.isArray(child.material) ? child.material : [child.material];
-                            mats.forEach(m => {
-                                m.transparent = true;
-                                m.opacity = 0.6;
-                                m.depthWrite = false;
-                                m.needsUpdate = true;
-                            });
-                            child.userData.skipOutline = true;
-                        }
-                    });
-                }
-            },
-            // [3] 自販機 (衝突判定: あり・四角)
-            {
-                name: 'VendingMachine',
-                path: 'models/vending_test.fbx',
-                pos: { x: REST_AREA.x, y: REST_AREA.y, z: REST_AREA.z },
-                rot: { y: 90 },
-                scale: 1.0,
-                collision: true, // 四角い判定ON
-                onLoad: (obj) => {
-                    // 高さ調整
-                    const box = new THREE.Box3().setFromObject(obj);
-                    const size = new THREE.Vector3(); box.getSize(size);
-                    const scaleFactor = 2.0 / (size.y || 1);
-                    obj.scale.setScalar(scaleFactor);
-                    const scaledBox = new THREE.Box3().setFromObject(obj);
-                    obj.position.y -= scaledBox.min.y;
-
-                    // 美肌化
-                    obj.traverse(c => {
-                        if (c.isMesh && c.material) {
-                            const mats = Array.isArray(c.material) ? c.material : [c.material];
-                            mats.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
-                            // ガラス透過
-                            if (c.name.toLowerCase().includes('glass') || c.name.toLowerCase().includes('water')) {
-                                mats.forEach(m => { m.transparent = true; m.opacity = 0.5; });
-                                c.userData.skipOutline = true;
-                            }
-                        }
-                    });
-
-                    // インタラクション用HitBox
-                    const hitBox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.5, 1.5), new THREE.MeshBasicMaterial({ visible: false }));
-                    hitBox.position.copy(obj.position); hitBox.position.y += 1.0;
-                    hitBox.userData.isVendingMachine = true;
-                    scene.add(hitBox);
-                }
-            },
-            // [4] ゴミ箱 (衝突判定: あり・四角)
-            {
-                name: 'RecycleBin',
-                path: 'models/RecycleBin.fbx',
-                pos: { x: REST_AREA.x, y: REST_AREA.y, z: REST_AREA.z + 1.1 }, // 自販機の隣
-                rot: { y: 90 },
-                scale: 1.0,
-                collision: true, // 四角い判定ON
-                onLoad: (obj) => {
-                    obj.traverse(c => {
-                        if (c.isMesh && c.material) {
-                            const mats = Array.isArray(c.material) ? c.material : [c.material];
-                            mats.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
-                        }
-                    });
-                }
-            },
-            // [5] シーソー (衝突判定: なし)
-            {
-                name: 'Seesaw',
-                path: 'models/seesaw.fbx',
-                pos: { x: -15, y: 0.6, z: 10 },
-                rot: { y: 30 },
-                scale: 1.0
-            },
-            // [6] 滑り台 (衝突判定: なし・登れる仕様)
-            {
-                name: 'Slide',
-                path: 'models/slide.fbx',
-                pos: { x: -8, y: 0, z: -8 },
-                rot: { y: 180 },
-                scale: 1.5
-            },
-            // [7] 土管 (旧 spawnDokan から移植) - 特殊判定
-            {
-                name: 'Dokan',
-                path: 'models/ceramic_pipe.fbx',
-                pos: { x: 14, y: 0, z: 12 }, // 初期値(後で補正)
-                rot: { y: 90 }, // Z軸向き
-                scale: 2.0,
-                // collision: false, // 特殊なので自動判定は使わない
-                onLoad: (obj) => {
-                    // 位置補正(底面合わせ)
-                    obj.updateMatrixWorld(true);
-                    const box = new THREE.Box3().setFromObject(obj);
-                    obj.position.y -= box.min.y;
-
-                    // フラットシェーディング
-                    obj.traverse(c => {
-                        if (c.isMesh) {
-                            c.userData.ignoreGround = true; // 地面判定除外
-                            if (c.material) {
-                                const mats = Array.isArray(c.material) ? c.material : [c.material];
-                                mats.forEach(m => { m.flatShading = true; m.needsUpdate = true; });
-                            }
-                        }
-                    });
-
-                    // 天井板 (判定用不可視)
-                    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 3.2), new THREE.MeshBasicMaterial({ visible: false }));
-                    roof.position.set(14, 2.0, 12);
-                    scene.add(roof);
-
-                    // 壁判定 (手動追加)
-                    const pipeLength = (box.max.z - box.min.z);
-                    const gap = 0.5; const thick = 0.1;
-                    window.sgExtraObstacles.push(
-                        { minX: 14 - gap - thick, maxX: 14 - gap, minZ: 12 - pipeLength / 2, maxZ: 12 + pipeLength / 2 },
-                        { minX: 14 + gap, maxX: 14 + gap + thick, minZ: 12 - pipeLength / 2, maxZ: 12 + pipeLength / 2 }
-                    );
-                    console.log("Dokan unified setup complete");
-                }
-            }
-        ];
         try {
-            // 判定リストの初期化
             if (!window.sgExtraObstacles) window.sgExtraObstacles = [];
             if (!window.sgFountainCollision) window.sgFountainCollision = [];
 
-            // 1. 雪だるま管理配列リセット
-            if (window.sgSnowmen && window.sgSnowmen.length > 0) {
-                window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
+            if (window.sgSnowmen) {
+                window.sgSnowmen.forEach(s => { if(s.parent) s.parent.remove(s); });
             }
             window.sgSnowmen = [];
-
-            // ----------------------------------------------------
-            // ★エリア設定の完全消去 (シーソー周辺の残骸撤去)
-            // ----------------------------------------------------
-            const wipeCenter = new THREE.Vector3(20, 0, -10);
-            const wipeRadius = 5.0;
-
-            const debris = [];
-            scene.traverse(obj => {
-                if (obj.isMesh || obj.type === 'Group') {
-                    if (obj.name === 'Ground') return;
-                    if (obj.geometry && obj.geometry.type === 'PlaneGeometry') return;
-                    if (obj.userData.entityType === 'player') return;
-                    if (obj === window.sgSunLight) return;
-                    if (obj.isCamera || obj.isLight) return;
-                    if (obj.parent !== scene && obj.parent?.name !== 'ParkAssetsContainer') return;
-
-                    const dist = Math.sqrt((obj.position.x - wipeCenter.x) ** 2 + (obj.position.z - wipeCenter.z) ** 2);
-                    if (dist < wipeRadius || obj.name === 'Seesaw') {
-                        debris.push(obj);
-                    }
-                }
-            });
-
-            debris.forEach(obj => {
-                if (obj.parent) obj.parent.remove(obj);
-                if (window.disposeObject) window.disposeObject(obj);
-            });
 
             if (window.parkGroup) {
                 scene.remove(window.parkGroup);
                 window.parkGroup = null;
             }
-
             window.parkGroup = new THREE.Group();
             window.parkGroup.name = "ParkAssetsContainer";
             scene.add(window.parkGroup);
@@ -4095,12 +3783,12 @@ function createParkAssets() {
             // ★コインテクスチャ生成
             const createCoinTextures = () => {
                 const size = 128;
-                const cFace = '#ffae00'; const cBorder = '#f05e1c'; const cEye = '#ffffff';
-                const cPupil = '#000000'; const cMouth = '#e83015'; const cPText = '#86c166';
+                const cFace='#ffae00'; const cBorder='#f05e1c'; const cEye='#ffffff'; 
+                const cPupil='#000000'; const cMouth='#e83015'; const cPText='#86c166'; 
                 const borderThickness = 14;
-                const canvasFace = document.createElement('canvas'); canvasFace.width = size; canvasFace.height = size;
+                const canvasFace = document.createElement('canvas'); canvasFace.width=size; canvasFace.height=size;
                 const ctx1 = canvasFace.getContext('2d');
-                ctx1.translate(64, 64); ctx1.rotate(-Math.PI / 2); ctx1.translate(-64, -64);
+                ctx1.translate(64, 64); ctx1.rotate(-Math.PI/2); ctx1.translate(-64, -64);
                 ctx1.fillStyle = cBorder; ctx1.fillRect(0, 0, size, size);
                 ctx1.beginPath(); ctx1.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx1.fillStyle = cFace; ctx1.fill();
                 ctx1.fillStyle = cEye; ctx1.fillRect(35, 32, 20, 45); ctx1.fillRect(73, 32, 20, 45);
@@ -4108,16 +3796,16 @@ function createParkAssets() {
                 ctx1.fillStyle = cMouth; ctx1.fillRect(42, 92, 44, 10);
                 const texFace = new THREE.CanvasTexture(canvasFace);
                 texFace.minFilter = THREE.NearestFilter; texFace.magFilter = THREE.NearestFilter;
-                const canvasBack = document.createElement('canvas'); canvasBack.width = size; canvasBack.height = size;
+                const canvasBack = document.createElement('canvas'); canvasBack.width=size; canvasBack.height=size;
                 const ctx2 = canvasBack.getContext('2d');
-                ctx2.translate(64, 64); ctx2.rotate(-Math.PI / 2); ctx2.translate(-64, -64);
-                ctx2.fillStyle = cBorder; ctx2.fillRect(0, 0, size, size);
+                ctx2.translate(64, 64); ctx2.rotate(-Math.PI/2); ctx2.translate(-64, -64);
+                ctx2.fillStyle = cBorder; ctx2.fillRect(0,0,size,size);
                 ctx2.beginPath(); ctx2.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx2.fillStyle = cFace; ctx2.fill();
                 ctx2.fillStyle = cPText; ctx2.font = 'bold 80px sans-serif';
-                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68);
+                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68); 
                 const texBack = new THREE.CanvasTexture(canvasBack);
                 texBack.minFilter = THREE.NearestFilter; texBack.magFilter = THREE.NearestFilter;
-                const canvasSide = document.createElement('canvas'); canvasSide.width = 2; canvasSide.height = 2;
+                const canvasSide = document.createElement('canvas'); canvasSide.width=2; canvasSide.height=2;
                 const ctxSide = canvasSide.getContext('2d'); ctxSide.fillStyle = cBorder; ctxSide.fillRect(0, 0, 2, 2);
                 const texSide = new THREE.CanvasTexture(canvasSide);
                 texSide.minFilter = THREE.NearestFilter; texSide.magFilter = THREE.NearestFilter;
@@ -4125,338 +3813,161 @@ function createParkAssets() {
             };
             const coinTex = createCoinTextures();
 
-            const spawnSnowExplosion = (pos) => {
+            const spawnSnowExplosion = (pos) => { 
                 const particleCount = 20; const geo = new THREE.PlaneGeometry(0.15, 0.15); const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide });
-                for (let i = 0; i < particleCount; i++) {
-                    const p = new THREE.Mesh(geo, mat); p.position.copy(pos); p.position.x += (Math.random() - 0.5); p.position.y += (Math.random() - 0.5) + 0.5; p.position.z += (Math.random() - 0.5); p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); scene.add(p);
-                    const velocity = new THREE.Vector3((Math.random() - 0.5) * 0.3, Math.random() * 0.3, (Math.random() - 0.5) * 0.3); let life = 30;
-                    const anim = setInterval(() => { p.position.add(velocity); p.rotation.x += 0.1; velocity.y -= 0.01; life--; if (life <= 0) { scene.remove(p); clearInterval(anim); } }, 16);
+                for(let i=0; i<particleCount; i++) {
+                    const p = new THREE.Mesh(geo, mat); p.position.copy(pos); p.position.x+=(Math.random()-0.5); p.position.y+=(Math.random()-0.5)+0.5; p.position.z+=(Math.random()-0.5); p.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3); scene.add(p);
+                    const velocity=new THREE.Vector3((Math.random()-0.5)*0.3,Math.random()*0.3,(Math.random()-0.5)*0.3); let life=30;
+                    const anim=setInterval(()=>{ p.position.add(velocity); p.rotation.x+=0.1; velocity.y-=0.01; life--; if(life<=0){scene.remove(p);clearInterval(anim);} },16);
                 }
             };
 
-            // 2. FBXアセット定義
             const ASSET_CONFIG = [
-                // メイン噴水: 判定OFF / アウトライン有効 (水は除外)
-                {
-                    name: 'MainFountain',
-                    path: 'models/fountain.fbx',
-                    pos: { x: 0, y: 0, z: 0 },
-                    scale: 3.0,
-                    rot: { y: 0 },
-                    collision: false,
-                    exclusionRadius: 8.0,
-                    onLoad: (obj) => {
-                        obj.traverse(c => {
-                            if (c.name.includes('water')) {
-                                c.material.opacity = 0.6;
-                                c.castShadow = false;
-                                c.userData.skipOutline = true;
-                            }
-                        });
-                    }
-                },
-
-                // 滑り台: 判定OFF / アウトライン有効
+                { name: 'MainFountain', path: 'models/fountain.fbx', pos: { x: 0, y: 0, z: 0 }, scale: 3.0, rot: { y: 0 }, collision: false, exclusionRadius: 8.0, onLoad: (obj) => { obj.traverse(c => { if(c.name.includes('water')) { c.material.opacity=0.6; c.castShadow=false; c.userData.skipOutline = true; }}); } },
                 { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: -23 }, rot: { y: 90 }, scale: 3.0, collision: false, exclusionRadius: 8.0 },
-
-                // シーソー: 判定ON
-                {
-                    name: 'Seesaw', path: 'models/seesaw.fbx', pos: { x: 20, y: 0.6, z: -10 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 3.0,
-                    onLoad: (obj) => {
-                        let plankPart = null;
-                        obj.traverse(c => {
-                            if (c.isMesh) {
-                                c.castShadow = true; c.receiveShadow = true;
-                                if (c.name.toLowerCase().includes('plank')) plankPart = c;
-                            }
-                        });
-                        obj.userData.movingPart = plankPart ? plankPart : obj;
-                    }
-                },
-
-                // ★以前ここにあった「BenchCorner」と「Bench」は削除し、spawnTreesへ統合しました
-
-                // 土管: onLoadで独自判定
-                {
-                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: -14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5,
+                { name: 'Seesaw', path: 'models/seesaw.fbx', pos: { x: 20, y: 0.6, z: -10 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 3.0, onLoad: (obj) => { let plankPart = null; obj.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.name.toLowerCase().includes('plank')) plankPart = c; } }); obj.userData.movingPart = plankPart ? plankPart : obj; } },
+                { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: 12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 },
+                { name: 'VendingMachine', path: 'models/vending_test.fbx', pos: { x: -12, y: 0, z: 17 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 2.0 },
+                { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: 18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 },
+                { 
+                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: -14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, 
                     onLoad: (obj) => {
                         try {
                             obj.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(obj); obj.position.y -= box.min.y;
                             obj.traverse(c => { if (c.isMesh) c.userData.ignoreGround = true; });
-                            const rotY = obj.rotation.y;
                             const roof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 3.2), new THREE.MeshBasicMaterial({ visible: false }));
-                            roof.position.copy(obj.position); roof.position.y += 2.0; roof.rotation.y = rotY; window.parkGroup.add(roof);
-                            const deg = Math.abs((rotY * 180 / Math.PI) % 180);
+                            roof.position.copy(obj.position); roof.position.y += 2.0; roof.rotation.y = obj.rotation.y; window.parkGroup.add(roof); 
                             const gap = 0.55; const thick = 0.1;
-                            if (deg > 45 && deg < 135) {
-                                window.sgExtraObstacles.push({ minX: obj.position.x - gap - thick, maxX: obj.position.x - gap, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 }, { minX: obj.position.x + gap, maxX: obj.position.x + gap + thick, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 });
-                            } else {
-                                window.sgExtraObstacles.push({ minX: obj.position.x - 1.6, maxX: obj.position.x + 1.6, minZ: obj.position.z - gap - thick, maxZ: obj.position.z - gap }, { minX: obj.position.x - 1.6, maxX: obj.position.x + 1.6, minZ: obj.position.z + gap, maxZ: obj.position.z + gap + thick });
-                            }
-                        } catch (e) { console.error("Error in Dokan onLoad:", e); }
+                            window.sgExtraObstacles.push({ minX: obj.position.x-gap-thick, maxX: obj.position.x-gap, minZ: obj.position.z-1.6, maxZ: obj.position.z+1.6 }, { minX: obj.position.x+gap, maxX: obj.position.x+gap+thick, minZ: obj.position.z-1.6, maxZ: obj.position.z+1.6 });
+                        } catch(e) { console.error("Error in Dokan onLoad:", e); }
                     }
-                },
-                // ゾウさん噴水: 判定ON
-                { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: 12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 },
-
-                // 自販機: 判定ON
-                { name: 'VendingMachine', path: 'models/vending_test.fbx', pos: { x: -12, y: 0, z: 17 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 2.0 },
-
-                // ゴミ箱: 判定ON
-                { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: 18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 },
-
-                // ★ Bench removed from here
+                }
             ];
 
             const loader = new FBXLoader();
-
             ASSET_CONFIG.forEach(config => {
+                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.addCircle) {
+                    ExclusionManager.addCircle(config.pos.x, config.pos.z, config.exclusionRadius || 2.0);
+                }
+                
                 loader.load(config.path, (fbx) => {
-                    console.log(`[Asset Loaded] ${config.name}`);
+                    try {
+                        fbx.name = config.name;
+                        fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
+                        if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
+                        fbx.scale.setScalar(config.scale || 1.0);
+                        fbx.traverse(c => { if(c.isMesh) { c.castShadow=true; c.receiveShadow=true; } });
+                        if (config.onLoad) config.onLoad(fbx);
+                        
+                        if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(fbx);
 
-                    // 基本設定
-                    fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
-                    if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
-                    fbx.scale.setScalar(config.scale || 1.0);
-
-                    // 影・マテリアル共通設定
-                    fbx.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                            if (child.material) {
-                                const mats = Array.isArray(child.material) ? child.material : [child.material];
-                                mats.forEach(m => { if (m.emissive) m.emissive.setHex(0x000000); });
+                        if (config.collision) {
+                            fbx.updateMatrixWorld(true);
+                            const box = new THREE.Box3().setFromObject(fbx);
+                            if (config.collisionType === 'cylinder') {
+                                const sizeX = box.max.x - box.min.x; const sizeZ = box.max.z - box.min.z;
+                                const radius = Math.max(sizeX, sizeZ) / 2 * 0.9;
+                                window.sgFountainCollision.push({ x: config.pos.x, z: config.pos.z, radius: radius });
+                            } else {
+                                window.sgExtraObstacles.push({ minX: box.min.x + 0.1, maxX: box.max.x - 0.1, minZ: box.min.z + 0.1, maxZ: box.max.z - 0.1 });
                             }
                         }
-                    });
-
-                    // アウトライン
-                    if (typeof window.addEdgesOutline === 'function') {
-                        window.addEdgesOutline(fbx, 15, 0x000000);
-                    }
-                    const loader = new FBXLoader();
-                    ASSET_CONFIG.forEach(config => {
-                        if (typeof ExclusionManager !== 'undefined' && ExclusionManager.addCircle) {
-                            ExclusionManager.addCircle(config.pos.x, config.pos.z, config.exclusionRadius || 2.0);
-                        }
-
-                        loader.load(config.path, (fbx) => {
-                            try {
-                                fbx.name = config.name;
-                                fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
-                                if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
-                                fbx.scale.setScalar(config.scale || 1.0);
-                                fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-                                if (config.onLoad) config.onLoad(fbx);
-
-                                // アウトライン適用
-                                if (typeof window.applyOutlineRules === 'function') {
-                                    window.applyOutlineRules(fbx);
-                                }
-
-                                // ★ 自動衝突判定システム (Auto Collision System)
-                                if (config.collision) {
-                                    fbx.updateMatrixWorld(true); // 座標確定
-                                    const box = new THREE.Box3().setFromObject(fbx);
-
-                                    if (config.collisionType === 'cylinder') {
-                                        // 丸い判定 (Fountain, Tree like)
-                                        const size = new THREE.Vector3(); box.getSize(size);
-                                        const radius = (Math.max(size.x, size.z) / 2) * (config.collisionScale || 0.8);
-
-                                        window.sgFountainCollision.push({
-                                            x: fbx.position.x,
-                                            z: fbx.position.z,
-                                            radius: radius
-                                        });
-                                        console.log(`  🚧 Collision(Cylinder) added for ${config.name}: R=${radius.toFixed(2)}`);
-
-                                    } else {
-                                        // 四角い判定 (Default)
-                                        // マージンを少し狭くして「見た目通り」にする
-                                        const margin = 0.1;
-                                        window.sgExtraObstacles.push({
-                                            minX: box.min.x + margin,
-                                            maxX: box.max.x - margin,
-                                            minZ: box.min.z + margin,
-                                            maxZ: box.max.z - margin
-                                        });
-                                        console.log(`  🚧 Collision(Box) added for ${config.name}`);
-                                    }
-                                }
-
-                                // 個別処理実行
-                                if (config.onLoad) config.onLoad(fbx);
-
-                                scene.add(fbx);
-
-                            }, undefined, (error) => console.warn(`Error loading ${config.name}:`, error));
-                    });
-                }
-                    // 自動衝突判定
-                    if (config.collision) {
-                    fbx.updateMatrixWorld(true);
-                    const box = new THREE.Box3().setFromObject(fbx);
-
-                    if (config.collisionType === 'cylinder') {
-                        const sizeX = box.max.x - box.min.x;
-                        const sizeZ = box.max.z - box.min.z;
-                        const radius = Math.max(sizeX, sizeZ) / 2 * 0.9;
-                        window.sgFountainCollision.push({ x: config.pos.x, z: config.pos.z, radius: radius });
-                    } else {
-                        window.sgExtraObstacles.push({
-                            minX: box.min.x + 0.1, maxX: box.max.x - 0.1,
-                            minZ: box.min.z + 0.1, maxZ: box.max.z - 0.1
-                        });
-                    }
-                }
-
-                window.parkGroup.add(fbx);
-
-            } catch (e) { console.error(`Error loading asset ${config.name}:`, e); }
-        }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
-    });
-
-    // 4. タイヤ
-    const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
-    const tirePositions = [];
-    for (let i = 0; i < 4; i++) {
-        const x = 5.5 + (i * 1.0);
-        tirePositions.push({ x: x, z: -16 - 1.2 });
-        tirePositions.push({ x: x, z: -16 + 1.2 });
-    }
-    const tireGeo = new THREE.TorusGeometry(0.45, 0.15, 12, 24);
-    tirePositions.forEach((pos, i) => {
-        const tire = new THREE.Mesh(tireGeo, new THREE.MeshLambertMaterial({ color: tireColors[i % 3] }));
-        tire.rotation.y = Math.PI / 2;
-        tire.position.set(pos.x, -0.15, pos.z);
-        tire.castShadow = true; tire.receiveShadow = true;
-        window.parkGroup.add(tire);
-        if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(pos.x, pos.z, 1.2);
-        window.sgExtraObstacles.push({ minX: pos.x - 0.2, maxX: pos.x + 0.2, minZ: pos.z - 0.5, maxZ: pos.z + 0.5 });
-    });
-
-    // 5. 砂場 (Sandbox) - (X:10, Z:-23)
-    const sandboxGroup = new THREE.Group();
-    sandboxGroup.position.set(10, 0, -23);
-    sandboxGroup.rotation.y = 0;
-    sandboxGroup.scale.setScalar(2);
-    const sbW = 4.0; const sbD = 4.0; const sbH = 0.25; const sbThick = 0.15;
-    const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-    const sandMat = new THREE.MeshLambertMaterial({ color: 0xF4A460 });
-    const f1 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f1.position.set(0, sbH / 2, -sbD / 2 + sbThick / 2);
-    const f2 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f2.position.set(0, sbH / 2, sbD / 2 - sbThick / 2);
-    const f3 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f3.position.set(-sbW / 2 + sbThick / 2, sbH / 2, 0);
-    const f4 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f4.position.set(sbW / 2 - sbThick / 2, sbH / 2, 0);
-    [f1, f2, f3, f4].forEach(f => { f.castShadow = true; f.receiveShadow = true; sandboxGroup.add(f); });
-    const sand = new THREE.Mesh(new THREE.BoxGeometry(sbW - sbThick * 2, 0.1, sbD - sbThick * 2), sandMat);
-    sand.position.y = 0.05; sand.receiveShadow = true; sandboxGroup.add(sand);
-    const mound = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 16), sandMat);
-    mound.position.set(0.5, 0.3, -0.5); mound.castShadow = true; mound.receiveShadow = true; sandboxGroup.add(mound);
-    window.parkGroup.add(sandboxGroup);
-
-    // 6. 雪だるま (配置変更: X:11へ移動し、タイヤの方を向く -90°)
-    const snowmanPositions = [
-        { x: 11, z: -14, rot: -90 }, // 手前
-        { x: 11, z: -16, rot: -90 }, // 真ん中
-        { x: 11, z: -18, rot: -90 }  // 奥
-    ];
-    const winnerIndex = Math.floor(Math.random() * snowmanPositions.length);
-    const createSnowman = (config, isWinner) => {
-        const snowman = new THREE.Group();
-        snowman.position.set(config.x, 0, config.z);
-        if (config.rot !== undefined) snowman.rotation.y = config.rot * (Math.PI / 180);
-        snowman.userData.isWinner = isWinner; snowman.userData.hasPaid = false; snowman.userData.isDead = false;
-        const snowMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-        const body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), snowMat); body.position.y = 0.4; body.castShadow = true; snowman.add(body);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), snowMat); head.position.y = 0.9; head.castShadow = true; snowman.add(head);
-        const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.25, 16), new THREE.MeshLambertMaterial({ color: 0xFF4444 })); bucket.position.y = 1.15; bucket.rotation.x = -0.2; bucket.castShadow = true; snowman.add(bucket);
-        const eyeGeo = new THREE.SphereGeometry(0.03, 8, 8); const blackMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        const lEye = new THREE.Mesh(eyeGeo, blackMat); lEye.position.set(-0.08, 0.95, 0.22); snowman.add(lEye);
-        const rEye = new THREE.Mesh(eyeGeo, blackMat); rEye.position.set(0.08, 0.95, 0.22); snowman.add(rEye);
-        const nose = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.15, 8), new THREE.MeshLambertMaterial({ color: 0xFFA500 })); nose.position.set(0, 0.92, 0.25); nose.rotation.x = Math.PI / 2; snowman.add(nose);
-        snowman.traverse(c => { if (c.isMesh) c.userData.ignoreGround = true; });
-        window.parkGroup.add(snowman);
-        window.sgSnowmen.push(snowman);
-        if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(config.x, config.z, 1.0);
-    };
-    snowmanPositions.forEach((config, index) => createSnowman(config, index === winnerIndex));
-
-    // コイン生成
-    const spawnDropCoin = (startPos) => {
-        const geo = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 32); geo.rotateX(Math.PI / 2);
-        const matOptions = (tex) => ({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 });
-        const matSide = new THREE.MeshLambertMaterial(matOptions(coinTex.side));
-        const matFace = new THREE.MeshLambertMaterial(matOptions(coinTex.face));
-        const matBack = new THREE.MeshLambertMaterial(matOptions(coinTex.back));
-        const coin = new THREE.Mesh(geo, [matSide, matFace, matBack]);
-        coin.position.copy(startPos); coin.position.y += 0.5;
-        coin.userData.isCoin = true; coin.userData.collected = false;
-        scene.add(coin);
-        if (window.sgGameCoins) window.sgGameCoins.push(coin);
-        let velocity = new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.3, (Math.random() - 0.5) * 0.2);
-        let gravity = 0.015;
-        const dropAnim = setInterval(() => {
-            if (!coin.parent) { clearInterval(dropAnim); return; }
-            coin.position.add(velocity); velocity.y -= gravity;
-            if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); }
-        }, 16);
-    };
-
-    // 7. アニメーション（判定ループ）
-    if (window.sgSnowmanInterval) clearInterval(window.sgSnowmanInterval);
-    window.sgSnowmanInterval = setInterval(() => {
-        if (typeof playerPosition === 'undefined') return;
-
-        // 7-1. 雪だるま判定
-        if (window.sgSnowmen) {
-            window.sgSnowmen.forEach(snowman => {
-                if (snowman.userData.isDead || !snowman.visible) return;
-
-                const worldPos = new THREE.Vector3();
-                snowman.getWorldPosition(worldPos);
-
-                if (playerPosition.distanceTo(worldPos) < 2.0) {
-                    snowman.visible = false; snowman.userData.isDead = true;
-                    spawnSnowExplosion(worldPos);
-                    if (snowman.userData.isWinner && !snowman.userData.hasPaid) {
-                        snowman.userData.hasPaid = true; spawnDropCoin(worldPos);
-                        const div = document.createElement('div'); div.textContent = "🎉POP!"; div.style.position = 'fixed'; div.style.left = '50%'; div.style.top = '50%'; div.style.color = '#FFD700'; div.style.fontSize = '40px'; div.style.fontWeight = 'bold'; div.style.textShadow = '0 0 10px black'; div.style.transform = 'translate(-50%, -50%)'; div.style.zIndex = 3000; div.style.animation = 'floatUp 1s forwards'; document.body.appendChild(div); setTimeout(() => div.remove(), 1000);
-                    }
-                    setTimeout(() => {
-                        snowman.visible = true; snowman.userData.isDead = false; snowman.scale.set(0.1, 0.1, 0.1);
-                        let s = 0.1; const anim = setInterval(() => { s += 0.1; if (s >= 1.0) { s = 1.0; clearInterval(anim); } snowman.scale.setScalar(s); }, 30);
-                    }, 5000);
-                }
+                        window.parkGroup.add(fbx);
+                    } catch(e) { console.error(`Error loading asset ${config.name}:`, e); }
+                }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
             });
-        }
 
-        // 7-2. シーソーギミック
-        const seesaw = scene.getObjectByName('Seesaw');
-        if (seesaw && seesaw.userData.movingPart) {
-            const dx = Math.abs(playerPosition.x - seesaw.position.x);
-            const dz = Math.abs(playerPosition.z - seesaw.position.z);
-            let targetRot = 0;
-
-            if (dz < 1.0 && dx < 2.5) {
-                const relativeX = playerPosition.x - seesaw.position.x;
-                let tilt = relativeX * 0.25;
-                tilt = Math.max(-0.35, Math.min(0.35, tilt));
-                targetRot = tilt;
+            // タイヤ
+            const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
+            for(let i=0; i<4; i++) {
+                const x = 5.5 + (i * 1.0); 
+                const tire = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.15, 12, 24), new THREE.MeshLambertMaterial({ color: tireColors[i%3] }));
+                tire.rotation.y = Math.PI / 2; tire.position.set(x, -0.15, -16); tire.castShadow=true; 
+                window.parkGroup.add(tire);
+                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, -16, 1.2);
+                window.sgExtraObstacles.push({ minX: x-0.2, maxX: x+0.2, minZ: -16.5, maxZ: -15.5 });
             }
 
-            const plank = seesaw.userData.movingPart;
-            plank.rotation.y += (targetRot - plank.rotation.y) * 0.1;
-        }
+            // 砂場
+            const sandboxGroup = new THREE.Group();
+            sandboxGroup.position.set(10, 0, -23); sandboxGroup.scale.setScalar(2); 
+            const sbW = 4.0; const sbD = 4.0; const sbH = 0.25; const sbThick = 0.15;
+            const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const sandMat = new THREE.MeshLambertMaterial({ color: 0xF4A460 });
+            const f1 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f1.position.set(0, sbH/2, -sbD/2+sbThick/2);
+            const f2 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f2.position.set(0, sbH/2, sbD/2-sbThick/2);
+            const f3 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD-sbThick*2), woodMat); f3.position.set(-sbW/2+sbThick/2, sbH/2, 0);
+            const f4 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD-sbThick*2), woodMat); f4.position.set(sbW/2-sbThick/2, sbH/2, 0);
+            [f1,f2,f3,f4].forEach(f => { f.castShadow=true; f.receiveShadow=true; sandboxGroup.add(f); });
+            const sand = new THREE.Mesh(new THREE.BoxGeometry(sbW-sbThick*2, 0.1, sbD-sbThick*2), sandMat);
+            sand.position.y = 0.05; sand.receiveShadow=true; sandboxGroup.add(sand);
+            const mound = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 16), sandMat);
+            mound.position.set(0.5, 0.3, -0.5); mound.castShadow=true; mound.receiveShadow=true; sandboxGroup.add(mound);
+            window.parkGroup.add(sandboxGroup);
 
-    }, 30);
+            // 雪だるま
+            const snowmanPositions = [ { x: 11, z: -14 }, { x: 11, z: -16 }, { x: 11, z: -18 } ];
+            const winnerIndex = Math.floor(Math.random() * snowmanPositions.length);
+            const createSnowman = (config, isWinner) => {
+                const snowman = new THREE.Group();
+                snowman.position.set(config.x, 0, config.z); snowman.rotation.y = -Math.PI / 2;
+                snowman.userData.isWinner = isWinner; snowman.userData.hasPaid = false; snowman.userData.isDead = false;
+                const snowMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+                const body = new THREE.Mesh(new THREE.SphereGeometry(0.4), snowMat); body.position.y = 0.4; body.castShadow=true; snowman.add(body);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.25), snowMat); head.position.y = 0.9; head.castShadow=true; snowman.add(head);
+                const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.25), new THREE.MeshLambertMaterial({ color: 0xFF4444 })); bucket.position.y = 1.15; bucket.rotation.x = -0.2; bucket.castShadow=true; snowman.add(bucket);
+                window.parkGroup.add(snowman);
+                window.sgSnowmen.push(snowman);
+                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(config.x, config.z, 1.0);
+            };
+            snowmanPositions.forEach((config, index) => createSnowman(config, index === winnerIndex));
 
-} catch (error) {
-    console.error("CRITICAL ERROR in createParkAssets:", error);
-    // alert("Error in createParkAssets:\n" + error.message);
-}
-}
+            // コイン
+            const spawnDropCoin = (startPos) => {
+                const geo = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 32); geo.rotateX(Math.PI / 2);
+                const matOptions = (tex) => ({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 });
+                const coin = new THREE.Mesh(geo, [new THREE.MeshLambertMaterial(matOptions(coinTex.side)), new THREE.MeshLambertMaterial(matOptions(coinTex.face)), new THREE.MeshLambertMaterial(matOptions(coinTex.back))]);
+                coin.position.copy(startPos); coin.position.y += 0.5;
+                coin.userData.isCoin = true; coin.userData.collected = false;
+                scene.add(coin);
+                if (window.sgGameCoins) window.sgGameCoins.push(coin);
+                let velocity = new THREE.Vector3((Math.random()-0.5)*0.2, 0.3, (Math.random()-0.5)*0.2); let gravity = 0.015;
+                const dropAnim = setInterval(() => { if (!coin.parent) { clearInterval(dropAnim); return; } coin.position.add(velocity); velocity.y -= gravity; if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); } }, 16);
+            };
+
+            // アニメーション
+            if (window.sgSnowmanInterval) clearInterval(window.sgSnowmanInterval);
+            window.sgSnowmanInterval = setInterval(() => {
+                if (typeof playerPosition === 'undefined') return;
+                if (window.sgSnowmen) {
+                    window.sgSnowmen.forEach(snowman => {
+                        if (snowman.userData.isDead || !snowman.visible) return;
+                        const worldPos = new THREE.Vector3(); snowman.getWorldPosition(worldPos);
+                        if (playerPosition.distanceTo(worldPos) < 2.0) {
+                            snowman.visible = false; snowman.userData.isDead = true;
+                            spawnSnowExplosion(worldPos);
+                            if (snowman.userData.isWinner && !snowman.userData.hasPaid) {
+                                snowman.userData.hasPaid = true; spawnDropCoin(worldPos);
+                                const div = document.createElement('div'); div.textContent = "🎉POP!"; div.style.position = 'fixed'; div.style.left = '50%'; div.style.top = '50%'; div.style.color = '#FFD700'; div.style.fontSize = '40px'; div.style.fontWeight = 'bold'; div.style.textShadow = '0 0 10px black'; div.style.transform = 'translate(-50%, -50%)'; div.style.zIndex = 3000; div.style.animation = 'floatUp 1s forwards'; document.body.appendChild(div); setTimeout(() => div.remove(), 1000);
+                            }
+                            setTimeout(() => {
+                                snowman.visible = true; snowman.userData.isDead = false; snowman.scale.set(0.1, 0.1, 0.1);
+                                let s = 0.1; const anim = setInterval(() => { s += 0.1; if (s >= 1.0) { s = 1.0; clearInterval(anim); } snowman.scale.setScalar(s); }, 30);
+                            }, 5000);
+                        }
+                    });
+                }
+                const seesaw = scene.getObjectByName('Seesaw');
+                if (seesaw && seesaw.userData.movingPart) {
+                    const dx = Math.abs(playerPosition.x - seesaw.position.x); const dz = Math.abs(playerPosition.z - seesaw.position.z);
+                    let targetRot = 0;
+                    if (dz < 1.0 && dx < 2.5) { const relativeX = playerPosition.x - seesaw.position.x; let tilt = relativeX * 0.25; tilt = Math.max(-0.35, Math.min(0.35, tilt)); targetRot = tilt; }
+                    const plank = seesaw.userData.movingPart; plank.rotation.y += (targetRot - plank.rotation.y) * 0.1;
+                }
+            }, 30);
+
+        } catch (error) { console.error("CRITICAL ERROR in createParkAssets:", error); }
+    }
 
 
 
@@ -4518,750 +4029,749 @@ async function spawnClonesSequential() {
         models.push(spotGroup);
 
         spots.push({ group: spotGroup, isTarget: isTarget, index: i, name: hideSpot.name });
-    }
+        }
 
     // Helper: small delay
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Create voxel-style Potato-kun character (no FBX loading needed!)
-    function createVoxelPotato(isTarget, spotIndex) {
-        const potatoGroup = new THREE.Group();
+        // Create voxel-style Potato-kun character (no FBX loading needed!)
+        function createVoxelPotato(isTarget, spotIndex) {
+            const potatoGroup = new THREE.Group();
 
-        // === Body (golden yellow elongated box) ===
-        const bodyColor = isTarget ? 0xDAA520 : 0xFFD700; // Target is slightly darker (fried potato color)
-        const bodyMaterial = new THREE.MeshLambertMaterial({ color: bodyColor });
-        const body = new THREE.Mesh(
-            new THREE.BoxGeometry(1.2, 2, 0.8),
-            bodyMaterial
-        );
-        body.position.y = 1.5;
-        body.userData.id = spotIndex;
-        body.userData.isTarget = isTarget;
-        potatoGroup.add(body);
-
-        // === Arms (black thin boxes) ===
-        const limbMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
-        // Left arm
-        const leftArm = new THREE.Mesh(
-            new THREE.BoxGeometry(0.8, 0.2, 0.2),
-            limbMaterial
-        );
-        leftArm.position.set(-1, 1.8, 0);
-        leftArm.userData.id = spotIndex;
-        leftArm.userData.isTarget = isTarget;
-        potatoGroup.add(leftArm);
-
-        // Right arm
-        const rightArm = new THREE.Mesh(
-            new THREE.BoxGeometry(0.8, 0.2, 0.2),
-            limbMaterial
-        );
-        rightArm.position.set(1, 1.8, 0);
-        rightArm.userData.id = spotIndex;
-        rightArm.userData.isTarget = isTarget;
-        potatoGroup.add(rightArm);
-
-        // === Legs (black thin boxes) ===
-        const leftLeg = new THREE.Mesh(
-            new THREE.BoxGeometry(0.2, 0.6, 0.2),
-            limbMaterial
-        );
-        leftLeg.position.set(-0.3, 0.3, 0);
-        leftLeg.userData.id = spotIndex;
-        leftLeg.userData.isTarget = isTarget;
-        potatoGroup.add(leftLeg);
-
-        const rightLeg = new THREE.Mesh(
-            new THREE.BoxGeometry(0.2, 0.6, 0.2),
-            limbMaterial
-        );
-        rightLeg.position.set(0.3, 0.3, 0);
-        rightLeg.userData.id = spotIndex;
-        rightLeg.userData.isTarget = isTarget;
-        potatoGroup.add(rightLeg);
-
-        // === Boxing Gloves (red, larger cubes) ===
-        const gloveMaterial = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
-        const leftGlove = new THREE.Mesh(
-            new THREE.BoxGeometry(0.5, 0.5, 0.5),
-            gloveMaterial
-        );
-        leftGlove.position.set(-1.4, 1.8, 0);
-        leftGlove.userData.id = spotIndex;
-        leftGlove.userData.isTarget = isTarget;
-        potatoGroup.add(leftGlove);
-
-        const rightGlove = new THREE.Mesh(
-            new THREE.BoxGeometry(0.5, 0.5, 0.5),
-            gloveMaterial
-        );
-        rightGlove.position.set(1.4, 1.8, 0);
-        rightGlove.userData.id = spotIndex;
-        rightGlove.userData.isTarget = isTarget;
-        potatoGroup.add(rightGlove);
-
-        // === Shoes (red cubes) ===
-        const leftShoe = new THREE.Mesh(
-            new THREE.BoxGeometry(0.35, 0.2, 0.4),
-            gloveMaterial
-        );
-        leftShoe.position.set(-0.3, 0.05, 0.1);
-        leftShoe.userData.id = spotIndex;
-        leftShoe.userData.isTarget = isTarget;
-        potatoGroup.add(leftShoe);
-
-        const rightShoe = new THREE.Mesh(
-            new THREE.BoxGeometry(0.35, 0.2, 0.4),
-            gloveMaterial
-        );
-        rightShoe.position.set(0.3, 0.05, 0.1);
-        rightShoe.userData.id = spotIndex;
-        rightShoe.userData.isTarget = isTarget;
-        potatoGroup.add(rightShoe);
-
-        // === Face (on front of body) ===
-        // Eyes (white with black pupils)
-        const eyeWhiteMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-        const pupilMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
-
-        // Left eye (always open)
-        const leftEyeWhite = new THREE.Mesh(
-            new THREE.BoxGeometry(0.25, 0.3, 0.05),
-            eyeWhiteMaterial
-        );
-        leftEyeWhite.position.set(-0.25, 2.1, 0.43);
-        potatoGroup.add(leftEyeWhite);
-
-        const leftPupil = new THREE.Mesh(
-            new THREE.BoxGeometry(0.12, 0.15, 0.06),
-            pupilMaterial
-        );
-        leftPupil.position.set(-0.25, 2.05, 0.46);
-        potatoGroup.add(leftPupil);
-
-        // Right eye - WINK for target (closed eye), normal for others
-        if (isTarget) {
-            // Winking eye: just a thin horizontal line (closed)
-            const winkLine = new THREE.Mesh(
-                new THREE.BoxGeometry(0.3, 0.06, 0.05),
-                pupilMaterial
+            // === Body (golden yellow elongated box) ===
+            const bodyColor = isTarget ? 0xDAA520 : 0xFFD700; // Target is slightly darker (fried potato color)
+            const bodyMaterial = new THREE.MeshLambertMaterial({ color: bodyColor });
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(1.2, 2, 0.8),
+                bodyMaterial
             );
-            winkLine.position.set(0.25, 2.05, 0.43);
-            winkLine.userData.id = spotIndex;
-            winkLine.userData.isTarget = true;
-            potatoGroup.add(winkLine);
-        } else {
-            // Normal open eye
-            const rightEyeWhite = new THREE.Mesh(
+            body.position.y = 1.5;
+            body.userData.id = spotIndex;
+            body.userData.isTarget = isTarget;
+            potatoGroup.add(body);
+
+            // === Arms (black thin boxes) ===
+            const limbMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            // Left arm
+            const leftArm = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.2, 0.2),
+                limbMaterial
+            );
+            leftArm.position.set(-1, 1.8, 0);
+            leftArm.userData.id = spotIndex;
+            leftArm.userData.isTarget = isTarget;
+            potatoGroup.add(leftArm);
+
+            // Right arm
+            const rightArm = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.2, 0.2),
+                limbMaterial
+            );
+            rightArm.position.set(1, 1.8, 0);
+            rightArm.userData.id = spotIndex;
+            rightArm.userData.isTarget = isTarget;
+            potatoGroup.add(rightArm);
+
+            // === Legs (black thin boxes) ===
+            const leftLeg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.6, 0.2),
+                limbMaterial
+            );
+            leftLeg.position.set(-0.3, 0.3, 0);
+            leftLeg.userData.id = spotIndex;
+            leftLeg.userData.isTarget = isTarget;
+            potatoGroup.add(leftLeg);
+
+            const rightLeg = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.6, 0.2),
+                limbMaterial
+            );
+            rightLeg.position.set(0.3, 0.3, 0);
+            rightLeg.userData.id = spotIndex;
+            rightLeg.userData.isTarget = isTarget;
+            potatoGroup.add(rightLeg);
+
+            // === Boxing Gloves (red, larger cubes) ===
+            const gloveMaterial = new THREE.MeshLambertMaterial({ color: 0xFF0000 });
+            const leftGlove = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.5),
+                gloveMaterial
+            );
+            leftGlove.position.set(-1.4, 1.8, 0);
+            leftGlove.userData.id = spotIndex;
+            leftGlove.userData.isTarget = isTarget;
+            potatoGroup.add(leftGlove);
+
+            const rightGlove = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.5),
+                gloveMaterial
+            );
+            rightGlove.position.set(1.4, 1.8, 0);
+            rightGlove.userData.id = spotIndex;
+            rightGlove.userData.isTarget = isTarget;
+            potatoGroup.add(rightGlove);
+
+            // === Shoes (red cubes) ===
+            const leftShoe = new THREE.Mesh(
+                new THREE.BoxGeometry(0.35, 0.2, 0.4),
+                gloveMaterial
+            );
+            leftShoe.position.set(-0.3, 0.05, 0.1);
+            leftShoe.userData.id = spotIndex;
+            leftShoe.userData.isTarget = isTarget;
+            potatoGroup.add(leftShoe);
+
+            const rightShoe = new THREE.Mesh(
+                new THREE.BoxGeometry(0.35, 0.2, 0.4),
+                gloveMaterial
+            );
+            rightShoe.position.set(0.3, 0.05, 0.1);
+            rightShoe.userData.id = spotIndex;
+            rightShoe.userData.isTarget = isTarget;
+            potatoGroup.add(rightShoe);
+
+            // === Face (on front of body) ===
+            // Eyes (white with black pupils)
+            const eyeWhiteMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+            const pupilMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+
+            // Left eye (always open)
+            const leftEyeWhite = new THREE.Mesh(
                 new THREE.BoxGeometry(0.25, 0.3, 0.05),
                 eyeWhiteMaterial
             );
-            rightEyeWhite.position.set(0.25, 2.1, 0.43);
-            potatoGroup.add(rightEyeWhite);
+            leftEyeWhite.position.set(-0.25, 2.1, 0.43);
+            potatoGroup.add(leftEyeWhite);
 
-            const rightPupil = new THREE.Mesh(
+            const leftPupil = new THREE.Mesh(
                 new THREE.BoxGeometry(0.12, 0.15, 0.06),
                 pupilMaterial
             );
-            rightPupil.position.set(0.25, 2.05, 0.46);
-            potatoGroup.add(rightPupil);
-        }
-
-        // Mouth - slightly different color for target (pink vs red)
-        const mouthColor = isTarget ? 0xFF69B4 : 0xCC0000; // Pink for target, red for others
-        const mouthMaterial = new THREE.MeshLambertMaterial({ color: mouthColor });
-        const mouth = new THREE.Mesh(
-            new THREE.BoxGeometry(0.4, 0.1, 0.05),
-            mouthMaterial
-        );
-        mouth.position.set(0, 1.6, 0.43);
-        potatoGroup.add(mouth);
-
-        // Apply shadow settings to all potato meshes
-        potatoGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-
-        // Apply edge outlines to potato
-        addEdgesOutline(potatoGroup, 15, 0x000000);
-
-        return potatoGroup;
-    }
-
-
-    // Create all potato characters
-    for (let i = 0; i < spots.length; i++) {
-        const spot = spots[i];
-        const isTarget = spot.isTarget;
-
-        // Create voxel potato
-        const potato = createVoxelPotato(isTarget, spot.index);
-        potato.scale.setScalar(isTarget ? 1.1 : 1.0); // Target slightly bigger
-        spot.group.add(potato);
-
-        await delay(30);
-    }
-}
-
-
-function onSelect(event) {
-    if (!isPlaying || !renderer) return;
-
-
-    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
-    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
-
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(models, true);
-
-    if (intersects.length > 0) {
-        const hit = intersects[0].object;
-
-        // Visual feedback: flash the hit model
-        const originalColor = hit.material ? hit.material.emissive?.clone() : null;
-        if (hit.material && hit.material.emissive) {
-            hit.material.emissive.setHex(0xffff00);
-            setTimeout(() => {
-                if (originalColor) hit.material.emissive.copy(originalColor);
-                else hit.material.emissive.setHex(0x000000);
-            }, 200);
-        }
-
-        // Text feedback
-        if (hit.userData.isTarget) {
-            showTapText(clientX, clientY, '🎉 あたり！ +100', '#FFD700');
-            score += 100;
-            document.getElementById('sg-score').textContent = score;
-
-            // Confetti effect!
-            const hitPosition = intersects[0].point;
-            spawnConfetti(hitPosition);
-
-            resetRound();
-        } else {
-            const messages = ['タップ！', 'ちがうよ〜', 'ハズレ', 'おしい！', 'ポテト！'];
-            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-            showTapText(clientX, clientY, randomMsg, '#FFFFFF');
-        }
-    }
-}
-
-// Confetti particle effect
-function spawnConfetti(position) {
-    const confettiColors = [0xFF6B6B, 0x4ECDC4, 0xFFE66D, 0x95E1D3, 0xF38181, 0xAA96DA, 0xFCBAD3];
-    const confettiCount = 30;
-    const confettiPieces = [];
-
-    for (let i = 0; i < confettiCount; i++) {
-        const color = confettiColors[Math.floor(Math.random() * confettiColors.length)];
-        const piece = new THREE.Mesh(
-            new THREE.BoxGeometry(0.2, 0.2, 0.2),
-            new THREE.MeshLambertMaterial({ color: color })
-        );
-
-        piece.position.copy(position);
-        piece.position.y += 1;
-
-        // Random velocity
-        piece.userData.velocity = new THREE.Vector3(
-            (Math.random() - 0.5) * 0.4,
-            Math.random() * 0.3 + 0.2,
-            (Math.random() - 0.5) * 0.4
-        );
-        piece.userData.rotSpeed = new THREE.Vector3(
-            Math.random() * 0.2,
-            Math.random() * 0.2,
-            Math.random() * 0.2
-        );
-        piece.userData.life = 60; // frames
-
-        scene.add(piece);
-        confettiPieces.push(piece);
-    }
-
-    // Animate confetti
-    function animateConfetti() {
-        let allDead = true;
-        confettiPieces.forEach(piece => {
-            if (piece.userData.life > 0) {
-                allDead = false;
-                piece.position.add(piece.userData.velocity);
-                piece.userData.velocity.y -= 0.015; // gravity
-                piece.rotation.x += piece.userData.rotSpeed.x;
-                piece.rotation.y += piece.userData.rotSpeed.y;
-                piece.rotation.z += piece.userData.rotSpeed.z;
-                piece.userData.life--;
-
-                // Fade out
-                if (piece.userData.life < 20) {
-                    piece.material.transparent = true;
-                    piece.material.opacity = piece.userData.life / 20;
-                }
-            } else if (piece.parent) {
-                scene.remove(piece);
-            }
-        });
-
-        if (!allDead) {
-            requestAnimationFrame(animateConfetti);
-        }
-    }
-    animateConfetti();
-}
-
-
-function showTapText(x, y, text, color) {
-    const el = document.createElement('div');
-    el.className = 'sg-tap-text';
-    el.textContent = text;
-    el.style.position = 'fixed'; // Changed from implicit static
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
-    el.style.transform = 'translate(-50%, -50%)'; // Center alignment
-    el.style.color = color;
-    el.style.zIndex = '2000'; // High z-index to show above UI
-    el.style.fontWeight = 'bold';
-    el.style.fontSize = '1.5rem';
-    el.style.textShadow = '0 0 5px black';
-    el.style.pointerEvents = 'none';
-    container.appendChild(el);
-    setTimeout(() => el.remove(), 1500); // Slightly longer display
-}
-
-async function resetRound() {
-    // Clear models
-    models.forEach(m => {
-        if (m.parent) m.parent.remove(m);
-    });
-    models = [];
-    await spawnClonesSequential();
-}
-
-function handleInteraction() {
-    // Ignore if not playing or no target
-    if (!isPlaying || !window.sgCurrentTarget) return;
-
-    const target = window.sgCurrentTarget;
-
-    // Get current coins
-    const currentCoins = window.sgItemData ? window.sgItemData.collected : 0;
-
-    // --- Case A: Vending Machine (BUY) ---
-    if (target.userData.isVendingMachine) {
-
-        if (currentCoins >= 10) {
-            // === Game Clear! ===
-            console.log("Juice Purchased! Game Clear!");
-
-            // Start Ending Cinematic
-            transitionToEnding();
-
-        } else {
-            // === Not Enough Coins ===
-            const missing = 10 - currentCoins;
-            showTapText(window.innerWidth / 2, window.innerHeight / 2, `あと ${missing} 枚足りないよ！`, '#FF4500');
-        }
-        return;
-    }
-
-    // --- Case B: Coin (GET) ---
-    if (target.userData.isCoin || target.userData.isTargetItem) {
-        // Coin collection
-        const parentGroup = target.parent && target.parent.type === 'Group' ? target.parent : target;
-        scene.remove(parentGroup); // Remove from scene
-        if (parentGroup !== target) scene.remove(target); // Ensure self is removed if not group
-
-        // Update coins
-        if (window.sgItemData) {
-            window.sgItemData.collected++;
-            const counter = document.getElementById('sg-coin-counter');
-            if (counter) counter.textContent = window.sgItemData.collected;
-
-            // Play sound (Beep)
-            const audio = new AudioContext(); // Simple beep
-            const osc = audio.createOscillator();
-            const gain = audio.createGain();
-            osc.connect(gain);
-            gain.connect(audio.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, audio.currentTime); // A5
-            gain.gain.setValueAtTime(0.1, audio.currentTime);
-            osc.start();
-            osc.stop(audio.currentTime + 0.1);
-        }
-
-        // Hide button
-        window.sgCurrentTarget = null;
-        const getBtn = document.getElementById('sg-get-btn');
-        if (getBtn) getBtn.style.display = 'none';
-    }
-}
-
-// === Pro Game Loop ===
-function gameLoop(now) {
-    if (!isPlaying && currentState !== GameState.ENDING) return; // Only stop if not ENDING (ENDING uses loop for animation)
-
-    // DeltaTime Calculation
-    let dt = (now - lastTime) / 1000;
-    lastTime = now;
-
-    // Cap dt to prevent spiral of death (max 0.1s)
-    if (dt > 0.1) dt = 0.1;
-
-    accumulator += dt;
-
-    while (accumulator >= FIXED_STEP) {
-        update(FIXED_STEP);
-        accumulator -= FIXED_STEP;
-    }
-
-    render();
-    animationId = requestAnimationFrame(gameLoop);
-}
-
-function update(dt) {
-    if (mixer) mixer.update(dt);
-
-    // ★ ENDING専用処理
-    if (currentState === GameState.ENDING) {
-        updateEndingAnimation(dt);
-        return;
-    }
-
-    // ★ OPENING専用処理（PLAYINGでは完全にスキップ）
-    if (currentState === GameState.OPENING) {
-        // Opening effects are handled in startOpeningSequence interval
-        return; // Skip gameplay update during opening
-    }
-
-    // ★ PLAYING専用処理
-    if (currentState === GameState.PLAYING) {
-        // Gameplay Update
-        if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
-
-        // ★ UI Update (Coin Button)
-        updateUI();
-
-
-        // Coin Rotation (3.0 rad/sec)
-        if (window.sgGameCoins) {
-            window.sgGameCoins.forEach(coin => {
-                if (coin.visible) coin.rotation.y += 3.0 * dt;
-            });
-        }
-
-        // Gameplay NPC Shiver (Winter Only)
-        updateGameplayShiver(dt);
-
-        // Aim Detection (Moved from loop)
-        // ★ Deprecated: Click interaction implemented instead
-        // updateAim();
-    }
-}
-
-
-function updateAim() {
-    // === AIM DETECTION (Raycaster from center of screen) ===
-    const getBtn = document.getElementById('sg-get-btn');
-    const crosshair = document.getElementById('sg-crosshair');
-
-    if (getBtn && camera && crosshair) {
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-
-        // Objects to interact with: Coins + Scene Children (for Vending HitBox)
-        const intersects = raycaster.intersectObjects(scene.children, true);
-
-        let targetFound = null;
-        let targetType = null; // 'coin' or 'vending'
-
-        for (const hit of intersects) {
-            const obj = hit.object;
-
-            // 1. Vending Machine HitBox
-            if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
-                targetFound = obj;
-                targetType = 'vending';
-                break; // Priority
-            }
-
-            // 2. Coin (game items) - check parent group or mesh
-            let coinGroup = obj;
-            while (coinGroup.parent && !coinGroup.userData.isCoin && coinGroup !== scene) {
-                coinGroup = coinGroup.parent;
-            }
-
-            if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
-                targetFound = coinGroup;
-                targetType = 'coin';
-                break;
-            }
-        }
-
-        if (targetFound) {
-            // Target locked
-            window.sgCurrentTarget = targetFound;
-            crosshair.classList.add('target-locked');
-            getBtn.style.display = 'block';
-
-            // Position button near crosshair
-            getBtn.style.left = '50%';
-            getBtn.style.top = '60%';
-            getBtn.style.transform = 'translate(-50%, -50%)';
-
-            if (targetType === 'vending') {
-                getBtn.innerHTML = '🍹<br>BUY';
+            leftPupil.position.set(-0.25, 2.05, 0.46);
+            potatoGroup.add(leftPupil);
+
+            // Right eye - WINK for target (closed eye), normal for others
+            if (isTarget) {
+                // Winking eye: just a thin horizontal line (closed)
+                const winkLine = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 0.06, 0.05),
+                    pupilMaterial
+                );
+                winkLine.position.set(0.25, 2.05, 0.43);
+                winkLine.userData.id = spotIndex;
+                winkLine.userData.isTarget = true;
+                potatoGroup.add(winkLine);
             } else {
-                getBtn.innerHTML = '🖐️<br>GET!';
+                // Normal open eye
+                const rightEyeWhite = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.25, 0.3, 0.05),
+                    eyeWhiteMaterial
+                );
+                rightEyeWhite.position.set(0.25, 2.1, 0.43);
+                potatoGroup.add(rightEyeWhite);
+
+                const rightPupil = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.12, 0.15, 0.06),
+                    pupilMaterial
+                );
+                rightPupil.position.set(0.25, 2.05, 0.46);
+                potatoGroup.add(rightPupil);
             }
-        } else {
-            // No target
+
+            // Mouth - slightly different color for target (pink vs red)
+            const mouthColor = isTarget ? 0xFF69B4 : 0xCC0000; // Pink for target, red for others
+            const mouthMaterial = new THREE.MeshLambertMaterial({ color: mouthColor });
+            const mouth = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.1, 0.05),
+                mouthMaterial
+            );
+            mouth.position.set(0, 1.6, 0.43);
+            potatoGroup.add(mouth);
+
+            // Apply shadow settings to all potato meshes
+            potatoGroup.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+
+            // Apply edge outlines to potato
+            addEdgesOutline(potatoGroup, 15, 0x000000);
+
+            return potatoGroup;
+        }
+
+
+        // Create all potato characters
+        for (let i = 0; i < spots.length; i++) {
+            const spot = spots[i];
+            const isTarget = spot.isTarget;
+
+            // Create voxel potato
+            const potato = createVoxelPotato(isTarget, spot.index);
+            potato.scale.setScalar(isTarget ? 1.1 : 1.0); // Target slightly bigger
+            spot.group.add(potato);
+
+            await delay(30);
+        }
+    }
+
+
+    function onSelect(event) {
+        if (!isPlaying || !renderer) return;
+
+
+        const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+        const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(models, true);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0].object;
+
+            // Visual feedback: flash the hit model
+            const originalColor = hit.material ? hit.material.emissive?.clone() : null;
+            if (hit.material && hit.material.emissive) {
+                hit.material.emissive.setHex(0xffff00);
+                setTimeout(() => {
+                    if (originalColor) hit.material.emissive.copy(originalColor);
+                    else hit.material.emissive.setHex(0x000000);
+                }, 200);
+            }
+
+            // Text feedback
+            if (hit.userData.isTarget) {
+                showTapText(clientX, clientY, '🎉 あたり！ +100', '#FFD700');
+                score += 100;
+                document.getElementById('sg-score').textContent = score;
+
+                // Confetti effect!
+                const hitPosition = intersects[0].point;
+                spawnConfetti(hitPosition);
+
+                resetRound();
+            } else {
+                const messages = ['タップ！', 'ちがうよ〜', 'ハズレ', 'おしい！', 'ポテト！'];
+                const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+                showTapText(clientX, clientY, randomMsg, '#FFFFFF');
+            }
+        }
+    }
+
+    // Confetti particle effect
+    function spawnConfetti(position) {
+        const confettiColors = [0xFF6B6B, 0x4ECDC4, 0xFFE66D, 0x95E1D3, 0xF38181, 0xAA96DA, 0xFCBAD3];
+        const confettiCount = 30;
+        const confettiPieces = [];
+
+        for (let i = 0; i < confettiCount; i++) {
+            const color = confettiColors[Math.floor(Math.random() * confettiColors.length)];
+            const piece = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.2, 0.2),
+                new THREE.MeshLambertMaterial({ color: color })
+            );
+
+            piece.position.copy(position);
+            piece.position.y += 1;
+
+            // Random velocity
+            piece.userData.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.4,
+                Math.random() * 0.3 + 0.2,
+                (Math.random() - 0.5) * 0.4
+            );
+            piece.userData.rotSpeed = new THREE.Vector3(
+                Math.random() * 0.2,
+                Math.random() * 0.2,
+                Math.random() * 0.2
+            );
+            piece.userData.life = 60; // frames
+
+            scene.add(piece);
+            confettiPieces.push(piece);
+        }
+
+        // Animate confetti
+        function animateConfetti() {
+            let allDead = true;
+            confettiPieces.forEach(piece => {
+                if (piece.userData.life > 0) {
+                    allDead = false;
+                    piece.position.add(piece.userData.velocity);
+                    piece.userData.velocity.y -= 0.015; // gravity
+                    piece.rotation.x += piece.userData.rotSpeed.x;
+                    piece.rotation.y += piece.userData.rotSpeed.y;
+                    piece.rotation.z += piece.userData.rotSpeed.z;
+                    piece.userData.life--;
+
+                    // Fade out
+                    if (piece.userData.life < 20) {
+                        piece.material.transparent = true;
+                        piece.material.opacity = piece.userData.life / 20;
+                    }
+                } else if (piece.parent) {
+                    scene.remove(piece);
+                }
+            });
+
+            if (!allDead) {
+                requestAnimationFrame(animateConfetti);
+            }
+        }
+        animateConfetti();
+    }
+
+
+    function showTapText(x, y, text, color) {
+        const el = document.createElement('div');
+        el.className = 'sg-tap-text';
+        el.textContent = text;
+        el.style.position = 'fixed'; // Changed from implicit static
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.transform = 'translate(-50%, -50%)'; // Center alignment
+        el.style.color = color;
+        el.style.zIndex = '2000'; // High z-index to show above UI
+        el.style.fontWeight = 'bold';
+        el.style.fontSize = '1.5rem';
+        el.style.textShadow = '0 0 5px black';
+        el.style.pointerEvents = 'none';
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 1500); // Slightly longer display
+    }
+
+    async function resetRound() {
+        // Clear models
+        models.forEach(m => {
+            if (m.parent) m.parent.remove(m);
+        });
+        models = [];
+        await spawnClonesSequential();
+    }
+
+    function handleInteraction() {
+        // Ignore if not playing or no target
+        if (!isPlaying || !window.sgCurrentTarget) return;
+
+        const target = window.sgCurrentTarget;
+
+        // Get current coins
+        const currentCoins = window.sgItemData ? window.sgItemData.collected : 0;
+
+        // --- Case A: Vending Machine (BUY) ---
+        if (target.userData.isVendingMachine) {
+
+            if (currentCoins >= 10) {
+                // === Game Clear! ===
+                console.log("Juice Purchased! Game Clear!");
+
+                // Start Ending Cinematic
+                transitionToEnding();
+
+            } else {
+                // === Not Enough Coins ===
+                const missing = 10 - currentCoins;
+                showTapText(window.innerWidth / 2, window.innerHeight / 2, `あと ${missing} 枚足りないよ！`, '#FF4500');
+            }
+            return;
+        }
+
+        // --- Case B: Coin (GET) ---
+        if (target.userData.isCoin || target.userData.isTargetItem) {
+            // Coin collection
+            const parentGroup = target.parent && target.parent.type === 'Group' ? target.parent : target;
+            scene.remove(parentGroup); // Remove from scene
+            if (parentGroup !== target) scene.remove(target); // Ensure self is removed if not group
+
+            // Update coins
+            if (window.sgItemData) {
+                window.sgItemData.collected++;
+                const counter = document.getElementById('sg-coin-counter');
+                if (counter) counter.textContent = window.sgItemData.collected;
+
+                // Play sound (Beep)
+                const audio = new AudioContext(); // Simple beep
+                const osc = audio.createOscillator();
+                const gain = audio.createGain();
+                osc.connect(gain);
+                gain.connect(audio.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audio.currentTime); // A5
+                gain.gain.setValueAtTime(0.1, audio.currentTime);
+                osc.start();
+                osc.stop(audio.currentTime + 0.1);
+            }
+
+            // Hide button
             window.sgCurrentTarget = null;
-            crosshair.classList.remove('target-locked');
-            getBtn.style.display = 'none';
+            const getBtn = document.getElementById('sg-get-btn');
+            if (getBtn) getBtn.style.display = 'none';
         }
     }
-}
 
-function render() {
-    if (renderer && scene && camera) {
-        // Debug Log for Ending Camera
+    // === Pro Game Loop ===
+    function gameLoop(now) {
+        if (!isPlaying && currentState !== GameState.ENDING) return; // Only stop if not ENDING (ENDING uses loop for animation)
+
+        // DeltaTime Calculation
+        let dt = (now - lastTime) / 1000;
+        lastTime = now;
+
+        // Cap dt to prevent spiral of death (max 0.1s)
+        if (dt > 0.1) dt = 0.1;
+
+        accumulator += dt;
+
+        while (accumulator >= FIXED_STEP) {
+            update(FIXED_STEP);
+            accumulator -= FIXED_STEP;
+        }
+
+        render();
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+        if (mixer) mixer.update(dt);
+
+        // ★ ENDING専用処理
         if (currentState === GameState.ENDING) {
-            // Throttle log to once per second approx? No, user asked for it. 
-            // But let's simple throttle to avoid console flood 60fps
-            if (Math.random() < 0.01) {
-                console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
-            }
+            updateEndingAnimation(dt);
+            return;
         }
-        renderer.render(scene, camera);
+
+        // ★ OPENING専用処理（PLAYINGでは完全にスキップ）
+        if (currentState === GameState.OPENING) {
+            // Opening effects are handled in startOpeningSequence interval
+            return; // Skip gameplay update during opening
+        }
+
+        // ★ PLAYING専用処理
+        if (currentState === GameState.PLAYING) {
+            // Gameplay Update
+            if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
+
+            // ★ UI Update (Coin Button)
+            updateUI();
+
+
+            // Coin Rotation (3.0 rad/sec)
+            if (window.sgGameCoins) {
+                window.sgGameCoins.forEach(coin => {
+                    if (coin.visible) coin.rotation.y += 3.0 * dt;
+                });
+            }
+
+            // Gameplay NPC Shiver (Winter Only)
+            updateGameplayShiver(dt);
+
+            // Aim Detection (Moved from loop)
+            // ★ Deprecated: Click interaction implemented instead
+            // updateAim();
+        }
     }
-}
+
+
+    function updateAim() {
+        // === AIM DETECTION (Raycaster from center of screen) ===
+        const getBtn = document.getElementById('sg-get-btn');
+        const crosshair = document.getElementById('sg-crosshair');
+
+        if (getBtn && camera && crosshair) {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            // Objects to interact with: Coins + Scene Children (for Vending HitBox)
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            let targetFound = null;
+            let targetType = null; // 'coin' or 'vending'
+
+            for (const hit of intersects) {
+                const obj = hit.object;
+
+                // 1. Vending Machine HitBox
+                if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
+                    targetFound = obj;
+                    targetType = 'vending';
+                    break; // Priority
+                }
+
+                // 2. Coin (game items) - check parent group or mesh
+                let coinGroup = obj;
+                while (coinGroup.parent && !coinGroup.userData.isCoin && coinGroup !== scene) {
+                    coinGroup = coinGroup.parent;
+                }
+
+                if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
+                    targetFound = coinGroup;
+                    targetType = 'coin';
+                    break;
+                }
+            }
+
+            if (targetFound) {
+                // Target locked
+                window.sgCurrentTarget = targetFound;
+                crosshair.classList.add('target-locked');
+                getBtn.style.display = 'block';
+
+                // Position button near crosshair
+                getBtn.style.left = '50%';
+                getBtn.style.top = '60%';
+                getBtn.style.transform = 'translate(-50%, -50%)';
+
+                if (targetType === 'vending') {
+                    getBtn.innerHTML = '🍹<br>BUY';
+                } else {
+                    getBtn.innerHTML = '🖐️<br>GET!';
+                }
+            } else {
+                // No target
+                window.sgCurrentTarget = null;
+                crosshair.classList.remove('target-locked');
+                getBtn.style.display = 'none';
+            }
+        }
+    }
+
+    function render() {
+        if (renderer && scene && camera) {
+            // Debug Log for Ending Camera
+            if (currentState === GameState.ENDING) {
+                // Throttle log to once per second approx? No, user asked for it. 
+                // But let's simple throttle to avoid console flood 60fps
+                if (Math.random() < 0.01) {
+                    console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
+                }
+            }
+            renderer.render(scene, camera);
+        }
+    }
 
 
 
-// ==========================================
-// 雲 (Cloud) の配置と季節カラー管理
-// ==========================================
-function spawnClouds() {
-    console.log("--- spawnClouds CALLED ---");
+    // ==========================================
+    // 雲 (Cloud) の配置と季節カラー管理
+    // ==========================================
+    function spawnClouds() {
+        console.log("--- spawnClouds CALLED ---");
 
-    window.sgCloudObjects = []; // 雲管理用配列
+        window.sgCloudObjects = []; // 雲管理用配列
 
-    // ★ 雲の色パレット (Emissive発光色)
-    const CLOUD_COLORS = {
-        spring: 0x443344, // ほんのり桜色
-        summer: 0x333333, // 通常の白（グレー発光）
-        autumn: 0x663322, // ★夕暮れ（赤みのある暖色グレー）
-        winter: 0x444455  // 雪雲（青みのあるグレー）
-    };
+        // ★ 雲の色パレット (Emissive発光色)
+        const CLOUD_COLORS = {
+            spring: 0x443344, // ほんのり桜色
+            summer: 0x333333, // 通常の白（グレー発光）
+            autumn: 0x663322, // ★夕暮れ（赤みのある暖色グレー）
+            winter: 0x444455  // 雪雲（青みのあるグレー）
+        };
 
-    // ★ 雲の色変更関数
-    window.setCloudSeason = (seasonName) => {
-        console.log(`Setting Cloud Season to: ${seasonName}`);
-        const colorHex = CLOUD_COLORS[seasonName] || CLOUD_COLORS.summer;
+        // ★ 雲の色変更関数
+        window.setCloudSeason = (seasonName) => {
+            console.log(`Setting Cloud Season to: ${seasonName}`);
+            const colorHex = CLOUD_COLORS[seasonName] || CLOUD_COLORS.summer;
 
-        window.sgCloudObjects.forEach(cloud => {
-            cloud.traverse(child => {
-                if (child.isMesh && child.material) {
-                    // エミッシブカラー（発光色）を変更して色味を変える
-                    if (child.material.emissive) {
-                        child.material.emissive.setHex(colorHex);
+            window.sgCloudObjects.forEach(cloud => {
+                cloud.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // エミッシブカラー（発光色）を変更して色味を変える
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(colorHex);
+                        }
+                    }
+                });
+            });
+        };
+
+        const loader = new FBXLoader();
+        loader.load('models/cloud.fbx', (masterCloud) => {
+            console.log("Cloud Loaded: cloud.fbx");
+
+            masterCloud.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = false;
+
+                    if (child.material) {
+                        child.material.fog = false; // フォグの影響を受けない
+                        // 初期色設定
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(CLOUD_COLORS.summer);
+                        }
                     }
                 }
             });
-        });
-    };
 
-    const loader = new FBXLoader();
-    loader.load('models/cloud.fbx', (masterCloud) => {
-        console.log("Cloud Loaded: cloud.fbx");
+            const cloudCount = 15;
+            for (let i = 0; i < cloudCount; i++) {
+                const cloud = masterCloud.clone();
+                const x = (Math.random() - 0.5) * 100;
+                const z = (Math.random() - 0.5) * 100;
+                const y = 15 + Math.random() * 10;
 
-        masterCloud.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = false;
+                cloud.position.set(x, y, z);
+                cloud.rotation.y = Math.random() * Math.PI * 2;
+                cloud.scale.setScalar(0.8 + Math.random() * 0.7);
 
-                if (child.material) {
-                    child.material.fog = false; // フォグの影響を受けない
-                    // 初期色設定
-                    if (child.material.emissive) {
-                        child.material.emissive.setHex(CLOUD_COLORS.summer);
-                    }
-                }
+                scene.add(cloud);
+                window.sgCloudObjects.push(cloud);
             }
+
+            console.log(`${cloudCount} clouds placed.`);
+
+            // ★現在の季節を適用
+            if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
+                window.setCloudSeason(GameConfig.currentSeason);
+            } else {
+                window.setCloudSeason('summer');
+            }
+
+        }, undefined, (error) => {
+            console.error("Error loading cloud.fbx:", error);
         });
+    }
 
-        const cloudCount = 15;
-        for (let i = 0; i < cloudCount; i++) {
-            const cloud = masterCloud.clone();
-            const x = (Math.random() - 0.5) * 100;
-            const z = (Math.random() - 0.5) * 100;
-            const y = 15 + Math.random() * 10;
+    // ==========================================
+    // 草 (Grass) の配置と季節カラー管理
+    // ==========================================
+    // ==========================================
+    // 草 (Grass) の配置と季節カラー管理
+    // ==========================================
+    function spawnGrass() {
+        console.log("--- spawnGrass CALLED ---");
 
-            cloud.position.set(x, y, z);
-            cloud.rotation.y = Math.random() * Math.PI * 2;
-            cloud.scale.setScalar(0.8 + Math.random() * 0.7);
+        // ★ 季節ごとのカラーパレット定義 (ここをいじれば色が変えられます)
+        const GRASS_PALETTES = {
+            spring: [
+                0x90EE90, // LightGreen
+                0x98FB98, // PaleGreen
+                0xADFF2F  // GreenYellow (新芽の色)
+            ],
+            summer: [
+                0x66BB6A, // 鮮やかな緑
+                0x43A047, // 少し濃い緑
+                0x81C784, // 淡い緑
+                0x9CCC65  // 黄緑っぽい緑
+            ],
+            autumn: [
+                0xCD853F, // ペルー (乾いた土色)
+                0xDAA520, // ゴールデンロッド (枯れ草色)
+                0x8B4513  // サドルブラウン
+            ],
+            winter: [
+                0xDDDDDD, // 冬の色
+            ]
+        };
 
-            scene.add(cloud);
-            window.sgCloudObjects.push(cloud);
-        }
+        window.sgGrassObjects = []; // 草オブジェクト管理用
 
-        console.log(`${cloudCount} clouds placed.`);
+        // ★ 季節切り替え関数のアップデート
+        window.setGrassSeason = (seasonName) => {
+            console.log(`Setting Grass Season to: ${seasonName}`);
 
-        // ★現在の季節を適用
-        if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
-            window.setCloudSeason(GameConfig.currentSeason);
-        } else {
-            window.setCloudSeason('summer');
-        }
+            // パレットを取得 (未定義なら夏をデフォルトに)
+            const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
+            const isMultiColor = palette.length > 1;
 
-    }, undefined, (error) => {
-        console.error("Error loading cloud.fbx:", error);
-    });
-}
+            window.sgGrassObjects.forEach((grass, index) => {
+                // ランダムに色を選ぶ (indexを使ってバラけさせる)
+                const colorHex = isMultiColor
+                    ? palette[index % palette.length]
+                    : palette[0];
 
-// ==========================================
-// 草 (Grass) の配置と季節カラー管理
-// ==========================================
-function spawnGrass() {
-    console.log("--- spawnGrass CALLED ---");
+                const colorObj = new THREE.Color(colorHex);
 
-    // ★ 季節ごとのカラーパレット定義 (ここをいじれば色が変えられます)
-    const GRASS_PALETTES = {
-        spring: [
-            0x90EE90, // LightGreen
-            0x98FB98, // PaleGreen
-            0xADFF2F  // GreenYellow (新芽の色)
-        ],
-        summer: [
-            0x66BB6A, // 鮮やかな緑
-            0x43A047, // 少し濃い緑
-            0x81C784, // 淡い緑
-            0x9CCC65  // 黄緑っぽい緑
-        ],
-        autumn: [
-            0xCD853F, // ペルー (乾いた土色)
-            0xDAA520, // ゴールデンロッド (枯れ草色)
-            0x8B4513  // サドルブラウン
-        ],
-        winter: [
-            0xDDDDDD, // 冬の色
-        ]
-    };
+                grass.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // 色を乗算 (白～グレーのモデルに色が乗る)
+                        if (child.material.color) {
+                            child.material.color.copy(colorObj);
+                        }
+                    }
+                });
+            });
+            console.log(`Updated ${window.sgGrassObjects.length} grass patches to ${seasonName}.`);
+        };
 
-    window.sgGrassObjects = []; // 草オブジェクト管理用
 
-    // ★ 季節切り替え関数のアップデート
-    window.setGrassSeason = (seasonName) => {
-        console.log(`Setting Grass Season to: ${seasonName}`);
+        const loader = new FBXLoader();
+        loader.load('models/grass.fbx', (masterGrass) => {
+            console.log("Grass Loaded: grass.fbx");
 
-        // パレットを取得 (未定義なら夏をデフォルトに)
-        const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
-        const isMultiColor = palette.length > 1;
+            masterGrass.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    // 地面判定無視
+                    child.userData.ignoreGround = true;
 
-        window.sgGrassObjects.forEach((grass, index) => {
-            // ランダムに色を選ぶ (indexを使ってバラけさせる)
-            const colorHex = isMultiColor
-                ? palette[index % palette.length]
-                : palette[0];
+                    // ★重要: マテリアルをクローンして、個別に色を変えられるようにする
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(m => m.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
 
-            const colorObj = new THREE.Color(colorHex);
-
-            grass.traverse(child => {
-                if (child.isMesh && child.material) {
-                    // 色を乗算 (白～グレーのモデルに色が乗る)
-                    if (child.material.color) {
-                        child.material.color.copy(colorObj);
+                        // 自己発光を少し抑えめにセット (影をきれいに出すため)
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(0x000000);
+                        }
                     }
                 }
             });
-        });
-        console.log(`Updated ${window.sgGrassObjects.length} grass patches to ${seasonName}.`);
-    };
 
-
-    const loader = new FBXLoader();
-    loader.load('models/grass.fbx', (masterGrass) => {
-        console.log("Grass Loaded: grass.fbx");
-
-        masterGrass.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-                // 地面判定無視
-                child.userData.ignoreGround = true;
-
-                // ★重要: マテリアルをクローンして、個別に色を変えられるようにする
-                if (child.material) {
-                    if (Array.isArray(child.material)) {
-                        child.material = child.material.map(m => m.clone());
-                    } else {
-                        child.material = child.material.clone();
-                    }
-
-                    // 自己発光を少し抑えめにセット (影をきれいに出すため)
-                    if (child.material.emissive) {
-                        child.material.emissive.setHex(0x000000);
-                    }
-                }
+            // アウトライン追加
+            if (typeof window.addEdgesOutline === 'function') {
+                window.addEdgesOutline(masterGrass, 15, 0x000000);
             }
+
+            // 草の配置数
+            const grassCount = 200;
+
+            for (let i = 0; i < grassCount; i++) {
+                const grass = masterGrass.clone();
+
+                // ランダム配置
+                const x = (Math.random() - 0.5) * 50;
+                const z = (Math.random() - 0.5) * 50;
+                grass.position.set(x, 0, z);
+
+                // ランダム回転
+                grass.rotation.y = Math.random() * Math.PI * 2;
+
+                // ランダムスケール
+                const scale = 5.0 + Math.random() * 3.0;
+                grass.scale.setScalar(scale);
+
+                scene.add(grass);
+                window.sgGrassObjects.push(grass);
+            }
+
+            console.log(`${grassCount} grass patches placed.`);
+
+            // ★修正: GameConfig.currentSeason を使用
+            window.setGrassSeason(GameConfig.currentSeason);
+
+        }, undefined, (error) => {
+            console.error("Error loading grass.fbx:", error);
         });
+    }
 
-        // アウトライン追加
-        if (typeof window.addEdgesOutline === 'function') {
-            window.addEdgesOutline(masterGrass, 15, 0x000000);
-        }
-
-        // 草の配置数
-        const grassCount = 200;
-
-        for (let i = 0; i < grassCount; i++) {
-            const grass = masterGrass.clone();
-
-            // ランダム配置
-            const x = (Math.random() - 0.5) * 50;
-            const z = (Math.random() - 0.5) * 50;
-            grass.position.set(x, 0, z);
-
-            // ランダム回転
-            grass.rotation.y = Math.random() * Math.PI * 2;
-
-            // ランダムスケール
-            const scale = 5.0 + Math.random() * 3.0;
-            grass.scale.setScalar(scale);
-
-            scene.add(grass);
-            window.sgGrassObjects.push(grass);
-        }
-
-        console.log(`${grassCount} grass patches placed.`);
-
-        // ★修正: GameConfig.currentSeason を使用
-        window.setGrassSeason(GameConfig.currentSeason);
-
-    }, undefined, (error) => {
-        console.error("Error loading grass.fbx:", error);
-    });
-}
-
-// ==========================================
-// 土管 (旧関数) - createParkAssets に統合済み
-// ==========================================
-function spawnDokan() {
-    console.log("spawnDokan is deprecated. Logic moved to createParkAssets.");
-}
-// ==========================================
-// 草 (Grass) の配置と季節カラー管理
-// ==========================================
+    // ==========================================
+    // 土管 (旧関数) - createParkAssets に統合済み
+    // ==========================================
+    function spawnDokan() {
+        console.log("spawnDokan is deprecated. Logic moved to createParkAssets.");
+    }
 
 
+    // spawnDokan() は initThreeJS() 内から呼び出す（scene初期化後）
 
-// spawnDokan() は initThreeJS() 内から呼び出す（scene初期化後）
-
-return { setup, init, start, stop };
-}) ();
+    return { setup, init, start, stop };
+})();
 
 
 // ★季節の初期化（草・木・空の色を適用）
