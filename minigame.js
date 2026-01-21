@@ -1649,9 +1649,9 @@ const SearchGame = (() => {
         // Old: 2. Inverted: -2.
         playerPosition.set(-11, 0.6, -2);
 
-       // Sync Camera Angle to look at Vending Machine (North/Negative Z)
-       cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
-       cameraPitch = 0;       // Level
+        // Sync Camera Angle to look at Vending Machine (North/Negative Z)
+        cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
+        cameraPitch = 0;       // Level
 
         // Apply immediately so render doesn't flicker
         camera.position.copy(playerPosition);
@@ -3891,7 +3891,66 @@ const SearchGame = (() => {
             const ASSET_CONFIG = [
                 { name: 'MainFountain', path: 'models/fountain.fbx', pos: { x: 0, y: 0, z: 0 }, scale: 3.0, rot: { y: 0 }, collision: false, exclusionRadius: 8.0, onLoad: (obj) => { obj.traverse(c => { if (c.name.includes('water')) { c.material.opacity = 0.6; c.castShadow = false; c.userData.skipOutline = true; } }); } },
                 { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: 23 }, rot: { y: 270 }, scale: 3.0, collision: false, exclusionRadius: 8.0 }, // Old z: -23
-                { name: 'Seesaw', path: 'models/seesaw.fbx', pos: { x: 20, y: 0.6, z: 10 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 3.0, onLoad: (obj) => { let plankPart = null; obj.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.name.toLowerCase().includes('plank')) plankPart = c; } }); obj.userData.movingPart = plankPart ? plankPart : obj; } }, // Old z: -10
+                {
+                    name: 'Seesaw',
+                    path: 'models/seesaw.fbx',
+                    pos: { x: 20, y: 0.6, z: 10 },
+                    rot: { y: 90 },
+                    scale: 1.0,
+                    collision: false,
+                    exclusionRadius: 3.0,
+                    onLoad: (obj) => {
+                        // --- ハードリセット修正 ---
+
+                        // 1. 座標系の確定
+                        obj.updateMatrixWorld(true);
+
+                        const movingParts = [];
+                        let plankPart = null; // 回転軸の基準にするパーツ
+
+                        // 2. パーツの選別（土台以外は全部動かす！）
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+
+                                // 土台(fulcrum)以外はすべてリストアップ
+                                if (!c.name.toLowerCase().includes('fulcrum')) {
+                                    movingParts.push(c);
+
+                                    // 丸太(plank)を見つけておく（これを回転の中心にするため）
+                                    if (c.name.toLowerCase().includes('plank')) {
+                                        plankPart = c;
+                                    }
+                                }
+                            }
+                        });
+
+                        if (movingParts.length > 0) {
+                            // 3. 回転軸(Pivot)の作成
+                            // 全体重心ではなく「丸太(plank)」の幾何学的中心をPivotにする
+                            // (plankが見つからない場合は、動くパーツの先頭を仮の基準にする)
+                            const target = plankPart || movingParts[0];
+                            const box = new THREE.Box3().setFromObject(target);
+                            const center = new THREE.Vector3();
+                            box.getCenter(center); // ここが真の回転軸
+
+                            // 4. ピボットグループの作成と配置
+                            const pivotGroup = new THREE.Group();
+                            pivotGroup.position.copy(center); // 丸太の中心に配置
+                            obj.add(pivotGroup); // 親(Seesaw Root)に追加
+
+                            // 5. 全パーツをPivotに吸着 (attachメソッド)
+                            // attachを使うと、見た目の位置を変えずに親子関係だけ移動できる
+                            movingParts.forEach(part => {
+                                pivotGroup.attach(part);
+                            });
+
+                            // アニメーション対象をこのグループに設定
+                            obj.userData.movingPart = pivotGroup;
+                        }
+                    }
+                },
                 { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: -12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 }, // Old z: 12
                 { name: 'VendingMachine', path: 'models/vending_test.fbx', pos: { x: -12, y: 0, z: -17 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 2.0 }, // Old z: 17
                 { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: -18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 }, // Old z: 18.6
@@ -3943,26 +4002,26 @@ const SearchGame = (() => {
                 }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
             });
 
-// タイヤ (合計8個：入口からの導線用)
+            // タイヤ (合計8個：入口からの導線用)
             // ★確実に左右に分けるため、個別に位置を指定します
             const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
             const tirePositions = [];
 
             // 左側（北側）の4つ: Z = 14.5
             for (let i = 0; i < 4; i++) {
-                tirePositions.push({ 
-                    x: 5.5 + (i * 1.2), 
-                    z: 14.5,  
-                    colorIndex: i 
+                tirePositions.push({
+                    x: 5.5 + (i * 1.2),
+                    z: 14.5,
+                    colorIndex: i
                 });
             }
 
             // 右側（南側）の4つ: Z = 17.5
             for (let i = 0; i < 4; i++) {
-                tirePositions.push({ 
-                    x: 5.5 + (i * 1.2), 
-                    z: 17.5, 
-                    colorIndex: i + 1 
+                tirePositions.push({
+                    x: 5.5 + (i * 1.2),
+                    z: 17.5,
+                    colorIndex: i + 1
                 });
             }
 
@@ -3973,14 +4032,14 @@ const SearchGame = (() => {
                     new THREE.TorusGeometry(0.45, 0.15, 12, 24),
                     new THREE.MeshLambertMaterial({ color: color })
                 );
-                
+
                 // 半分埋める配置
                 tire.rotation.y = Math.PI / 2;
                 tire.position.set(pos.x, -0.15, pos.z);
                 tire.castShadow = true;
-                
+
                 window.parkGroup.add(tire);
-                
+
             });
 
             // 砂場
@@ -4053,14 +4112,39 @@ const SearchGame = (() => {
                         }
                     });
                 }
+
+
+                // シーソーの制御
                 const seesaw = scene.getObjectByName('Seesaw');
+                // movingPart (さきほど作ったPivotGroup) が存在する場合のみ実行
                 if (seesaw && seesaw.userData.movingPart) {
-                    const dx = Math.abs(playerPosition.x - seesaw.position.x); const dz = Math.abs(playerPosition.z - seesaw.position.z);
+
+                    const dx = Math.abs(playerPosition.x - seesaw.position.x);
+                    const dz = Math.abs(playerPosition.z - seesaw.position.z);
+
                     let targetRot = 0;
-                    if (dz < 1.0 && dx < 2.5) { const relativeX = playerPosition.x - seesaw.position.x; let tilt = relativeX * 0.25; tilt = Math.max(-0.35, Math.min(0.35, tilt)); targetRot = tilt; }
-                    const plank = seesaw.userData.movingPart; plank.rotation.y += (targetRot - plank.rotation.y) * 0.1;
+
+                    // エリア判定: 南北(dz)に長く、東西(dx)に狭く
+                    if (dz < 2.5 && dx < 1.0) {
+                        const relativeZ = playerPosition.z - seesaw.position.z;
+
+                        // 傾き計算:
+                        // Z軸回転を採用。
+                        // ※もし傾く方向が逆（自分が乗った方が上がる）なら、ここの符号を反転させてください
+                        let tilt = relativeZ * 0.15;
+
+                        // 角度制限 (約20度)
+                        tilt = Math.max(-0.35, Math.min(0.35, tilt));
+                        targetRot = tilt;
+                    }
+
+                    const pivot = seesaw.userData.movingPart;
+
+                    // Z軸回転 (Pitch) で回す
+                    pivot.rotation.z += (targetRot - pivot.rotation.z) * 0.1;
                 }
             }, 30);
+
 
         } catch (error) { console.error("CRITICAL ERROR in createParkAssets:", error); }
     }
