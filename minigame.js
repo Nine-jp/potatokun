@@ -3568,7 +3568,7 @@ const SearchGame = (() => {
             // 並木設定 (Common Config)
             const AVENUE_OFFSET = 4.0;
             const AVENUE_START = 10.0;
-            const AVENUE_END = 26.0;
+            const AVENUE_END = 30.0;
             const AVENUE_STEP = 4.0;
 
             // ===================================
@@ -3601,16 +3601,6 @@ const SearchGame = (() => {
                         window.applyOutlineRules(bench);
                     }
 
-                    // 衝突判定
-                    if (window.sgExtraObstacles) {
-                        const isRotated = Math.abs(rotY) === 90 || Math.abs(rotY) === -90;
-                        const sizeX = isRotated ? 0.6 : 1.5;
-                        const sizeZ = isRotated ? 1.5 : 0.6;
-                        window.sgExtraObstacles.push({
-                            minX: x - sizeX / 2, maxX: x + sizeX / 2,
-                            minZ: z - sizeZ / 2, maxZ: z + sizeZ / 2
-                        });
-                    }
 
                     scene.add(bench);
                     if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5);
