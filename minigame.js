@@ -107,25 +107,25 @@ function initGameSystem() {
         currentActiveGameId = '3d-search';
         GameLibrary[currentActiveGameId].start();
 
-            // ★UI要素のアニメーションをリプレイ
-            setTimeout(() => {
-                const uiElements = [
-                    document.getElementById('hud-top-left'),
-                    document.getElementById('controls-bottom-left'),
-                    document.getElementById('controls-bottom-right')
-                ];
+        // ★UI要素のアニメーションをリプレイ
+        setTimeout(() => {
+            const uiElements = [
+                document.getElementById('hud-top-left'),
+                document.getElementById('controls-bottom-left'),
+                document.getElementById('controls-bottom-right')
+            ];
 
-                uiElements.forEach(el => {
-                    if (el) {
-                        el.style.animation = 'none';
-                        el.offsetHeight; // trigger reflow
-                        el.style.animation = '';
-                        el.style.opacity = '1';
-                    }
-                });
-            }, 100);
-        });
- 
+            uiElements.forEach(el => {
+                if (el) {
+                    el.style.animation = 'none';
+                    el.offsetHeight; // trigger reflow
+                    el.style.animation = '';
+                    el.style.opacity = '1';
+                }
+            });
+        }, 100);
+    });
+
     // Close Button (Portal Level)
     const closeBtn = document.getElementById('portal-close-btn');
     if (closeBtn) closeBtn.addEventListener('click', closePortal);
@@ -689,15 +689,16 @@ const SearchGame = (() => {
         const zones = [];
         // 固定ルール (Zone D, 道路, 広場)
         function checkStaticRules(x, z) {
-            if (x > 2 && z > 2) return true; // Zone D
-            if (Math.abs(x) < 5 || Math.abs(z) < 5) return true; // 十字路
-            if (x * x + z * z < 100) return true; // 中央広場
+            // ★十字路 (Crossroads): X軸またはZ軸の幅10m (±5m) を除外
+            if (Math.abs(x) < 5 || Math.abs(z) < 5) return true;
 
-            // ★追加: 遊具エリア (Zone B) を草木禁止にする
-            // (X > 2 かつ Z < -2 のエリア)
+            if (x > 2 && z > 2) return true; // Zone D (右上のエリア)
+            if (x * x + z * z < 100) return true; // 中央広場 (半径10m)
+
+            // 遊具エリア (Zone B) を草木禁止にする
             if (x > 2 && z < -2) return true;
 
-            // ★追加: 北側スタート地点周辺 (半径3m) を立ち入り禁止
+            // 北側スタート地点周辺 (半径3m) を立ち入り禁止
             if (x * x + (z + 27) ** 2 < 9) return true;
 
             return false;
@@ -3738,9 +3739,9 @@ const SearchGame = (() => {
         // (Ketchup items REMOVED - now using Coins via FBX loader)
     }
 
-// ==========================================
-// ★ GLOBAL SEASON MANAGER (Comms Tower)
-// ==========================================
+    // ==========================================
+    // ★ GLOBAL SEASON MANAGER (Comms Tower)
+    // ==========================================
     window.setGameSeason = (seasonName) => {
         console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
 
@@ -3757,9 +3758,9 @@ const SearchGame = (() => {
         if (window.setCloudSeason) window.setCloudSeason(seasonName);
     };
 
-// ==========================================
-// 公園遊具・設備 (Park Assets) の一括配置
-// ==========================================
+    // ==========================================
+    // 公園遊具・設備 (Park Assets) の一括配置
+    // ==========================================
     function createParkAssets() {
         console.log("--- createParkAssets (Cleaned) CALLED ---");
 
@@ -3768,7 +3769,7 @@ const SearchGame = (() => {
             if (!window.sgFountainCollision) window.sgFountainCollision = [];
 
             if (window.sgSnowmen) {
-                window.sgSnowmen.forEach(s => { if(s.parent) s.parent.remove(s); });
+                window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
             }
             window.sgSnowmen = [];
 
@@ -3783,12 +3784,12 @@ const SearchGame = (() => {
             // ★コインテクスチャ生成
             const createCoinTextures = () => {
                 const size = 128;
-                const cFace='#ffae00'; const cBorder='#f05e1c'; const cEye='#ffffff'; 
-                const cPupil='#000000'; const cMouth='#e83015'; const cPText='#86c166'; 
+                const cFace = '#ffae00'; const cBorder = '#f05e1c'; const cEye = '#ffffff';
+                const cPupil = '#000000'; const cMouth = '#e83015'; const cPText = '#86c166';
                 const borderThickness = 14;
-                const canvasFace = document.createElement('canvas'); canvasFace.width=size; canvasFace.height=size;
+                const canvasFace = document.createElement('canvas'); canvasFace.width = size; canvasFace.height = size;
                 const ctx1 = canvasFace.getContext('2d');
-                ctx1.translate(64, 64); ctx1.rotate(-Math.PI/2); ctx1.translate(-64, -64);
+                ctx1.translate(64, 64); ctx1.rotate(-Math.PI / 2); ctx1.translate(-64, -64);
                 ctx1.fillStyle = cBorder; ctx1.fillRect(0, 0, size, size);
                 ctx1.beginPath(); ctx1.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx1.fillStyle = cFace; ctx1.fill();
                 ctx1.fillStyle = cEye; ctx1.fillRect(35, 32, 20, 45); ctx1.fillRect(73, 32, 20, 45);
@@ -3796,16 +3797,16 @@ const SearchGame = (() => {
                 ctx1.fillStyle = cMouth; ctx1.fillRect(42, 92, 44, 10);
                 const texFace = new THREE.CanvasTexture(canvasFace);
                 texFace.minFilter = THREE.NearestFilter; texFace.magFilter = THREE.NearestFilter;
-                const canvasBack = document.createElement('canvas'); canvasBack.width=size; canvasBack.height=size;
+                const canvasBack = document.createElement('canvas'); canvasBack.width = size; canvasBack.height = size;
                 const ctx2 = canvasBack.getContext('2d');
-                ctx2.translate(64, 64); ctx2.rotate(-Math.PI/2); ctx2.translate(-64, -64);
-                ctx2.fillStyle = cBorder; ctx2.fillRect(0,0,size,size);
+                ctx2.translate(64, 64); ctx2.rotate(-Math.PI / 2); ctx2.translate(-64, -64);
+                ctx2.fillStyle = cBorder; ctx2.fillRect(0, 0, size, size);
                 ctx2.beginPath(); ctx2.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx2.fillStyle = cFace; ctx2.fill();
                 ctx2.fillStyle = cPText; ctx2.font = 'bold 80px sans-serif';
-                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68); 
+                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68);
                 const texBack = new THREE.CanvasTexture(canvasBack);
                 texBack.minFilter = THREE.NearestFilter; texBack.magFilter = THREE.NearestFilter;
-                const canvasSide = document.createElement('canvas'); canvasSide.width=2; canvasSide.height=2;
+                const canvasSide = document.createElement('canvas'); canvasSide.width = 2; canvasSide.height = 2;
                 const ctxSide = canvasSide.getContext('2d'); ctxSide.fillStyle = cBorder; ctxSide.fillRect(0, 0, 2, 2);
                 const texSide = new THREE.CanvasTexture(canvasSide);
                 texSide.minFilter = THREE.NearestFilter; texSide.magFilter = THREE.NearestFilter;
@@ -3813,33 +3814,33 @@ const SearchGame = (() => {
             };
             const coinTex = createCoinTextures();
 
-            const spawnSnowExplosion = (pos) => { 
+            const spawnSnowExplosion = (pos) => {
                 const particleCount = 20; const geo = new THREE.PlaneGeometry(0.15, 0.15); const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide });
-                for(let i=0; i<particleCount; i++) {
-                    const p = new THREE.Mesh(geo, mat); p.position.copy(pos); p.position.x+=(Math.random()-0.5); p.position.y+=(Math.random()-0.5)+0.5; p.position.z+=(Math.random()-0.5); p.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3); scene.add(p);
-                    const velocity=new THREE.Vector3((Math.random()-0.5)*0.3,Math.random()*0.3,(Math.random()-0.5)*0.3); let life=30;
-                    const anim=setInterval(()=>{ p.position.add(velocity); p.rotation.x+=0.1; velocity.y-=0.01; life--; if(life<=0){scene.remove(p);clearInterval(anim);} },16);
+                for (let i = 0; i < particleCount; i++) {
+                    const p = new THREE.Mesh(geo, mat); p.position.copy(pos); p.position.x += (Math.random() - 0.5); p.position.y += (Math.random() - 0.5) + 0.5; p.position.z += (Math.random() - 0.5); p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); scene.add(p);
+                    const velocity = new THREE.Vector3((Math.random() - 0.5) * 0.3, Math.random() * 0.3, (Math.random() - 0.5) * 0.3); let life = 30;
+                    const anim = setInterval(() => { p.position.add(velocity); p.rotation.x += 0.1; velocity.y -= 0.01; life--; if (life <= 0) { scene.remove(p); clearInterval(anim); } }, 16);
                 }
             };
 
             const ASSET_CONFIG = [
-                { name: 'MainFountain', path: 'models/fountain.fbx', pos: { x: 0, y: 0, z: 0 }, scale: 3.0, rot: { y: 0 }, collision: false, exclusionRadius: 8.0, onLoad: (obj) => { obj.traverse(c => { if(c.name.includes('water')) { c.material.opacity=0.6; c.castShadow=false; c.userData.skipOutline = true; }}); } },
+                { name: 'MainFountain', path: 'models/fountain.fbx', pos: { x: 0, y: 0, z: 0 }, scale: 3.0, rot: { y: 0 }, collision: false, exclusionRadius: 8.0, onLoad: (obj) => { obj.traverse(c => { if (c.name.includes('water')) { c.material.opacity = 0.6; c.castShadow = false; c.userData.skipOutline = true; } }); } },
                 { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: -23 }, rot: { y: 90 }, scale: 3.0, collision: false, exclusionRadius: 8.0 },
                 { name: 'Seesaw', path: 'models/seesaw.fbx', pos: { x: 20, y: 0.6, z: -10 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 3.0, onLoad: (obj) => { let plankPart = null; obj.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.name.toLowerCase().includes('plank')) plankPart = c; } }); obj.userData.movingPart = plankPart ? plankPart : obj; } },
                 { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: 12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 },
                 { name: 'VendingMachine', path: 'models/vending_test.fbx', pos: { x: -12, y: 0, z: 17 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 2.0 },
                 { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: 18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 },
-                { 
-                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: -14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, 
+                {
+                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: -14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5,
                     onLoad: (obj) => {
                         try {
                             obj.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(obj); obj.position.y -= box.min.y;
                             obj.traverse(c => { if (c.isMesh) c.userData.ignoreGround = true; });
                             const roof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 3.2), new THREE.MeshBasicMaterial({ visible: false }));
-                            roof.position.copy(obj.position); roof.position.y += 2.0; roof.rotation.y = obj.rotation.y; window.parkGroup.add(roof); 
+                            roof.position.copy(obj.position); roof.position.y += 2.0; roof.rotation.y = obj.rotation.y; window.parkGroup.add(roof);
                             const gap = 0.55; const thick = 0.1;
-                            window.sgExtraObstacles.push({ minX: obj.position.x-gap-thick, maxX: obj.position.x-gap, minZ: obj.position.z-1.6, maxZ: obj.position.z+1.6 }, { minX: obj.position.x+gap, maxX: obj.position.x+gap+thick, minZ: obj.position.z-1.6, maxZ: obj.position.z+1.6 });
-                        } catch(e) { console.error("Error in Dokan onLoad:", e); }
+                            window.sgExtraObstacles.push({ minX: obj.position.x - gap - thick, maxX: obj.position.x - gap, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 }, { minX: obj.position.x + gap, maxX: obj.position.x + gap + thick, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 });
+                        } catch (e) { console.error("Error in Dokan onLoad:", e); }
                     }
                 }
             ];
@@ -3849,16 +3850,16 @@ const SearchGame = (() => {
                 if (typeof ExclusionManager !== 'undefined' && ExclusionManager.addCircle) {
                     ExclusionManager.addCircle(config.pos.x, config.pos.z, config.exclusionRadius || 2.0);
                 }
-                
+
                 loader.load(config.path, (fbx) => {
                     try {
                         fbx.name = config.name;
                         fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
                         if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
                         fbx.scale.setScalar(config.scale || 1.0);
-                        fbx.traverse(c => { if(c.isMesh) { c.castShadow=true; c.receiveShadow=true; } });
+                        fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                         if (config.onLoad) config.onLoad(fbx);
-                        
+
                         if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(fbx);
 
                         if (config.collision) {
@@ -3873,49 +3874,49 @@ const SearchGame = (() => {
                             }
                         }
                         window.parkGroup.add(fbx);
-                    } catch(e) { console.error(`Error loading asset ${config.name}:`, e); }
+                    } catch (e) { console.error(`Error loading asset ${config.name}:`, e); }
                 }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
             });
 
             // タイヤ
             const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
-            for(let i=0; i<4; i++) {
-                const x = 5.5 + (i * 1.0); 
-                const tire = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.15, 12, 24), new THREE.MeshLambertMaterial({ color: tireColors[i%3] }));
-                tire.rotation.y = Math.PI / 2; tire.position.set(x, -0.15, -16); tire.castShadow=true; 
+            for (let i = 0; i < 4; i++) {
+                const x = 5.5 + (i * 1.0);
+                const tire = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.15, 12, 24), new THREE.MeshLambertMaterial({ color: tireColors[i % 3] }));
+                tire.rotation.y = Math.PI / 2; tire.position.set(x, -0.15, -16); tire.castShadow = true;
                 window.parkGroup.add(tire);
                 if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, -16, 1.2);
-                window.sgExtraObstacles.push({ minX: x-0.2, maxX: x+0.2, minZ: -16.5, maxZ: -15.5 });
+                window.sgExtraObstacles.push({ minX: x - 0.2, maxX: x + 0.2, minZ: -16.5, maxZ: -15.5 });
             }
 
             // 砂場
             const sandboxGroup = new THREE.Group();
-            sandboxGroup.position.set(10, 0, -23); sandboxGroup.scale.setScalar(2); 
+            sandboxGroup.position.set(10, 0, -23); sandboxGroup.scale.setScalar(2);
             const sbW = 4.0; const sbD = 4.0; const sbH = 0.25; const sbThick = 0.15;
             const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
             const sandMat = new THREE.MeshLambertMaterial({ color: 0xF4A460 });
-            const f1 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f1.position.set(0, sbH/2, -sbD/2+sbThick/2);
-            const f2 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f2.position.set(0, sbH/2, sbD/2-sbThick/2);
-            const f3 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD-sbThick*2), woodMat); f3.position.set(-sbW/2+sbThick/2, sbH/2, 0);
-            const f4 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD-sbThick*2), woodMat); f4.position.set(sbW/2-sbThick/2, sbH/2, 0);
-            [f1,f2,f3,f4].forEach(f => { f.castShadow=true; f.receiveShadow=true; sandboxGroup.add(f); });
-            const sand = new THREE.Mesh(new THREE.BoxGeometry(sbW-sbThick*2, 0.1, sbD-sbThick*2), sandMat);
-            sand.position.y = 0.05; sand.receiveShadow=true; sandboxGroup.add(sand);
+            const f1 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f1.position.set(0, sbH / 2, -sbD / 2 + sbThick / 2);
+            const f2 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f2.position.set(0, sbH / 2, sbD / 2 - sbThick / 2);
+            const f3 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f3.position.set(-sbW / 2 + sbThick / 2, sbH / 2, 0);
+            const f4 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f4.position.set(sbW / 2 - sbThick / 2, sbH / 2, 0);
+            [f1, f2, f3, f4].forEach(f => { f.castShadow = true; f.receiveShadow = true; sandboxGroup.add(f); });
+            const sand = new THREE.Mesh(new THREE.BoxGeometry(sbW - sbThick * 2, 0.1, sbD - sbThick * 2), sandMat);
+            sand.position.y = 0.05; sand.receiveShadow = true; sandboxGroup.add(sand);
             const mound = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 16), sandMat);
-            mound.position.set(0.5, 0.3, -0.5); mound.castShadow=true; mound.receiveShadow=true; sandboxGroup.add(mound);
+            mound.position.set(0.5, 0.3, -0.5); mound.castShadow = true; mound.receiveShadow = true; sandboxGroup.add(mound);
             window.parkGroup.add(sandboxGroup);
 
             // 雪だるま
-            const snowmanPositions = [ { x: 11, z: -14 }, { x: 11, z: -16 }, { x: 11, z: -18 } ];
+            const snowmanPositions = [{ x: 11, z: -14 }, { x: 11, z: -16 }, { x: 11, z: -18 }];
             const winnerIndex = Math.floor(Math.random() * snowmanPositions.length);
             const createSnowman = (config, isWinner) => {
                 const snowman = new THREE.Group();
                 snowman.position.set(config.x, 0, config.z); snowman.rotation.y = -Math.PI / 2;
                 snowman.userData.isWinner = isWinner; snowman.userData.hasPaid = false; snowman.userData.isDead = false;
                 const snowMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-                const body = new THREE.Mesh(new THREE.SphereGeometry(0.4), snowMat); body.position.y = 0.4; body.castShadow=true; snowman.add(body);
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.25), snowMat); head.position.y = 0.9; head.castShadow=true; snowman.add(head);
-                const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.25), new THREE.MeshLambertMaterial({ color: 0xFF4444 })); bucket.position.y = 1.15; bucket.rotation.x = -0.2; bucket.castShadow=true; snowman.add(bucket);
+                const body = new THREE.Mesh(new THREE.SphereGeometry(0.4), snowMat); body.position.y = 0.4; body.castShadow = true; snowman.add(body);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.25), snowMat); head.position.y = 0.9; head.castShadow = true; snowman.add(head);
+                const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.25), new THREE.MeshLambertMaterial({ color: 0xFF4444 })); bucket.position.y = 1.15; bucket.rotation.x = -0.2; bucket.castShadow = true; snowman.add(bucket);
                 window.parkGroup.add(snowman);
                 window.sgSnowmen.push(snowman);
                 if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(config.x, config.z, 1.0);
@@ -3931,7 +3932,7 @@ const SearchGame = (() => {
                 coin.userData.isCoin = true; coin.userData.collected = false;
                 scene.add(coin);
                 if (window.sgGameCoins) window.sgGameCoins.push(coin);
-                let velocity = new THREE.Vector3((Math.random()-0.5)*0.2, 0.3, (Math.random()-0.5)*0.2); let gravity = 0.015;
+                let velocity = new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.3, (Math.random() - 0.5) * 0.2); let gravity = 0.015;
                 const dropAnim = setInterval(() => { if (!coin.parent) { clearInterval(dropAnim); return; } coin.position.add(velocity); velocity.y -= gravity; if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); } }, 16);
             };
 
@@ -3972,67 +3973,67 @@ const SearchGame = (() => {
 
 
 
-// Hide spots in the park
-const hideSpots = [
-    { name: "滑り台の下", x: -8, y: 0, z: -5, rot: 45 },
-    { name: "ジャングルジムの上", x: 5, y: 5, z: -5, rot: -30 }, // Y=5 to sit on top of frame
-    { name: "ジャングルジムの横", x: 8, y: 0, z: -3, rot: 90 },
-    { name: "ベンチの裏", x: 10, y: 0, z: 9.5, rot: 180 },
-    { name: "大きな木の影", x: -10, y: 0, z: 5, rot: 'peek' }, // Special: face toward center
-    { name: "砂場の隅", x: 2, y: 0, z: 14, rot: 220 },
-    { name: "砂場の反対側", x: -2, y: 0, z: 10, rot: 140 },
-    { name: "噴水のふち", x: 2, y: 0, z: -10, rot: 135 },
-    { name: "噴水の反対側", x: -2, y: 0, z: -14, rot: 0 },
-    { name: "茂みの横", x: 13, y: 0, z: 2, rot: 270 },
-    { name: "入口付近", x: 0, y: 0, z: 20, rot: 180 },
-    { name: "公園の隅", x: -15, y: 0, z: -12, rot: 30 }
-];
+    // Hide spots in the park
+    const hideSpots = [
+        { name: "滑り台の下", x: -8, y: 0, z: -5, rot: 45 },
+        { name: "ジャングルジムの上", x: 5, y: 5, z: -5, rot: -30 }, // Y=5 to sit on top of frame
+        { name: "ジャングルジムの横", x: 8, y: 0, z: -3, rot: 90 },
+        { name: "ベンチの裏", x: 10, y: 0, z: 9.5, rot: 180 },
+        { name: "大きな木の影", x: -10, y: 0, z: 5, rot: 'peek' }, // Special: face toward center
+        { name: "砂場の隅", x: 2, y: 0, z: 14, rot: 220 },
+        { name: "砂場の反対側", x: -2, y: 0, z: 10, rot: 140 },
+        { name: "噴水のふち", x: 2, y: 0, z: -10, rot: 135 },
+        { name: "噴水の反対側", x: -2, y: 0, z: -14, rot: 0 },
+        { name: "茂みの横", x: 13, y: 0, z: 2, rot: 270 },
+        { name: "入口付近", x: 0, y: 0, z: 20, rot: 180 },
+        { name: "公園の隅", x: -15, y: 0, z: -12, rot: 30 }
+    ];
 
 
-async function spawnClonesSequential() {
-    models.forEach(m => { if (m.parent) m.parent.remove(m); });
-    models = [];
+    async function spawnClonesSequential() {
+        models.forEach(m => { if (m.parent) m.parent.remove(m); });
+        models = [];
 
-    const count = 10;
-    targetIndex = Math.floor(Math.random() * count);
+        const count = 10;
+        targetIndex = Math.floor(Math.random() * count);
 
-    // Shuffle hide spots and pick 10
-    const shuffledSpots = [...hideSpots].sort(() => Math.random() - 0.5);
-    const selectedSpots = shuffledSpots.slice(0, count);
+        // Shuffle hide spots and pick 10
+        const shuffledSpots = [...hideSpots].sort(() => Math.random() - 0.5);
+        const selectedSpots = shuffledSpots.slice(0, count);
 
-    // Create spots array
-    const spots = [];
-    for (let i = 0; i < count; i++) {
-        const isTarget = (i === targetIndex);
-        const hideSpot = selectedSpots[i];
+        // Create spots array
+        const spots = [];
+        for (let i = 0; i < count; i++) {
+            const isTarget = (i === targetIndex);
+            const hideSpot = selectedSpots[i];
 
-        const spotGroup = new THREE.Group();
-        // Add small random offset for natural look
-        spotGroup.position.set(
-            hideSpot.x + (Math.random() - 0.5) * 1.5,
-            hideSpot.y,
-            hideSpot.z + (Math.random() - 0.5) * 1.5
-        );
+            const spotGroup = new THREE.Group();
+            // Add small random offset for natural look
+            spotGroup.position.set(
+                hideSpot.x + (Math.random() - 0.5) * 1.5,
+                hideSpot.y,
+                hideSpot.z + (Math.random() - 0.5) * 1.5
+            );
 
-        // Handle rotation - 'peek' means face toward center, otherwise use defined rotation
-        if (hideSpot.rot === 'peek') {
-            // Calculate angle to face toward center (0,0)
-            const angleToCenter = Math.atan2(-hideSpot.z, -hideSpot.x) + Math.PI / 2;
-            spotGroup.rotation.y = angleToCenter + (Math.random() - 0.5) * 0.5;
-        } else {
-            spotGroup.rotation.y = (hideSpot.rot + (Math.random() - 0.5) * 30) * (Math.PI / 180);
+            // Handle rotation - 'peek' means face toward center, otherwise use defined rotation
+            if (hideSpot.rot === 'peek') {
+                // Calculate angle to face toward center (0,0)
+                const angleToCenter = Math.atan2(-hideSpot.z, -hideSpot.x) + Math.PI / 2;
+                spotGroup.rotation.y = angleToCenter + (Math.random() - 0.5) * 0.5;
+            } else {
+                spotGroup.rotation.y = (hideSpot.rot + (Math.random() - 0.5) * 30) * (Math.PI / 180);
+            }
+            spotGroup.userData.isTarget = isTarget;
+            spotGroup.userData.id = i;
+            spotGroup.userData.spotName = hideSpot.name;
+            scene.add(spotGroup);
+            models.push(spotGroup);
+
+            spots.push({ group: spotGroup, isTarget: isTarget, index: i, name: hideSpot.name });
         }
-        spotGroup.userData.isTarget = isTarget;
-        spotGroup.userData.id = i;
-        spotGroup.userData.spotName = hideSpot.name;
-        scene.add(spotGroup);
-        models.push(spotGroup);
 
-        spots.push({ group: spotGroup, isTarget: isTarget, index: i, name: hideSpot.name });
-        }
-
-    // Helper: small delay
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        // Helper: small delay
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         // Create voxel-style Potato-kun character (no FBX loading needed!)
         function createVoxelPotato(isTarget, spotIndex) {
