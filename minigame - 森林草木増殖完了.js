@@ -2351,15 +2351,8 @@ const SearchGame = (() => {
 
         // ★ ライトをグローバル変数に保持
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        // 位置は季節によって変わるため、ここでは初期化のみ
+        dirLight.position.set(20, 50, 20); // Default Summer position
         dirLight.castShadow = true;
-
-        // 修正: シャドウアクネ完全除去セット
-        // bias: 影全体のオフセット。小さすぎるとアクネ、大きすぎると「ピーターパン現象（影が浮く）」
-        dirLight.shadow.bias = -0.0001;
-        // normalBias: 法線方向に影をずらす。平面のアクネにはこれが一番効きます！
-        dirLight.shadow.normalBias = 0.05;
-
         // Shadow map settings
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
@@ -3975,55 +3968,7 @@ const SearchGame = (() => {
                     }
                 },
                 { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: -12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 }, // Old z: 12
-                {
-                    name: 'VendingMachine',
-                    path: 'models/vending_machine.fbx',
-                    pos: { x: -12, y: 0, z: -17 },
-                    rot: { y: 90 },
-                    scale: 1.0,
-                    collision: true,
-                    exclusionRadius: 2.0,
-                    // ★追加: パーツ名に応じた個別処理
-                    onLoad: (obj) => {
-                        obj.traverse(c => {
-                            if (c.isMesh) {
-                                // Blenderなどの名前は大文字小文字がブレるので小文字化して判定
-                                const name = c.name.toLowerCase();
-
-                                if (name.includes('body')) {
-                                    // 本体: 影を落とすし、受ける
-                                    c.castShadow = true;
-                                    c.receiveShadow = true;
-                                }
-                                else if (name.includes('light')) {
-                                    // ライト: 影を落とさない！光らせる！
-                                    c.castShadow = false;
-                                    c.receiveShadow = false;
-                                    if (c.material) {
-                                        c.material.emissive = new THREE.Color(0xFFFFFF);
-                                        c.material.emissiveIntensity = 0.5;
-                                    }
-                                }
-                                else if (name.includes('water')) {
-                                    // 水/窓: 透明にする！影は落とさない
-                                    c.castShadow = false;
-                                    c.receiveShadow = true; // 影は受けてもいい
-                                    if (c.material) {
-                                        c.material.transparent = true;
-                                        c.material.opacity = 0.5;
-                                        // 描画順序バグ防止
-                                        c.material.depthWrite = false;
-                                    }
-                                }
-                                else {
-                                    // その他（名前が一致しない場合）は標準設定
-                                    c.castShadow = true;
-                                    c.receiveShadow = true;
-                                }
-                            }
-                        });
-                    }
-                },
+                { name: 'VendingMachine', path: 'models/vending_test.fbx', pos: { x: -12, y: 0, z: -17 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 2.0 }, // Old z: 17
                 { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: -18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 }, // Old z: 18.6
                 {
                     name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: 14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, // Old z: -14
@@ -4130,35 +4075,8 @@ const SearchGame = (() => {
                         fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
                         if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
                         fbx.scale.setScalar(config.scale || 1.0);
-
-                        // ★徹底洗浄: マテリアルを標準状態にリセット
-                        fbx.traverse(c => {
-                            if (c.isMesh) {
-                                c.castShadow = true;
-                                c.receiveShadow = true;
-
-                                if (c.material) {
-                                    // 配列マテリアル対応
-                                    const materials = Array.isArray(c.material) ? c.material : [c.material];
-
-                                    materials.forEach(mat => {
-                                        // "Water" という名前が含まれる場合以外は、強制的に不透明に戻す
-                                        const isWater = mat.name.toLowerCase().includes('water') || c.name.toLowerCase().includes('water');
-
-                                        if (!isWater) {
-                                            mat.transparent = false;    // 半透明を無効化
-                                            mat.opacity = 1.0;          // 不透明度MAX
-                                            mat.alphaTest = 0;          // アルファテスト無効
-                                            mat.side = THREE.FrontSide; // 表面のみ描画 (裏面の影干渉を防ぐ)
-                                            mat.depthWrite = true;      // 深度バッファに書き込む
-                                            mat.needsUpdate = true;     // 更新フラグ
-                                        }
-                                    });
-                                }
-                            }
-                        });
-
-                        if (config.onLoad) config.onLoad(fbx); // 個別のonLoad処理（水などはここで上書きされるのでOK）
+                        fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                        if (config.onLoad) config.onLoad(fbx);
 
                         if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(fbx);
 
