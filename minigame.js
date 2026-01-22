@@ -2358,7 +2358,7 @@ const SearchGame = (() => {
         // bias: 影全体のオフセット。小さすぎるとアクネ、大きすぎると「ピーターパン現象（影が浮く）」
         dirLight.shadow.bias = -0.0001;
         // normalBias: 法線方向に影をずらす。平面のアクネにはこれが一番効きます！
-        dirLight.shadow.normalBias = 0.05;
+        dirLight.shadow.normalBias = 0.08;
 
         // Shadow map settings
         dirLight.shadow.mapSize.width = 2048;
@@ -4150,6 +4150,7 @@ const SearchGame = (() => {
                                             mat.opacity = 1.0;          // 不透明度MAX
                                             mat.alphaTest = 0;          // アルファテスト無効
                                             mat.side = THREE.FrontSide; // 表面のみ描画 (裏面の影干渉を防ぐ)
+                                            mat.shadowSide = THREE.BackSide; // ★追加: 影の計算には裏面を使用（アクネ防止の決定打）
                                             mat.depthWrite = true;      // 深度バッファに書き込む
                                             mat.needsUpdate = true;     // 更新フラグ
                                         }
