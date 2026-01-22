@@ -8,8 +8,8 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'winter', // 'spring', 'summer', 'autumn', 'winter'
-    debugMode: true          // ★true: ロード/OPを飛ばしていきなりゲーム開始
+    currentSeason: 'summer', // 'summer' に変更して夏仕様にする
+    debugMode: true          // デバッグモードは維持
 };
 
 const GameLibrary = {
@@ -2540,7 +2540,8 @@ const SearchGame = (() => {
         const moveState = { forward: false, backward: false, left: false, right: false };
 
         // Position bounds
-        const BOUNDS = { min: -28, max: 28 };
+        // 修正: 柵(32m)に合わせて、ギリギリまで行けるよう31mに設定
+        const BOUNDS = { min: -31, max: 31 };
         const PLAYER_HEIGHT = 0.6; // POTATO HEIGHT (60cm)
 
         // (Ketchup tracking REMOVED - now using Coin system via window.sgCoinData)
@@ -3161,7 +3162,8 @@ const SearchGame = (() => {
 
 
         // === PERIMETER FENCE (Voxel Style) ===
-        const FENCE_BOUNDARY = 30;
+        // 修正: 35mだと広すぎたため、並木(30m)が収まるギリギリの32mに設定
+        const FENCE_BOUNDARY = 32;
         const POST_SPACING = 4;
         const fencePostMaterial = new THREE.MeshLambertMaterial({ color: 0xDEB887 }); // Burlywood
         const fenceRailMaterial = new THREE.MeshLambertMaterial({ color: 0xF5DEB3 }); // Wheat
@@ -3509,10 +3511,10 @@ const SearchGame = (() => {
             // ★ 葉っぱ専用カラーパレット
             const TREE_PALETTES = {
                 spring: [
-                    0xFFB7C5, // 桜色 (Cherry Blossom)
-                    0xFF69B4, // ホットピンク (アクセント)
-                    0xFFC0CB, // ピンク
-                    0xFFF0F5  // 淡いピンク
+                    0xFF69B4, // HotPink (鮮やかなピンク)
+                    0xFF1493, // DeepPink (濃いアクセント)
+                    0xFF99CC, // Rich Pink (しっかりしたピンク)
+                    0xFFB6C1  // LightPink (少し明るいが白ではない)
                 ],
                 summer: [
                     0x66BB6A, // 鮮やかな緑
@@ -3725,19 +3727,25 @@ const SearchGame = (() => {
                 console.log(`${treePositions.length} trees placed.`);
 
                 // C. 外周の森 (Exterior)
+                // 修正: 開始半径を45mに設定（柵35mに対して10mの余裕を持たせる）
                 const NUM_EXTERIOR = 70;
                 for (let i = 0; i < NUM_EXTERIOR; i++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const radius = 35 + Math.random() * 35; // 35m - 70m radius
+
+                    // 半径45mからスタート
+                    const radius = 45 + Math.random() * 35; // 45m - 80m radius
+
                     const x = Math.cos(angle) * radius;
                     const z = Math.sin(angle) * radius;
+
                     const extTree = masterTree.clone();
                     extTree.userData.isTree = true;
                     extTree.name = `ExteriorTree_${i}`;
 
-                    // Larger Scale for exterior
+                    // 外周の木は少し大きめに
                     const scale = 1.2 + Math.random() * 0.8;
                     extTree.scale.setScalar(scale);
+
                     const box = new THREE.Box3().setFromObject(extTree);
                     const offsetY = -box.min.y;
                     extTree.position.set(x, offsetY, z);

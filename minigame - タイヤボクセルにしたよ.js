@@ -726,7 +726,6 @@ const SearchGame = (() => {
         function checkStaticRules(x, z) {
 
             const zone = getParkZone(x, z);
-            console.log(`x:${x.toFixed(1)} z:${z.toFixed(1)} => ${zone}`);
 
             // --- ParkState による制御 ---
             if (ParkState.vegetationMode === 'allOff') {
@@ -1649,9 +1648,9 @@ const SearchGame = (() => {
         // Old: 2. Inverted: -2.
         playerPosition.set(-11, 0.6, -2);
 
-       // Sync Camera Angle to look at Vending Machine (North/Negative Z)
-       cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
-       cameraPitch = 0;       // Level
+        // Sync Camera Angle to look at Vending Machine (North/Negative Z)
+        cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
+        cameraPitch = 0;       // Level
 
         // Apply immediately so render doesn't flicker
         camera.position.copy(playerPosition);
@@ -3568,7 +3567,7 @@ const SearchGame = (() => {
             // 並木設定 (Common Config)
             const AVENUE_OFFSET = 4.0;
             const AVENUE_START = 10.0;
-            const AVENUE_END = 26.0;
+            const AVENUE_END = 30.0;
             const AVENUE_STEP = 4.0;
 
             // ===================================
@@ -3592,6 +3591,10 @@ const SearchGame = (() => {
                 }
 
                 const addBench = (x, z, rotY) => {
+                    // ★【追加】遊具エリアの入口にするため、ここのベンチだけ置かない！
+                    // (X=4, Z=16 を遊具エリアの入り口にする)
+                    if (Math.abs(x - 4) < 0.1 && Math.abs(z - 16) < 0.1) return;
+
                     const bench = masterBench.clone();
                     bench.position.set(x, 0, z);
                     bench.rotation.y = rotY * (Math.PI / 180);
@@ -3601,16 +3604,6 @@ const SearchGame = (() => {
                         window.applyOutlineRules(bench);
                     }
 
-                    // 衝突判定
-                    if (window.sgExtraObstacles) {
-                        const isRotated = Math.abs(rotY) === 90 || Math.abs(rotY) === -90;
-                        const sizeX = isRotated ? 0.6 : 1.5;
-                        const sizeZ = isRotated ? 1.5 : 0.6;
-                        window.sgExtraObstacles.push({
-                            minX: x - sizeX / 2, maxX: x + sizeX / 2,
-                            minZ: z - sizeZ / 2, maxZ: z + sizeZ / 2
-                        });
-                    }
 
                     scene.add(bench);
                     if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5);
@@ -3897,7 +3890,66 @@ const SearchGame = (() => {
             const ASSET_CONFIG = [
                 { name: 'MainFountain', path: 'models/fountain.fbx', pos: { x: 0, y: 0, z: 0 }, scale: 3.0, rot: { y: 0 }, collision: false, exclusionRadius: 8.0, onLoad: (obj) => { obj.traverse(c => { if (c.name.includes('water')) { c.material.opacity = 0.6; c.castShadow = false; c.userData.skipOutline = true; } }); } },
                 { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: 23 }, rot: { y: 270 }, scale: 3.0, collision: false, exclusionRadius: 8.0 }, // Old z: -23
-                { name: 'Seesaw', path: 'models/seesaw.fbx', pos: { x: 20, y: 0.6, z: 10 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 3.0, onLoad: (obj) => { let plankPart = null; obj.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (c.name.toLowerCase().includes('plank')) plankPart = c; } }); obj.userData.movingPart = plankPart ? plankPart : obj; } }, // Old z: -10
+                {
+                    name: 'Seesaw',
+                    path: 'models/seesaw.fbx',
+                    pos: { x: 20, y: 0.6, z: 10 },
+                    rot: { y: 90 },
+                    scale: 1.0,
+                    collision: false,
+                    exclusionRadius: 3.0,
+                    onLoad: (obj) => {
+                        // --- ハードリセット修正 ---
+
+                        // 1. 座標系の確定
+                        obj.updateMatrixWorld(true);
+
+                        const movingParts = [];
+                        let plankPart = null; // 回転軸の基準にするパーツ
+
+                        // 2. パーツの選別（土台以外は全部動かす！）
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+
+                                // 土台(fulcrum)以外はすべてリストアップ
+                                if (!c.name.toLowerCase().includes('fulcrum')) {
+                                    movingParts.push(c);
+
+                                    // 丸太(plank)を見つけておく（これを回転の中心にするため）
+                                    if (c.name.toLowerCase().includes('plank')) {
+                                        plankPart = c;
+                                    }
+                                }
+                            }
+                        });
+
+                        if (movingParts.length > 0) {
+                            // 3. 回転軸(Pivot)の作成
+                            // 全体重心ではなく「丸太(plank)」の幾何学的中心をPivotにする
+                            // (plankが見つからない場合は、動くパーツの先頭を仮の基準にする)
+                            const target = plankPart || movingParts[0];
+                            const box = new THREE.Box3().setFromObject(target);
+                            const center = new THREE.Vector3();
+                            box.getCenter(center); // ここが真の回転軸
+
+                            // 4. ピボットグループの作成と配置
+                            const pivotGroup = new THREE.Group();
+                            pivotGroup.position.copy(center); // 丸太の中心に配置
+                            obj.add(pivotGroup); // 親(Seesaw Root)に追加
+
+                            // 5. 全パーツをPivotに吸着 (attachメソッド)
+                            // attachを使うと、見た目の位置を変えずに親子関係だけ移動できる
+                            movingParts.forEach(part => {
+                                pivotGroup.attach(part);
+                            });
+
+                            // アニメーション対象をこのグループに設定
+                            obj.userData.movingPart = pivotGroup;
+                        }
+                    }
+                },
                 { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: -12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 }, // Old z: 12
                 { name: 'VendingMachine', path: 'models/vending_test.fbx', pos: { x: -12, y: 0, z: -17 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 2.0 }, // Old z: 17
                 { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: -18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 }, // Old z: 18.6
@@ -3913,7 +3965,85 @@ const SearchGame = (() => {
                             window.sgExtraObstacles.push({ minX: obj.position.x - gap - thick, maxX: obj.position.x - gap, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 }, { minX: obj.position.x + gap, maxX: obj.position.x + gap + thick, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 });
                         } catch (e) { console.error("Error in Dokan onLoad:", e); }
                     }
-                }
+                },
+                {
+                    name: 'Tire',
+                    path: 'models/tire.fbx',
+                    pos: { x: 0, y: -10, z: 0 },
+                    rot: { y: 0 },
+                    scale: 1.0,
+                    collision: false,
+                    onLoad: (baseTire) => {
+                        console.log("🚙 Tire FBX Loaded. Configuring Layout...");
+
+                        // 1. 自動スケール調整 (Auto-Scale to 1.0m)
+                        baseTire.updateMatrixWorld(true);
+                        const box = new THREE.Box3().setFromObject(baseTire);
+                        const size = new THREE.Vector3();
+                        box.getSize(size);
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        const scaleFactor = 1.0 / (maxDim > 0 ? maxDim : 1.0);
+                        baseTire.scale.setScalar(scaleFactor);
+
+                        // テンプレートは隠す
+                        baseTire.visible = false;
+
+                        // 2. 配置座標の生成（合計8個：入口からの導線用）
+                        const tirePositions = [];
+
+                        // 左側（北側）の4つ: Z = 14.5
+                        for (let i = 0; i < 4; i++) {
+                            tirePositions.push({
+                                x: 5.5 + (i * 1.2),
+                                z: 14.5
+                            });
+                        }
+
+                        // 右側（南側）の4つ: Z = 17.5
+                        for (let i = 0; i < 4; i++) {
+                            tirePositions.push({
+                                x: 5.5 + (i * 1.2),
+                                z: 17.5
+                            });
+                        }
+
+                        // 3. カラーパレット (赤・青・黄)
+                        const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
+
+                        // 4. 生成ループ
+                        tirePositions.forEach((pos, index) => {
+                            const tire = baseTire.clone();
+                            tire.visible = true;
+
+                            // 配置 (原点中心なのでY=0で半分埋まる)
+                            tire.position.set(pos.x, 0, pos.z);
+
+                            // 色の適用 (順番にサイクル)
+                            const colorHex = tireColors[index % 3];
+
+                            tire.traverse(child => {
+                                if (child.isMesh) {
+                                    child.castShadow = true;
+                                    child.receiveShadow = true;
+
+                                    if (child.material) {
+                                        child.material = child.material.clone();
+                                        child.material.color.setHex(colorHex);
+                                        child.material.transparent = false;
+                                        child.material.opacity = 1.0;
+                                    }
+                                }
+                            });
+
+                            window.parkGroup.add(tire);
+
+                            // ★衝突判定 (ExclusionManager) は削除しました
+                            // これでタイヤの上を歩けます
+                        });
+
+                        console.log(`Placed ${tirePositions.length} tires (Walkable).`);
+                    }
+                },
             ];
 
             const loader = new FBXLoader();
@@ -3949,17 +4079,7 @@ const SearchGame = (() => {
                 }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
             });
 
-            // タイヤ
-            const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
-            for (let i = 0; i < 4; i++) {
-                const x = 5.5 + (i * 1.0);
-                const z = 16; // Old: -16. Inverted: 16
-                const tire = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.15, 12, 24), new THREE.MeshLambertMaterial({ color: tireColors[i % 3] }));
-                tire.rotation.y = Math.PI / 2; tire.position.set(x, -0.15, z); tire.castShadow = true;
-                window.parkGroup.add(tire);
-                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
-                window.sgExtraObstacles.push({ minX: x - 0.2, maxX: x + 0.2, minZ: z - 0.5, maxZ: z + 0.5 }); // Corrected range
-            }
+
 
             // 砂場
             const sandboxGroup = new THREE.Group();
@@ -4031,14 +4151,39 @@ const SearchGame = (() => {
                         }
                     });
                 }
+
+
+                // シーソーの制御
                 const seesaw = scene.getObjectByName('Seesaw');
+                // movingPart (さきほど作ったPivotGroup) が存在する場合のみ実行
                 if (seesaw && seesaw.userData.movingPart) {
-                    const dx = Math.abs(playerPosition.x - seesaw.position.x); const dz = Math.abs(playerPosition.z - seesaw.position.z);
+
+                    const dx = Math.abs(playerPosition.x - seesaw.position.x);
+                    const dz = Math.abs(playerPosition.z - seesaw.position.z);
+
                     let targetRot = 0;
-                    if (dz < 1.0 && dx < 2.5) { const relativeX = playerPosition.x - seesaw.position.x; let tilt = relativeX * 0.25; tilt = Math.max(-0.35, Math.min(0.35, tilt)); targetRot = tilt; }
-                    const plank = seesaw.userData.movingPart; plank.rotation.y += (targetRot - plank.rotation.y) * 0.1;
+
+                    // エリア判定: 南北(dz)に長く、東西(dx)に狭く
+                    if (dz < 2.5 && dx < 1.0) {
+                        const relativeZ = playerPosition.z - seesaw.position.z;
+
+                        // 傾き計算:
+                        // Z軸回転を採用。
+                        // ※もし傾く方向が逆（自分が乗った方が上がる）なら、ここの符号を反転させてください
+                        let tilt = relativeZ * 0.15;
+
+                        // 角度制限 (約20度)
+                        tilt = Math.max(-0.35, Math.min(0.35, tilt));
+                        targetRot = tilt;
+                    }
+
+                    const pivot = seesaw.userData.movingPart;
+
+                    // Z軸回転 (Pitch) で回す
+                    pivot.rotation.z += (targetRot - pivot.rotation.z) * 0.1;
                 }
             }, 30);
+
 
         } catch (error) { console.error("CRITICAL ERROR in createParkAssets:", error); }
     }
