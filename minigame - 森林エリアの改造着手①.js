@@ -3676,11 +3676,9 @@ const SearchGame = (() => {
                 }
 
                 // B. ランダム配置 (Forest)
-                // 修正: 制限解除 (リミッターカット) モード
-                const NUM_TREES = 160;
+                const NUM_TREES = 80;
                 let attempts = 0;
-                // 修正: 狭いエリアに160本入れるため、距離制限を極限まで縮める (5.0 -> 2.5)
-                const MIN_TREE_DISTANCE = 2.5;
+                const MIN_TREE_DISTANCE = 5.0;
 
                 function isTooClose(x, z) {
                     for (const placed of placedTrees) {
@@ -3691,29 +3689,22 @@ const SearchGame = (() => {
                     return false;
                 }
 
-                // 修正: 諦めずに試行させる (1000 -> 10000)
-                while (treePositions.length < NUM_TREES + 24 && attempts < 10000) {
+                while (treePositions.length < NUM_TREES + 24 && attempts < 1000) {
                     attempts++;
-
-                    // 修正: 生成範囲を50m(±25)から62m(±31)に拡大
-                    // これで柵(32m)の直前まで木が植えられるようになります
-                    const range = 62;
-                    const x = (Math.random() - 0.5) * range;
-                    const z = (Math.random() - 0.5) * range;
+                    const x = (Math.random() - 0.5) * 50;
+                    const z = (Math.random() - 0.5) * 50;
 
                     if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
 
-                    // ★修正: 確率スキップ(Math.random > 0.25)を削除！ 全力で植えさせる！
+                    // forest っぽさは全体で均一に
+                    if (Math.random() > 0.25) continue;
 
                     if (isTooClose(x, z)) continue;
 
                     treePositions.push({ x, z });
                     placedTrees.push({ x, z });
-                    // コリジョン用サークルも少し小さくして通り抜けやすくする
-                    if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
+                    if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.5);
                 }
-
-                console.log(`Forest Generation: ${attempts} attempts made.`);
 
                 treePositions.forEach((pos, index) => {
                     const tree = masterTree.clone();
@@ -4604,17 +4595,14 @@ const SearchGame = (() => {
             }
 
             // 草の配置数
-            // 修正: 200 -> 2000 に増量して地面をリッチにする
-            const grassCount = 2000;
+            const grassCount = 200;
 
             for (let i = 0; i < grassCount; i++) {
                 const grass = masterGrass.clone();
 
                 // ランダム配置
-                // 修正: 範囲を50m(±25) -> 62m(±31)に広げて柵ギリギリまで生やす
-                const range = 62;
-                const x = (Math.random() - 0.5) * range;
-                const z = (Math.random() - 0.5) * range;
+                const x = (Math.random() - 0.5) * 50;
+                const z = (Math.random() - 0.5) * 50;
 
                 // ★ ここに1行足すだけ
                 if (ExclusionManager.isBlocked(x, z)) {
