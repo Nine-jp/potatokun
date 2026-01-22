@@ -726,7 +726,6 @@ const SearchGame = (() => {
         function checkStaticRules(x, z) {
 
             const zone = getParkZone(x, z);
-            console.log(`x:${x.toFixed(1)} z:${z.toFixed(1)} => ${zone}`);
 
             // --- ParkState による制御 ---
             if (ParkState.vegetationMode === 'allOff') {
@@ -3966,7 +3965,85 @@ const SearchGame = (() => {
                             window.sgExtraObstacles.push({ minX: obj.position.x - gap - thick, maxX: obj.position.x - gap, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 }, { minX: obj.position.x + gap, maxX: obj.position.x + gap + thick, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 });
                         } catch (e) { console.error("Error in Dokan onLoad:", e); }
                     }
-                }
+                },
+                {
+                    name: 'Tire',
+                    path: 'models/tire.fbx',
+                    pos: { x: 0, y: -10, z: 0 },
+                    rot: { y: 0 },
+                    scale: 1.0,
+                    collision: false,
+                    onLoad: (baseTire) => {
+                        console.log("🚙 Tire FBX Loaded. Configuring Layout...");
+
+                        // 1. 自動スケール調整 (Auto-Scale to 1.0m)
+                        baseTire.updateMatrixWorld(true);
+                        const box = new THREE.Box3().setFromObject(baseTire);
+                        const size = new THREE.Vector3();
+                        box.getSize(size);
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        const scaleFactor = 1.0 / (maxDim > 0 ? maxDim : 1.0);
+                        baseTire.scale.setScalar(scaleFactor);
+
+                        // テンプレートは隠す
+                        baseTire.visible = false;
+
+                        // 2. 配置座標の生成（合計8個：入口からの導線用）
+                        const tirePositions = [];
+
+                        // 左側（北側）の4つ: Z = 14.5
+                        for (let i = 0; i < 4; i++) {
+                            tirePositions.push({
+                                x: 5.5 + (i * 1.2),
+                                z: 14.5
+                            });
+                        }
+
+                        // 右側（南側）の4つ: Z = 17.5
+                        for (let i = 0; i < 4; i++) {
+                            tirePositions.push({
+                                x: 5.5 + (i * 1.2),
+                                z: 17.5
+                            });
+                        }
+
+                        // 3. カラーパレット (赤・青・黄)
+                        const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
+
+                        // 4. 生成ループ
+                        tirePositions.forEach((pos, index) => {
+                            const tire = baseTire.clone();
+                            tire.visible = true;
+
+                            // 配置 (原点中心なのでY=0で半分埋まる)
+                            tire.position.set(pos.x, 0, pos.z);
+
+                            // 色の適用 (順番にサイクル)
+                            const colorHex = tireColors[index % 3];
+
+                            tire.traverse(child => {
+                                if (child.isMesh) {
+                                    child.castShadow = true;
+                                    child.receiveShadow = true;
+
+                                    if (child.material) {
+                                        child.material = child.material.clone();
+                                        child.material.color.setHex(colorHex);
+                                        child.material.transparent = false;
+                                        child.material.opacity = 1.0;
+                                    }
+                                }
+                            });
+
+                            window.parkGroup.add(tire);
+
+                            // ★衝突判定 (ExclusionManager) は削除しました
+                            // これでタイヤの上を歩けます
+                        });
+
+                        console.log(`Placed ${tirePositions.length} tires (Walkable).`);
+                    }
+                },
             ];
 
             const loader = new FBXLoader();
@@ -4002,45 +4079,7 @@ const SearchGame = (() => {
                 }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
             });
 
-            // タイヤ (合計8個：入口からの導線用)
-            // ★確実に左右に分けるため、個別に位置を指定します
-            const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
-            const tirePositions = [];
 
-            // 左側（北側）の4つ: Z = 14.5
-            for (let i = 0; i < 4; i++) {
-                tirePositions.push({
-                    x: 5.5 + (i * 1.2),
-                    z: 14.5,
-                    colorIndex: i
-                });
-            }
-
-            // 右側（南側）の4つ: Z = 17.5
-            for (let i = 0; i < 4; i++) {
-                tirePositions.push({
-                    x: 5.5 + (i * 1.2),
-                    z: 17.5,
-                    colorIndex: i + 1
-                });
-            }
-
-            // タイヤを生成して配置
-            tirePositions.forEach((pos) => {
-                const color = tireColors[pos.colorIndex % 3];
-                const tire = new THREE.Mesh(
-                    new THREE.TorusGeometry(0.45, 0.15, 12, 24),
-                    new THREE.MeshLambertMaterial({ color: color })
-                );
-
-                // 半分埋める配置
-                tire.rotation.y = Math.PI / 2;
-                tire.position.set(pos.x, -0.15, pos.z);
-                tire.castShadow = true;
-
-                window.parkGroup.add(tire);
-
-            });
 
             // 砂場
             const sandboxGroup = new THREE.Group();
