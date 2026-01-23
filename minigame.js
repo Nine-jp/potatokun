@@ -3070,6 +3070,9 @@ const SearchGame = (() => {
             object.traverse((child) => {
                 // プレイヤー（FPS視点カメラ）以外かつメッシュであれば適用
                 if (child.isMesh && child.userData.entityType !== 'player') {
+
+                    // ★追加: アウトライン無効フラグがあればスキップ
+                    if (child.userData.skipOutline) return;
                     // キャラ専用設定
                     let thresholdAngle = defaultThreshold;
                     if (child.userData.entityType === 'npc') {
@@ -3912,7 +3915,33 @@ const SearchGame = (() => {
 
             // ★修正: North = -Z Coordinate System (Inverted Z)
             const ASSET_CONFIG = [
-                { name: 'MainFountain', path: 'models/fountain.fbx', pos: { x: 0, y: 0, z: 0 }, scale: 3.0, rot: { y: 0 }, collision: false, exclusionRadius: 8.0, onLoad: (obj) => { obj.traverse(c => { if (c.name.includes('water')) { c.material.opacity = 0.6; c.castShadow = false; c.userData.skipOutline = true; } }); } },
+                {
+                    name: 'MainFountain',
+                    path: 'models/fountain.fbx',
+                    pos: { x: 0, y: 0, z: 0 },
+                    scale: 3.0,
+                    rot: { y: 0 },
+                    collision: false,
+                    exclusionRadius: 8.0,
+                    onLoad: (obj) => {
+                        obj.traverse(c => {
+                            // メッシュかつ名前に'water'が含まれる場合（大文字小文字無視）
+                            if (c.isMesh && c.name.toLowerCase().includes('water')) {
+                                // マテリアル配列対応
+                                const materials = Array.isArray(c.material) ? c.material : [c.material];
+                                materials.forEach(mat => {
+                                    mat.transparent = true;
+                                    mat.opacity = 0.5; // 半透明
+                                    mat.depthWrite = false; // 前後関係の描画崩れ防止
+                                });
+
+                                c.castShadow = false; // 影を落とさない（影なし）
+                                c.receiveShadow = true; // 影は受ける
+                                c.userData.skipOutline = true; // アウトラインなし
+                            }
+                        });
+                    }
+                },
                 { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: 23 }, rot: { y: 270 }, scale: 3.0, collision: false, exclusionRadius: 8.0 }, // Old z: -23
                 {
                     name: 'Seesaw',
@@ -4142,18 +4171,8 @@ const SearchGame = (() => {
                                     const materials = Array.isArray(c.material) ? c.material : [c.material];
 
                                     materials.forEach(mat => {
-                                        // "Water" という名前が含まれる場合以外は、強制的に不透明に戻す
-                                        const isWater = mat.name.toLowerCase().includes('water') || c.name.toLowerCase().includes('water');
-
-                                        if (!isWater) {
-                                            mat.transparent = false;    // 半透明を無効化
-                                            mat.opacity = 1.0;          // 不透明度MAX
-                                            mat.alphaTest = 0;          // アルファテスト無効
-                                            mat.side = THREE.FrontSide; // 表面のみ描画 (裏面の影干渉を防ぐ)
-                                            mat.shadowSide = THREE.BackSide; // ★追加: 影の計算には裏面を使用（アクネ防止の決定打）
-                                            mat.depthWrite = true;      // 深度バッファに書き込む
-                                            mat.needsUpdate = true;     // 更新フラグ
-                                        }
+                                        // ★アクネ対策（影計算のみ裏面で行う）は全モデルに適用
+                                        mat.shadowSide = THREE.BackSide;
                                     });
                                 }
                             }
