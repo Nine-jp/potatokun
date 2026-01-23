@@ -4225,29 +4225,41 @@ const SearchGame = (() => {
                 {
                     name: 'Barricade_NorthEast',
                     path: 'models/Barricade.fbx',
-                    pos: { x: 15, y: 0, z: -15 }, // 北東エリアの中心付近
-                    rot: { y: 0 },
+                    pos: { x: 0, y: 0, z: 0 },
                     scale: 1.0,
                     onLoad: (master) => {
-                        // バリケードをベンチの後ろにL字型に並べる
-                        const positions = [
-                            { x: 10, z: -10, r: 0 }, { x: 15, z: -10, r: 0 }, { x: 20, z: -10, r: 0 },
-                            { x: 10, z: -15, r: 90 }, { x: 10, z: -20, r: 90 }
-                        ];
-                        positions.forEach(p => {
-                            const b = master.clone();
-                            b.position.set(p.x, 0, p.z);
-                            b.rotation.y = p.r * (Math.PI / 180);
-                            window.parkGroup.add(b);
-                            if (window.applyOutlineRules) window.applyOutlineRules(b);
-                        });
-                        master.visible = false; // テンプレートは隠す
+                        // ベンチの背後（x=4, z=-4）に密着させる設定
+                        const startX = 6.0;  // ベンチからさらに後退
+                        const startZ = -6.0; // ベンチからさらに後退
+                        const count = 11;
+                        const spacing = 2.3; // 隙間を詰めた精密な間隔
 
-                        // 2. 立ち入り禁止の透明な壁（createParkAssets 内の適切な場所に追加）
-                        window.sgExtraObstacles.push({
-                            minX: 8, maxX: 32,  // 北東エリアを横方向にブロック
-                            minZ: -32, maxZ: -8 // 北東エリアを縦方向にブロック（Z座標はマイナス）
+                        for (let i = 0; i < count; i++) {
+                            // 角の重なりを防ぐため、i=0（角の地点）は生成をスキップ
+                            if (i === 0) continue;
+                            // 横列（南側の封鎖）
+                            const bX = master.clone();
+                            bX.position.set(startX + i * spacing, 0, startZ);
+                            window.parkGroup.add(bX);
+
+                            // 縦列（西側の封鎖）
+                            const bZ = master.clone();
+                            bZ.position.set(startX, 0, startZ - i * spacing);
+                            bZ.rotation.y = Math.PI / 2;
+                            window.parkGroup.add(bZ);
+                        }
+
+                        // 全バリケードにアウトライン適用
+                        window.parkGroup.traverse(c => {
+                            if (c.name === 'Barricade_NorthEast_Clone' || (c.parent && c.parent.name === 'Barricade_NorthEast')) {
+                                if (window.applyOutlineRules) window.applyOutlineRules(c);
+                            }
                         });
+                        master.visible = false;
+
+                        // 2. 物理封鎖の設定（createParkAssets 内）
+                        // 物理封鎖
+                        window.sgExtraObstacles.push({ minX: 5.8, maxX: 32, minZ: -32, maxZ: -5.8 });
                     }
                 },
                 {
@@ -4340,7 +4352,7 @@ const SearchGame = (() => {
                     try {
                         fbx.name = config.name;
                         fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
-                        if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
+                        if (config.rot && config.rot.y !== undefined) fbx.rotation.y = config.rot.y * (Math.PI / 180);
                         fbx.scale.setScalar(config.scale || 1.0);
 
                         // ★徹底洗浄: マテリアルを標準状態にリセット
