@@ -637,7 +637,31 @@ const PotatoAction = (() => {
             if (items[i].type === 'skull') { items[i].el.remove(); items.splice(i, 1); }
         }
     }
-    function spawnSparkles(x, y) { spawnParticles(x, y, ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'], 'pa-particle'); }
+    function spawnSparkles(x, y, z) {
+        if (typeof spawnSparkles === 'function' && arguments.length === 2) {
+            // Backward compatibility for 2D UI calls
+            spawnParticles(x, y, ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'], 'pa-particle');
+            return;
+        }
+        // 3D/World calls (via window.spawnSparkles override)
+        // Note: The original spawnSparkles was UI based (x,y). 
+        // The user request defines window.spawnSparkles = (x,y,z) => ...
+        // We will perform the override via global assignment as requested by the user prompt structure style,
+        // or directly modify here if this is the only definition.
+
+        // HOWEVER, the user specifically asked to "Update spawnSparkles function (around line 2090? - actually 640 here)"
+        // AND requested: window.spawnSparkles = (x, y, z) => { ... }
+
+        // Let's stick to the user's specific block implementation for the global scope to handle the 3D logic,
+        // but here we are in the potatoAction module scope.
+        // The user's request #1 says "spawnSparkles function extension" but the code example shows `window.spawnSparkles = ...`
+
+        // Let's implement the user's requested logic by exposing it or modifying the loop.
+        // Actually, looking at the user request, they want me to simple ADD the logic to the loop and update the function.
+        // The function at 640 is inside PotatoAction.
+
+        spawnParticles(x, y, ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'], 'pa-particle');
+    }
     function spawnHearts(x, y) { spawnParticles(x, y, ['#FF1493', '#FF69B4', '#FFB6C1'], 'pa-heart', '💕'); }
     function spawnParticles(x, y, colors, className, text = null) {
         const count = text ? 12 : 10;
@@ -3914,6 +3938,85 @@ const SearchGame = (() => {
             };
 
             // ★修正: North = -Z Coordinate System (Inverted Z)
+
+            // ★ 3Dパーティクルシステム (window.spawnSparkles用)
+            window.spawnParticles = (x, y, z, colors, className) => {
+                if (!scene) return;
+                const count = 5;
+                for (let i = 0; i < count; i++) {
+                    const colorStr = colors[Math.floor(Math.random() * colors.length)];
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 16; canvas.height = 16;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = colorStr;
+                    ctx.beginPath(); ctx.arc(8, 8, 8, 0, Math.PI * 2); ctx.fill();
+
+                    const tex = new THREE.CanvasTexture(canvas);
+                    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+                    const sprite = new THREE.Sprite(mat);
+                    sprite.position.set(x, y, z);
+                    sprite.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5));
+                    sprite.scale.set(0.1, 0.1, 0.1);
+
+                    scene.add(sprite);
+
+                    let frame = 0;
+                    const anim = () => {
+                        frame++;
+                        sprite.position.y += 0.02;
+                        sprite.material.opacity -= 0.02;
+                        if (sprite.material.opacity <= 0) {
+                            scene.remove(sprite);
+                            mat.dispose(); tex.dispose();
+                        } else {
+                            requestAnimationFrame(anim);
+                        }
+                    };
+                    anim();
+                }
+            };
+
+            // 1. spawnSparkles の修正（キラキラ仕様）
+            // 1. spawnSparkles の修正（キラキラ仕様）
+            window.spawnSparkles = (x, y, z) => {
+                if (typeof spawnParticles === 'function') {
+                    // 白と金の小さな粒、かつ少しだけ上に浮く設定
+                    spawnParticles(x, y, z, ['#FFFFFF', '#FFD700'], 'pa-particle');
+                }
+            };
+
+            // 1. 専用関数の追加（重力と余韻を実装）
+            window.spawnFountainSparkles = (x, y, z) => {
+                const count = 3; // 一回に出す数は控えめに
+                for (let i = 0; i < count; i++) {
+                    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                        color: Math.random() > 0.5 ? 0xFFFFFF : 0xFFD700,
+                        transparent: true, opacity: 0.8
+                    }));
+                    sprite.position.set(x + (Math.random() - 0.5) * 0.1, y, z + (Math.random() - 0.5) * 0.1);
+                    sprite.scale.setScalar(0.04);
+                    scene.add(sprite);
+
+                    // 動力計算
+                    let velY = 0.02 + Math.random() * 0.02; // 上方向への微弱な初速
+                    let velX = (Math.random() - 0.5) * 0.01;
+                    let velZ = (Math.random() - 0.5) * 0.01;
+                    let life = 1.0;
+
+                    const anim = () => {
+                        life -= 0.02; // 寿命
+                        if (life <= 0) { scene.remove(sprite); return; }
+                        sprite.position.x += velX;
+                        sprite.position.y += velY;
+                        sprite.position.z += velZ;
+                        velY -= 0.002; // ★重力：徐々に下に落ちる
+                        sprite.material.opacity = life;
+                        requestAnimationFrame(anim);
+                    };
+                    anim();
+                }
+            };
+
             const ASSET_CONFIG = [
                 {
                     name: 'MainFountain',
@@ -4349,6 +4452,16 @@ const SearchGame = (() => {
                     const dist = playerPosition.distanceTo(elephant.position);
                     const isOpen = dist < 2.5;
                     elephant.userData.streams.forEach(s => { s.visible = isOpen; });
+
+                    if (isOpen) {
+                        // A. 鼻先の水面 (ピンポイント)
+                        const nPos = new THREE.Vector3(0, 0, 1.45).applyQuaternion(elephant.quaternion).add(elephant.position);
+                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z);
+
+                        // B. 背中の蛇口 (ピンポイント)
+                        const bPos = new THREE.Vector3(0, 1.25, -0.4).applyQuaternion(elephant.quaternion).add(elephant.position);
+                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z);
+                    }
                 }
             }, 30);
 
