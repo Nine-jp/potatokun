@@ -4013,40 +4013,35 @@ const SearchGame = (() => {
                     collisionType: 'cylinder',
                     exclusionRadius: 2.0,
                     onLoad: (obj) => {
-                        // 1. スケールの自動正規化（目標の高さ1.5mに合わせる）
+                        // 自動スケール・接地ロジックは維持
                         const box = new THREE.Box3().setFromObject(obj);
                         const size = new THREE.Vector3();
                         box.getSize(size);
                         const scaleFactor = 1.5 / (size.y > 0 ? size.y : 1.0);
                         obj.scale.setScalar(scaleFactor);
-
-                        // 2. 接地調整（モデルの底面をY=0に合わせる）
                         const scaledBox = new THREE.Box3().setFromObject(obj);
                         obj.position.y -= scaledBox.min.y;
 
-                        // 3. 基本マテリアル設定
+                        obj.userData.streams = [];
                         obj.traverse(c => {
                             if (c.isMesh) {
                                 c.castShadow = true;
                                 c.receiveShadow = true;
-
-                                // 水パーツ（名前判定）の基本透過処理
                                 const name = c.name.toLowerCase();
                                 if (name.includes('water')) {
-                                    if (c.material) {
-                                        c.material = c.material.clone();
-                                        c.material.transparent = true;
-                                        c.material.opacity = 0.6;
-                                        c.material.depthWrite = false;
-                                        c.material.side = THREE.DoubleSide;
-                                    }
+                                    c.material = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
+                                    c.material.transparent = true;
+                                    c.material.opacity = 0.6;
+                                    c.material.depthWrite = false;
                                     c.castShadow = false;
                                     c.userData.skipOutline = true;
+                                    if (name.includes('stream')) {
+                                        c.visible = false;
+                                        obj.userData.streams.push(c);
+                                    }
                                 }
                             }
                         });
-
-                        // 4. アウトライン適用
                         if (window.applyOutlineRules) window.applyOutlineRules(obj);
                     }
                 },
@@ -4346,6 +4341,14 @@ const SearchGame = (() => {
 
                     // Z軸回転 (Pitch) で回す
                     pivot.rotation.z += (targetRot - pivot.rotation.z) * 0.1;
+                }
+
+                // 象の噴水の水流制御
+                const elephant = scene.getObjectByName('ElephantFountain');
+                if (elephant && elephant.userData.streams) {
+                    const dist = playerPosition.distanceTo(elephant.position);
+                    const isOpen = dist < 2.5;
+                    elephant.userData.streams.forEach(s => { s.visible = isOpen; });
                 }
             }, 30);
 
