@@ -4003,7 +4003,53 @@ const SearchGame = (() => {
                         }
                     }
                 },
-                { name: 'ElephantFountain', path: 'models/elephant_fountain.fbx', pos: { x: -15, y: 0, z: -12 }, rot: { y: 45 }, scale: 0.9, collision: true, collisionType: 'cylinder', exclusionRadius: 2.0 }, // Old z: 12
+                {
+                    name: 'ElephantFountain',
+                    path: 'models/ElephantFountain.fbx',
+                    pos: { x: -15, y: 0, z: -12 },
+                    rot: { y: 45 },
+                    scale: 1.0,
+                    collision: true,
+                    collisionType: 'cylinder',
+                    exclusionRadius: 2.0,
+                    onLoad: (obj) => {
+                        // 1. スケールの自動正規化（目標の高さ1.5mに合わせる）
+                        const box = new THREE.Box3().setFromObject(obj);
+                        const size = new THREE.Vector3();
+                        box.getSize(size);
+                        const scaleFactor = 1.5 / (size.y > 0 ? size.y : 1.0);
+                        obj.scale.setScalar(scaleFactor);
+
+                        // 2. 接地調整（モデルの底面をY=0に合わせる）
+                        const scaledBox = new THREE.Box3().setFromObject(obj);
+                        obj.position.y -= scaledBox.min.y;
+
+                        // 3. 基本マテリアル設定
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+
+                                // 水パーツ（名前判定）の基本透過処理
+                                const name = c.name.toLowerCase();
+                                if (name.includes('water')) {
+                                    if (c.material) {
+                                        c.material = c.material.clone();
+                                        c.material.transparent = true;
+                                        c.material.opacity = 0.6;
+                                        c.material.depthWrite = false;
+                                        c.material.side = THREE.DoubleSide;
+                                    }
+                                    c.castShadow = false;
+                                    c.userData.skipOutline = true;
+                                }
+                            }
+                        });
+
+                        // 4. アウトライン適用
+                        if (window.applyOutlineRules) window.applyOutlineRules(obj);
+                    }
+                },
                 {
                     name: 'VendingMachine',
                     path: 'models/vending_machine.fbx',
