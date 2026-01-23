@@ -3985,13 +3985,21 @@ const SearchGame = (() => {
                 }
             };
 
-            // 1. 専用関数の追加（重力と余韻を実装）
-            window.spawnFountainSparkles = (x, y, z) => {
-                const count = 3; // 一回に出す数は控えめに
+            // 1. カラーパレットの変更
+            window.spawnFountainSparkles = (x, y, z, isWaterColor = true) => {
+                const count = 3;
+                const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7]; // 白・水色・薄い水色
+                const goldPalette = [0xFFFFFF, 0x87CEFA, 0xFFFF85]; // 白・水色・薄い黄色
+
                 for (let i = 0; i < count; i++) {
+                    const color = isWaterColor
+                        ? waterPalette[Math.floor(Math.random() * waterPalette.length)]
+                        : goldPalette[Math.floor(Math.random() * goldPalette.length)];
+
                     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-                        color: Math.random() > 0.5 ? 0xFFFFFF : 0xFFD700,
-                        transparent: true, opacity: 0.8
+                        color: color,
+                        transparent: true,
+                        opacity: 0.05
                     }));
                     sprite.position.set(x + (Math.random() - 0.5) * 0.1, y, z + (Math.random() - 0.5) * 0.1);
                     sprite.scale.setScalar(0.04);
@@ -4454,13 +4462,13 @@ const SearchGame = (() => {
                     elephant.userData.streams.forEach(s => { s.visible = isOpen; });
 
                     if (isOpen) {
-                        // A. 鼻先の水面 (ピンポイント)
-                        const nPos = new THREE.Vector3(0, 0, 1.45).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z);
+                        // A. 鼻先の水面 (完璧な設定として維持)
+                        const nPos = new THREE.Vector3(0, 0, 1.7).applyQuaternion(elephant.quaternion).add(elephant.position);
+                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z, true); // 鼻先：白・水色・青
 
-                        // B. 背中の蛇口 (ピンポイント)
-                        const bPos = new THREE.Vector3(0, 1.25, -0.4).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z);
+                        // B. 背中の蛇口 (0.45から半分戻して0.0に調整)
+                        const bPos = new THREE.Vector3(0, 1.45, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
+                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z, false); // 背中：一旦現状維持
                     }
                 }
             }, 30);
