@@ -3986,11 +3986,10 @@ const SearchGame = (() => {
             };
 
             // 1. カラーパレットの変更
-            // 1. 関数の書き換え（透明度・速度・寿命を最適化）
-            window.spawnFountainSparkles = (x, y, z, isWaterColor = true, isBack = false) => {
-                const count = isBack ? 2 : 3; // 背中は数を絞って負荷軽減
-                const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
-                const goldPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
+            window.spawnFountainSparkles = (x, y, z, isWaterColor = true) => {
+                const count = 3;
+                const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7]; // 白・水色・薄い水色
+                const goldPalette = [0xFFFFFF, 0x87CEFA, 0xFFFF85]; // 白・水色・薄い黄色
 
                 for (let i = 0; i < count; i++) {
                     const color = isWaterColor
@@ -3998,29 +3997,27 @@ const SearchGame = (() => {
                         : goldPalette[Math.floor(Math.random() * goldPalette.length)];
 
                     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-                        color: color, transparent: true, opacity: 0.6, depthWrite: false
+                        color: color,
+                        transparent: true,
+                        opacity: 0.05
                     }));
-
                     sprite.position.set(x + (Math.random() - 0.5) * 0.1, y, z + (Math.random() - 0.5) * 0.1);
-                    sprite.scale.setScalar(isBack ? 0.03 : 0.04);
+                    sprite.scale.setScalar(0.04);
                     scene.add(sprite);
 
-                    // 動力：背中のスピードを半分にデチューン
-                    let velY = isBack ? (0.01 + Math.random() * 0.01) : (0.02 + Math.random() * 0.02);
-                    let velX = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
-                    let velZ = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
+                    // 動力計算
+                    let velY = 0.02 + Math.random() * 0.02; // 上方向への微弱な初速
+                    let velX = (Math.random() - 0.5) * 0.01;
+                    let velZ = (Math.random() - 0.5) * 0.01;
                     let life = 1.0;
 
                     const anim = () => {
-                        life -= 0.03; // ★寿命は 0.02 で固定
+                        life -= 0.02; // 寿命
                         if (life <= 0) { scene.remove(sprite); return; }
                         sprite.position.x += velX;
                         sprite.position.y += velY;
                         sprite.position.z += velZ;
-
-                        // ★重力も 0.001 にしてスローに落とす
-                        velY -= isBack ? 0.0003 : 0.002;
-
+                        velY -= 0.002; // ★重力：徐々に下に落ちる
                         sprite.material.opacity = life;
                         requestAnimationFrame(anim);
                     };
@@ -4220,34 +4217,6 @@ const SearchGame = (() => {
                             const gap = 0.55; const thick = 0.1;
                             window.sgExtraObstacles.push({ minX: obj.position.x - gap - thick, maxX: obj.position.x - gap, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 }, { minX: obj.position.x + gap, maxX: obj.position.x + gap + thick, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 });
                         } catch (e) { console.error("Error in Dokan onLoad:", e); }
-                    }
-                },
-                {
-                    name: 'Barricade_NorthEast',
-                    path: 'models/Barricade.fbx',
-                    pos: { x: 15, y: 0, z: -15 }, // 北東エリアの中心付近
-                    rot: { y: 0 },
-                    scale: 1.0,
-                    onLoad: (master) => {
-                        // バリケードをベンチの後ろにL字型に並べる
-                        const positions = [
-                            { x: 10, z: -10, r: 0 }, { x: 15, z: -10, r: 0 }, { x: 20, z: -10, r: 0 },
-                            { x: 10, z: -15, r: 90 }, { x: 10, z: -20, r: 90 }
-                        ];
-                        positions.forEach(p => {
-                            const b = master.clone();
-                            b.position.set(p.x, 0, p.z);
-                            b.rotation.y = p.r * (Math.PI / 180);
-                            window.parkGroup.add(b);
-                            if (window.applyOutlineRules) window.applyOutlineRules(b);
-                        });
-                        master.visible = false; // テンプレートは隠す
-
-                        // 2. 立ち入り禁止の透明な壁（createParkAssets 内の適切な場所に追加）
-                        window.sgExtraObstacles.push({
-                            minX: 8, maxX: 32,  // 北東エリアを横方向にブロック
-                            minZ: -32, maxZ: -8 // 北東エリアを縦方向にブロック（Z座標はマイナス）
-                        });
                     }
                 },
                 {
@@ -4493,13 +4462,13 @@ const SearchGame = (() => {
                     elephant.userData.streams.forEach(s => { s.visible = isOpen; });
 
                     if (isOpen) {
-                        // 鼻先 (不変)
+                        // A. 鼻先の水面 (完璧な設定として維持)
                         const nPos = new THREE.Vector3(0, 0, 1.7).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z, true, false);
+                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z, true); // 鼻先：白・水色・青
 
-                        // 背中 (高さを 1.30 に下げ、第5引数を true に設定)
-                        const bPos = new THREE.Vector3(0, 1.15, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z, false, true);
+                        // B. 背中の蛇口 (0.45から半分戻して0.0に調整)
+                        const bPos = new THREE.Vector3(0, 1.45, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
+                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z, false); // 背中：一旦現状維持
                     }
                 }
             }, 30);

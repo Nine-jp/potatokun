@@ -3990,7 +3990,7 @@ const SearchGame = (() => {
             window.spawnFountainSparkles = (x, y, z, isWaterColor = true, isBack = false) => {
                 const count = isBack ? 2 : 3; // 背中は数を絞って負荷軽減
                 const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
-                const goldPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
+                const goldPalette = [0xFFFFFF, 0xFFD700];
 
                 for (let i = 0; i < count; i++) {
                     const color = isWaterColor
@@ -4012,7 +4012,7 @@ const SearchGame = (() => {
                     let life = 1.0;
 
                     const anim = () => {
-                        life -= 0.03; // ★寿命は 0.02 で固定
+                        life -= 0.02; // ★寿命は 0.02 で固定
                         if (life <= 0) { scene.remove(sprite); return; }
                         sprite.position.x += velX;
                         sprite.position.y += velY;
@@ -4220,34 +4220,6 @@ const SearchGame = (() => {
                             const gap = 0.55; const thick = 0.1;
                             window.sgExtraObstacles.push({ minX: obj.position.x - gap - thick, maxX: obj.position.x - gap, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 }, { minX: obj.position.x + gap, maxX: obj.position.x + gap + thick, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 });
                         } catch (e) { console.error("Error in Dokan onLoad:", e); }
-                    }
-                },
-                {
-                    name: 'Barricade_NorthEast',
-                    path: 'models/Barricade.fbx',
-                    pos: { x: 15, y: 0, z: -15 }, // 北東エリアの中心付近
-                    rot: { y: 0 },
-                    scale: 1.0,
-                    onLoad: (master) => {
-                        // バリケードをベンチの後ろにL字型に並べる
-                        const positions = [
-                            { x: 10, z: -10, r: 0 }, { x: 15, z: -10, r: 0 }, { x: 20, z: -10, r: 0 },
-                            { x: 10, z: -15, r: 90 }, { x: 10, z: -20, r: 90 }
-                        ];
-                        positions.forEach(p => {
-                            const b = master.clone();
-                            b.position.set(p.x, 0, p.z);
-                            b.rotation.y = p.r * (Math.PI / 180);
-                            window.parkGroup.add(b);
-                            if (window.applyOutlineRules) window.applyOutlineRules(b);
-                        });
-                        master.visible = false; // テンプレートは隠す
-
-                        // 2. 立ち入り禁止の透明な壁（createParkAssets 内の適切な場所に追加）
-                        window.sgExtraObstacles.push({
-                            minX: 8, maxX: 32,  // 北東エリアを横方向にブロック
-                            minZ: -32, maxZ: -8 // 北東エリアを縦方向にブロック（Z座標はマイナス）
-                        });
                     }
                 },
                 {
@@ -4497,8 +4469,8 @@ const SearchGame = (() => {
                         const nPos = new THREE.Vector3(0, 0, 1.7).applyQuaternion(elephant.quaternion).add(elephant.position);
                         window.spawnFountainSparkles(nPos.x, 0.1, nPos.z, true, false);
 
-                        // 背中 (高さを 1.30 に下げ、第5引数を true に設定)
-                        const bPos = new THREE.Vector3(0, 1.15, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
+                        // 背中 (isBack = true で花火モード)
+                        const bPos = new THREE.Vector3(0, 1.45, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
                         window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z, false, true);
                     }
                 }
