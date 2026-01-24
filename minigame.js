@@ -2869,24 +2869,24 @@ const SearchGame = (() => {
                 }
             }
 
-            // === FBX TREE TRUNK COLLISION (circular) ===
+            // === FBX TREE TRUNK COLLISION (通常の木 - 特別ツリーは除外) ===
             if (window.sgTreeCollisions) {
                 for (const tree of window.sgTreeCollisions) {
+                    // ★修正: コイン持ち（特別ツリー）なら、ここでは計算しない！
+                    if (tree.hasCoin) continue;
+
                     const dxNew = newX - tree.x;
                     const dzNew = newZ - tree.z;
                     const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
                     const collisionRadius = tree.radius + COLLISION_MARGIN;
 
                     if (distNew < collisionRadius) {
-                        // Check which axis to block
                         const dxCurrent = playerPosition.x - tree.x;
                         const dzCurrent = playerPosition.z - tree.z;
 
-                        // Block X if moving closer on X axis
                         if (Math.abs(dxNew) < Math.abs(dxCurrent)) {
                             blockedX = true;
                         }
-                        // Block Z if moving closer on Z axis
                         if (Math.abs(dzNew) < Math.abs(dzCurrent)) {
                             blockedZ = true;
                         }
@@ -2894,23 +2894,20 @@ const SearchGame = (() => {
                 }
             }
 
-            // === SPECIAL BARRIER FOR COIN TREE (Radius 2.4m) ===
-            if (window.testTree && window.testTree.userData.hasCoin) {
-                const tree = window.testTree;
-                // FBXモデルなので .position でアクセス
-                const dxNew = newX - tree.position.x;
-                const dzNew = newZ - tree.position.z;
-                const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
-                const barrierRadius = 1.6; // 壁の位置（イベント判定2.5mより少し内側）
+            // === SPECIAL BARRIER FOR COIN TREE (1.6m壁) ===
+            if (window.testTreeCollision && window.testTreeCollision.hasCoin) {
+                const tree = window.testTreeCollision;
+                const nextX = playerPosition.x + direction.x;
+                const nextZ = playerPosition.z + direction.z;
+                const dist = Math.sqrt(Math.pow(nextX - tree.x, 2) + Math.pow(nextZ - tree.z, 2));
 
-                if (distNew < barrierRadius) {
-                    // 現在位置との比較
-                    const dxCurrent = playerPosition.x - tree.position.x;
-                    const dzCurrent = playerPosition.z - tree.position.z;
-
-                    // 近づく方向の移動のみブロック（離れるのは許可）
-                    if (Math.abs(dxNew) < Math.abs(dxCurrent)) blockedX = true;
-                    if (Math.abs(dzNew) < Math.abs(dzCurrent)) blockedZ = true;
+                const barrierRadius = 1.6; // 黄金比
+                if (dist < barrierRadius) {
+                    const dx = nextX - tree.x;
+                    const dz = nextZ - tree.z;
+                    const pushOut = barrierRadius - dist;
+                    direction.x += (dx / dist) * pushOut;
+                    direction.z += (dz / dist) * pushOut;
                 }
             }
 
@@ -3822,72 +3819,47 @@ const SearchGame = (() => {
                 console.log(`${treePositions.length} trees placed.`);
 
                 // =================================================
-                // ★★★ 隠しコイン生成（確定発光・柱なし版） ★★★
+                // ★★★ 隠しコイン生成（独立管理版） ★★★
                 // =================================================
+                if (!window.sgActiveCoins) window.sgActiveCoins = []; // グローバルリスト初期化
 
-                // ★修正: 北西(z < -10)は建設予定地で木がないため、
-                // 確実に木が生えている「南西エリア (x < -10, z > 10)」をターゲットにする
-                // ※世界観: ポテトくん(NPC)ではなく、プレイヤー(観測者)が見つけるためのギミック
                 let forestTrees = window.sgTreeObjects.filter(t => t.position.x < -10 && t.position.z > 10);
-
-                // セーフティ: 万が一エリア内に木がなければ、公園全体の木から選ぶ
-                if (forestTrees.length === 0) {
-                    console.warn("⚠️ Target forest area empty! Picking a random tree from park.");
-                    forestTrees = window.sgTreeObjects;
-                }
-
+                if (forestTrees.length === 0) forestTrees = window.sgTreeObjects;
                 if (forestTrees.length > 0) {
-                    // ランダムに1本選ぶ
                     const targetTree = forestTrees[Math.floor(Math.random() * forestTrees.length)];
+                    window.testTree = targetTree; // 物理判定用に登録
 
-                    console.log(`🎯 TARGET LOCKED: Tree at (${targetTree.position.x.toFixed(1)}, ${targetTree.position.z.toFixed(1)})`);
-
-                    // コインをロードして配置
-                    const coinLoader = new FBXLoader();
-                    coinLoader.load('models/coin.fbx', (object) => {
-                        const hiddenCoin = object;
-
-                        // サイズ調整
-                        const box = new THREE.Box3().setFromObject(hiddenCoin);
+                    const loader = new FBXLoader();
+                    loader.load('models/coin.fbx', (object) => {
+                        const coin = object;
+                        const box = new THREE.Box3().setFromObject(coin);
                         const size = new THREE.Vector3();
                         box.getSize(size);
-                        const maxDim = Math.max(size.x, size.y, size.z);
-                        hiddenCoin.scale.setScalar(0.5 / (maxDim || 1));
+                        coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
 
-                        // 位置設定（葉っぱの中、高さ3.5m）
-                        hiddenCoin.position.set(0, 3.5, 0);
-                        hiddenCoin.rotation.set(0, 0, 0);
+                        coin.position.set(0, 2.2, 0); // 検証済みの高さ
+                        coin.traverse(c => { if (c.isMesh) c.material = new THREE.MeshBasicMaterial({ color: 0xFF0000, toneMapped: false }); });
+                        coin.add(new THREE.PointLight(0xFF0000, 50, 20));
 
-                        // ★マテリアル修正: 自己発光する赤色に変更
-                        hiddenCoin.traverse((child) => {
-                            if (child.isMesh) {
-                                child.castShadow = false;
-                                child.receiveShadow = false;
-                                child.material = new THREE.MeshBasicMaterial({
-                                    color: 0xFF0000, // 真っ赤
-                                    toneMapped: false // 色調補正を無視して鮮やかに
-                                });
-                            }
-                        });
-
-                        // ★光源追加: 周囲の葉っぱを赤く照らす（強度アップ）
-                        const pLight = new THREE.PointLight(0xFF0000, 50, 20); // 強度50, 距離20m
-                        hiddenCoin.add(pLight);
-
-                        // 属性設定
-                        hiddenCoin.userData.isCoin = true;
-                        hiddenCoin.userData.coinIndex = 999;
-                        hiddenCoin.userData.isFalling = false;
-                        hiddenCoin.userData.hasFallen = false;
-
-                        targetTree.add(hiddenCoin);
+                        coin.userData = { isCoin: true, isFalling: false, hasFallen: false };
+                        targetTree.add(coin);
                         targetTree.userData.hasCoin = true;
-                        targetTree.userData.targetCoin = hiddenCoin;
+                        targetTree.userData.targetCoin = coin;
 
-                        console.log(`✅ HIDDEN COIN SPAWNED (Red Glow) at (${targetTree.position.x}, ${targetTree.position.z})`);
+                        // ★重要: コインを独立リストで管理
+                        window.sgActiveCoins.push(coin);
+                        coin.userData.parentTree = targetTree; // 親木への参照を保持
+
+                        // ★重要: この木の「物理衝突データ」を特定し、特別フラグを立てる
+                        const collisionObj = window.sgTreeCollisions.find(c =>
+                            Math.abs(c.x - targetTree.position.x) < 0.1 &&
+                            Math.abs(c.z - targetTree.position.z) < 0.1
+                        );
+                        if (collisionObj) {
+                            collisionObj.hasCoin = true; // 通常判定をスキップさせる
+                            window.testTreeCollision = collisionObj; // 参照保持
+                        }
                     });
-                } else {
-                    console.error("❌ CRITICAL: No trees found in park to spawn coin!");
                 }
 
                 // C. 外周の森 (Exterior)
@@ -4822,71 +4794,76 @@ const SearchGame = (() => {
             // Gameplay NPC Shiver (Winter Only)
             updateGameplayShiver(dt);
 
-            // ■ 全ての木をチェックして隠しコイン処理を行う
-            if (window.sgTreeObjects) {
-                window.sgTreeObjects.forEach(tree => {
-                    if (tree.userData.hasCoin && tree.userData.targetCoin) {
-                        const coin = tree.userData.targetCoin;
+            // ■ 独立したコイン更新ループ（ロジック自殺防止版）
+            if (window.sgActiveCoins) {
+                window.sgActiveCoins = window.sgActiveCoins.filter(coin => {
+                    if (coin.userData.collected) return false; // 取得済みはリストから外す
 
-                        // A. 常時回転
-                        coin.rotation.y += 5.0 * dt; // 回転を少し速くして目立たせる
+                    const parentTree = coin.userData.parentTree;
 
-                        // B. 衝突判定（未落下時）
-                        if (!coin.userData.isFalling && !coin.userData.hasFallen) {
+                    // A. 常時回転
+                    coin.rotation.y += 5.0 * dt;
 
-                            // ★修正: カメラ位置ではなく「プレイヤー位置(playerPosition)」で判定する
-                            // 世界観: プレイヤー(観測者)が木の下に行くと、何かが起きる
-                            const dist = playerPosition.distanceTo(tree.position);
+                    // B. トリガー判定 (未落下 && プレイヤー接近)
+                    if (!coin.userData.isFalling && !coin.userData.hasFallen) {
+                        // 木の位置で判定（親がまだある場合）
+                        const treePos = parentTree ? parentTree.position : coin.position;
+                        const dist = playerPosition.distanceTo(treePos);
 
-                            // トリガー範囲 2.5m (少し広げて遊びやすく)
-                            if (dist < 2.5) {
-                                coin.userData.isFalling = true;
-                                scene.attach(coin); // 親子解除（ワールド座標へ）
+                        // ★トリガー: 1.8m
+                        if (dist < 1.8) {
+                            coin.userData.isFalling = true;
+                            scene.attach(coin); // 親子解除
 
-                                // ★動的着地計算
-                                const box = new THREE.Box3().setFromObject(coin);
-                                const height = box.max.y - box.min.y;
-                                coin.userData.groundY = height / 2; // 地面判定の高さ
+                            // 接地計算
+                            const box = new THREE.Box3().setFromObject(coin);
+                            coin.userData.groundY = (box.max.y - box.min.y) / 2;
 
-                                // 外向きに弾く
-                                const angle = Math.random() * Math.PI * 2;
-                                coin.userData.velY = 4.0; // 弾く力を少しアップ
-                                coin.userData.velX = Math.cos(angle) * 1.5;
-                                coin.userData.velZ = Math.sin(angle) * 1.5;
+                            // プレイヤー方向へ弾く
+                            const toPlayer = new THREE.Vector3().subVectors(playerPosition, coin.position).normalize();
+                            toPlayer.y = 0; // 水平成分のみ
+                            const angleOffset = (Math.random() - 0.5) * Math.PI; // ±90度
+                            const cos = Math.cos(angleOffset); const sin = Math.sin(angleOffset);
+                            coin.userData.velX = (toPlayer.x * cos - toPlayer.z * sin) * 1.5;
+                            coin.userData.velZ = (toPlayer.x * sin + toPlayer.z * cos) * 1.5;
+                            coin.userData.velY = 4.0;
 
-                                tree.userData.shakeTimer = 0.5;
-                                console.log("🪙 Coin Drop Triggered by Player!");
-                            }
-                        }
+                            // 木の揺れ開始
+                            if (parentTree) parentTree.userData.shakeTimer = 0.5;
 
-                        // C. 木の揺れ
-                        if (tree.userData.shakeTimer > 0) {
-                            tree.userData.shakeTimer -= dt;
-                            const s = tree.userData.shakeTimer;
-                            tree.rotation.z = Math.sin(s * 80) * 0.1 * s;
-                            tree.rotation.x = Math.cos(s * 80) * 0.1 * s;
-                        } else {
-                            tree.rotation.z = 0; tree.rotation.x = 0;
-                        }
-
-                        // D. 落下物理
-                        if (coin.userData.isFalling && !coin.userData.hasFallen) {
-                            coin.userData.velY -= 15.0 * dt;
-                            coin.position.x += coin.userData.velX * dt;
-                            coin.position.y += coin.userData.velY * dt;
-                            coin.position.z += coin.userData.velZ * dt;
-                            coin.rotation.x += 5 * dt;
-
-                            // 動的着地判定
-                            const targetY = coin.userData.groundY || 0.25;
-                            if (coin.position.y <= targetY) {
-                                coin.position.y = targetY;
-                                coin.userData.isFalling = false;
-                                coin.userData.hasFallen = true;
-                                coin.rotation.x = 0; coin.rotation.z = 0;
+                            // ★重要: 壁を解除する（通常の木に戻す）
+                            if (window.testTreeCollision) {
+                                window.testTreeCollision.hasCoin = false;
                             }
                         }
                     }
+
+                    // C. 木の揺れ（親木がある場合）
+                    if (parentTree && parentTree.userData.shakeTimer > 0) {
+                        parentTree.userData.shakeTimer -= dt;
+                        const s = parentTree.userData.shakeTimer;
+                        parentTree.rotation.z = Math.sin(s * 80) * 0.1 * s;
+                        parentTree.rotation.x = Math.cos(s * 80) * 0.1 * s;
+                    } else if (parentTree) {
+                        parentTree.rotation.z = 0; parentTree.rotation.x = 0;
+                    }
+
+                    // D. 落下物理
+                    if (coin.userData.isFalling && !coin.userData.hasFallen) {
+                        coin.userData.velY -= 15.0 * dt;
+                        coin.position.x += coin.userData.velX * dt;
+                        coin.position.y += coin.userData.velY * dt;
+                        coin.position.z += coin.userData.velZ * dt;
+
+                        const targetY = coin.userData.groundY || 0.25;
+                        if (coin.position.y <= targetY) {
+                            coin.position.y = targetY;
+                            coin.userData.isFalling = false;
+                            coin.userData.hasFallen = true;
+                        }
+                    }
+
+                    return true; // リストに残す
                 });
             }
 
