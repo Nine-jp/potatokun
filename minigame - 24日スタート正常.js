@@ -2382,7 +2382,7 @@ const SearchGame = (() => {
         // bias: 影全体のオフセット。小さすぎるとアクネ、大きすぎると「ピーターパン現象（影が浮く）」
         dirLight.shadow.bias = -0.0001;
         // normalBias: 法線方向に影をずらす。平面のアクネにはこれが一番効きます！
-        dirLight.shadow.normalBias = 0.08;
+        dirLight.shadow.normalBias = 0.02;
 
         // Shadow map settings
         dirLight.shadow.mapSize.width = 2048;
@@ -3035,6 +3035,37 @@ const SearchGame = (() => {
 
 
             // (Old ketchup hover detection REMOVED - now using coin proximity in loop())
+
+            // ★耳ピクギミック（距離判定スイッチ & 1回切りトリガー）
+            if (currentState === GameState.PLAYING && window.sgBenchCat && window.sgBenchCat.userData.ears) {
+                const cat = window.sgBenchCat;
+                const dist = camera.position.distanceTo(cat.position);
+
+                // 接近トリガー (2.0m以内)
+                if (dist < 2.0) {
+                    if (!cat.userData.hasReacted && !cat.userData.isReacting) {
+                        cat.userData.isReacting = true;
+                        cat.userData.hasReacted = true;
+                        cat.userData.reactionTimer = 0;
+                    }
+                }
+                // 離れたらリセット (2.5m以上で再反応を許可)
+                else if (dist > 2.5) {
+                    cat.userData.hasReacted = false;
+                }
+
+                // アニメーション再生（再生中のみ計算を実行）
+                if (cat.userData.isReacting) {
+                    cat.userData.reactionTimer += dt;
+                    if (cat.userData.reactionTimer < 0.3) {
+                        const twitch = Math.sin(cat.userData.reactionTimer * 60) * 0.1;
+                        cat.userData.ears.rotation.z = twitch;
+                    } else {
+                        cat.userData.isReacting = false;
+                        cat.userData.ears.rotation.z = 0; // 停止
+                    }
+                }
+            }
 
         };
 
@@ -3986,10 +4017,11 @@ const SearchGame = (() => {
             };
 
             // 1. カラーパレットの変更
-            window.spawnFountainSparkles = (x, y, z, isWaterColor = true) => {
-                const count = 3;
-                const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7]; // 白・水色・薄い水色
-                const goldPalette = [0xFFFFFF, 0x87CEFA, 0xFFFF85]; // 白・水色・薄い黄色
+            // 1. 関数の書き換え（透明度・速度・寿命を最適化）
+            window.spawnFountainSparkles = (x, y, z, isWaterColor = true, isBack = false) => {
+                const count = isBack ? 2 : 3; // 背中は数を絞って負荷軽減
+                const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
+                const goldPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
 
                 for (let i = 0; i < count; i++) {
                     const color = isWaterColor
@@ -3997,33 +4029,53 @@ const SearchGame = (() => {
                         : goldPalette[Math.floor(Math.random() * goldPalette.length)];
 
                     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-                        color: color,
-                        transparent: true,
-                        opacity: 0.05
+                        color: color, transparent: true, opacity: 0.6, depthWrite: false
                     }));
+
                     sprite.position.set(x + (Math.random() - 0.5) * 0.1, y, z + (Math.random() - 0.5) * 0.1);
-                    sprite.scale.setScalar(0.04);
+                    sprite.scale.setScalar(isBack ? 0.03 : 0.04);
                     scene.add(sprite);
 
-                    // 動力計算
-                    let velY = 0.02 + Math.random() * 0.02; // 上方向への微弱な初速
-                    let velX = (Math.random() - 0.5) * 0.01;
-                    let velZ = (Math.random() - 0.5) * 0.01;
+                    // 動力：背中のスピードを半分にデチューン
+                    let velY = isBack ? (0.01 + Math.random() * 0.01) : (0.02 + Math.random() * 0.02);
+                    let velX = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
+                    let velZ = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
                     let life = 1.0;
 
                     const anim = () => {
-                        life -= 0.02; // 寿命
+                        life -= 0.03; // ★寿命は 0.02 で固定
                         if (life <= 0) { scene.remove(sprite); return; }
                         sprite.position.x += velX;
                         sprite.position.y += velY;
                         sprite.position.z += velZ;
-                        velY -= 0.002; // ★重力：徐々に下に落ちる
+
+                        // ★重力も 0.001 にしてスローに落とす
+                        velY -= isBack ? 0.0003 : 0.002;
+
                         sprite.material.opacity = life;
                         requestAnimationFrame(anim);
                     };
                     anim();
                 }
             };
+
+            // --- ランダムベンチ選択ロジック ---
+            const getTargetBench = () => {
+                const benches = [];
+                const START = 10.0, END = 30.0, STEP = 4.0;
+                for (let d = START; d <= END; d += STEP) {
+                    const b = d - 2.0;
+                    // 4方向、合計8つの座標と向きを追加
+                    benches.push({ x: b, z: 4, r: 180 }, { x: -b, z: 4, r: 180 });
+                    benches.push({ x: b, z: -4, r: 0 }, { x: -b, z: -4, r: 0 });
+                    benches.push({ x: 4, z: b, r: -90 }, { x: 4, z: -b, r: -90 });
+                    benches.push({ x: -4, z: b, r: 90 }, { x: -4, z: -b, r: 90 });
+                }
+                // 遊具エリア入口(x:4, z:16)のベンチを除外（全47個にする）
+                const validBenches = benches.filter(p => !(Math.abs(p.x - 4) < 0.1 && Math.abs(p.z - 16) < 0.1));
+                return validBenches[Math.floor(Math.random() * validBenches.length)];
+            };
+            const selectedBench = getTargetBench();
 
             const ASSET_CONFIG = [
                 {
@@ -4220,6 +4272,73 @@ const SearchGame = (() => {
                     }
                 },
                 {
+                    name: 'Barricade_NorthEast',
+                    path: 'models/Barricade.fbx',
+                    pos: { x: 0, y: 0, z: 0 },
+                    scale: 1.0,
+                    onLoad: (master) => {
+                        // ベンチの背後（x=4, z=-4）に密着させる設定
+                        const startX = 6.0;  // ベンチからさらに後退
+                        const startZ = -6.0; // ベンチからさらに後退
+                        const count = 11;
+                        const spacing = 2.3; // 隙間を詰めた精密な間隔
+
+                        for (let i = 0; i < count; i++) {
+                            // 角の重なりを防ぐため、i=0（角の地点）は生成をスキップ
+                            if (i === 0) continue;
+                            // 横列（南側の封鎖）
+                            const bX = master.clone();
+                            bX.position.set(startX + i * spacing, 0, startZ);
+                            window.parkGroup.add(bX);
+
+                            // 縦列（西側の封鎖）
+                            const bZ = master.clone();
+                            bZ.position.set(startX, 0, startZ - i * spacing);
+                            bZ.rotation.y = Math.PI / 2;
+                            window.parkGroup.add(bZ);
+                        }
+
+                        // 全バリケードにアウトライン適用
+                        window.parkGroup.traverse(c => {
+                            if (c.name === 'Barricade_NorthEast_Clone' || (c.parent && c.parent.name === 'Barricade_NorthEast')) {
+                                if (window.applyOutlineRules) window.applyOutlineRules(c);
+                            }
+                        });
+                        master.visible = false;
+
+                        // 2. 物理封鎖の設定（createParkAssets 内）
+                        // 物理封鎖
+                        window.sgExtraObstacles.push({ minX: 5.8, maxX: 32, minZ: -32, maxZ: -5.8 });
+                    }
+                },
+                {
+                    name: 'BenchCat',
+                    path: 'models/Cat.fbx',
+                    pos: { x: selectedBench.x, y: 0.45, z: selectedBench.z },
+                    rot: { y: selectedBench.r },
+                    scale: 1.0,
+                    onLoad: (cat) => {
+                        const box = new THREE.Box3().setFromObject(cat);
+                        const heightOfBench = 0.28; // ナイン氏調整済みの座面高
+                        cat.position.y += (heightOfBench - box.min.y);
+
+                        cat.traverse(child => {
+                            if (child.name === 'Ears') cat.userData.ears = child;
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                                child.userData.entityType = 'npc';
+                            }
+                        });
+                        if (window.applyOutlineRules) window.applyOutlineRules(cat);
+                        window.sgBenchCat = cat;
+                        cat.userData.hasReacted = false;
+                        cat.userData.isReacting = false;
+                        cat.userData.reactionTimer = 0;
+                        console.log(`🐱 Bench Cat Spawned at (x:${selectedBench.x}, z:${selectedBench.z})`);
+                    }
+                },
+                {
                     name: 'Tire',
                     path: 'models/tire.fbx',
                     pos: { x: 0, y: -10, z: 0 },
@@ -4309,7 +4428,7 @@ const SearchGame = (() => {
                     try {
                         fbx.name = config.name;
                         fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
-                        if (config.rot.y) fbx.rotation.y = config.rot.y * (Math.PI / 180);
+                        if (config.rot && config.rot.y !== undefined) fbx.rotation.y = config.rot.y * (Math.PI / 180);
                         fbx.scale.setScalar(config.scale || 1.0);
 
                         // ★徹底洗浄: マテリアルを標準状態にリセット
@@ -4462,13 +4581,13 @@ const SearchGame = (() => {
                     elephant.userData.streams.forEach(s => { s.visible = isOpen; });
 
                     if (isOpen) {
-                        // A. 鼻先の水面 (完璧な設定として維持)
+                        // 鼻先 (不変)
                         const nPos = new THREE.Vector3(0, 0, 1.7).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z, true); // 鼻先：白・水色・青
+                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z, true, false);
 
-                        // B. 背中の蛇口 (0.45から半分戻して0.0に調整)
-                        const bPos = new THREE.Vector3(0, 1.45, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z, false); // 背中：一旦現状維持
+                        // 背中 (高さを 1.30 に下げ、第5引数を true に設定)
+                        const bPos = new THREE.Vector3(0, 1.15, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
+                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z, false, true);
                     }
                 }
             }, 30);

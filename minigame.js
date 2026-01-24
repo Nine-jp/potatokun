@@ -3796,6 +3796,26 @@ const SearchGame = (() => {
                     window.sgTreeCollisions.push({ x: pos.x, z: pos.z, radius: 0.3 * scale });
 
                     if (window.addEdgesOutline) window.addEdgesOutline(tree, 15, 0x000000);
+
+                    // ★森林ギミック: 特定の木にコインを隠す
+                    // 1435行目付近：必ず存在する並木道の端(x:4, z:30)をターゲットにする
+                    if (Math.abs(pos.x - 4.0) < 0.1 && Math.abs(pos.z - 30.0) < 0.1) {
+                        window.testTree = tree;
+                        const loader = new FBXLoader();
+                        loader.load('models/coin_test.fbx', (hiddenCoin) => {
+                            hiddenCoin.scale.setScalar(7.0); // ★0.015から7.0へ
+                            hiddenCoin.position.set(0, 0.8, 0.5); // ★地面から少し浮かせて(0.8)配置
+                            tree.add(hiddenCoin);
+                            tree.userData.hasCoin = true;
+                            tree.userData.targetCoin = hiddenCoin;
+
+                            // 赤い光は維持（スクショで確認済み）
+                            const pLight = new THREE.PointLight(0xff0000, 10, 5);
+                            hiddenCoin.add(pLight);
+                            console.log("✅ Test Coin spawned at fixed tree (4, 30)");
+                            hiddenCoin.userData.isFalling = false;
+                        });
+                    }
                 });
 
                 console.log(`${treePositions.length} trees placed.`);
@@ -4731,6 +4751,55 @@ const SearchGame = (() => {
 
             // Gameplay NPC Shiver (Winter Only)
             updateGameplayShiver(dt);
+
+            // ★森林ギミック: 衝突判定と落下物理
+            if (window.testTree && window.testTree.userData.hasCoin) {
+                const tree = window.testTree;
+                const coin = tree.userData.targetCoin;
+
+                // 1. 衝突判定（未落下の時のみ）
+                if (!coin.userData.isFalling && !coin.userData.hasFallen) {
+                    const dist = camera.position.distanceTo(tree.position);
+                    if (dist < 1.5) {
+                        coin.userData.isFalling = true;
+                        scene.attach(coin); // 親子解除
+
+                        // 【手応え演出 A】コインを上に跳ね上げる（初速3.5）
+                        coin.userData.velocity = 3.5;
+                        // 【手応え演出 B】木を揺らすタイマー（0.5秒）
+                        tree.userData.shakeTimer = 0.5;
+
+                        console.log("💥 CRASH! Tree Shaking!");
+                    }
+                }
+
+                // 2. 木の揺れアニメーション（shakeTimerがある間）
+                if (tree.userData.shakeTimer > 0) {
+                    tree.userData.shakeTimer -= dt;
+                    const s = tree.userData.shakeTimer;
+                    // 高速で小刻みに回転軸を揺らす（振幅sで減衰）
+                    tree.rotation.z = Math.sin(s * 80) * 0.1 * s;
+                    tree.rotation.x = Math.cos(s * 80) * 0.1 * s;
+                } else if (tree.userData.shakeTimer !== undefined) {
+                    // 揺れ終了後に回転をリセット
+                    tree.rotation.z = 0;
+                    tree.rotation.x = 0;
+                    tree.userData.shakeTimer = undefined;
+                }
+
+                // 3. 落下アニメーション（跳ね上がり対応）
+                if (coin.userData.isFalling && !coin.userData.hasFallen) {
+                    coin.userData.velocity -= 12.0 * dt; // 重力（少し強め）
+                    coin.position.y += coin.userData.velocity * dt;
+                    coin.rotation.y += 15 * dt; // 高速回転
+
+                    if (coin.position.y <= 0.3) {
+                        coin.position.y = 0.3;
+                        coin.userData.isFalling = false;
+                        coin.userData.hasFallen = true;
+                    }
+                }
+            }
 
             // Aim Detection (Moved from loop)
             // ★ Deprecated: Click interaction implemented instead
