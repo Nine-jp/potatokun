@@ -2894,14 +2894,14 @@ const SearchGame = (() => {
                 }
             }
 
-            // === SPECIAL BARRIER FOR COIN TREE (1.6m壁) ===
+            // === SPECIAL BARRIER FOR COIN TREE (1.8m壁) ===
             if (window.testTreeCollision && window.testTreeCollision.hasCoin) {
                 const tree = window.testTreeCollision;
                 const nextX = playerPosition.x + direction.x;
                 const nextZ = playerPosition.z + direction.z;
                 const dist = Math.sqrt(Math.pow(nextX - tree.x, 2) + Math.pow(nextZ - tree.z, 2));
 
-                const barrierRadius = 1.6; // 黄金比
+                const barrierRadius = 1.8; // 調整済み
                 if (dist < barrierRadius) {
                     const dx = nextX - tree.x;
                     const dz = nextZ - tree.z;
@@ -4824,13 +4824,13 @@ const SearchGame = (() => {
                     const parentTree = coin.userData.parentTree;
                     coin.rotation.y += 5.0 * dt; // 常時回転
 
-                    // A. トリガー判定 (1.8m)
+                    // A. トリガー判定 (2.0m)
                     if (!coin.userData.isFalling && !coin.userData.hasFallen) {
                         const treePos = parentTree ? parentTree.position : coin.position;
                         // 高さ(y)を無視して、足元の距離だけで判定
                         const dist = playerPosition.distanceTo(new THREE.Vector3(treePos.x, 0, treePos.z));
 
-                        if (dist < 1.8) {
+                        if (dist < 2.0) {
                             coin.userData.isFalling = true;
                             scene.attach(coin); // ワールド座標へ
 
