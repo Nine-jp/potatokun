@@ -4891,13 +4891,30 @@ const SearchGame = (() => {
                             coin.userData.isFalling = false;
                             coin.userData.hasFallen = true;
 
-                            // ★着地したら周囲への照射をOFF
+                            // 1. 周囲への光を消す（これはOK）
                             if (coin.userData.pointLight) {
                                 coin.userData.pointLight.intensity = 0;
                             }
 
-                            // ★修正: 着地した瞬間に壁を解除する！
-                            // これで初めてプレイヤーは0.4mまで近づけるようになる
+                            // 2. ★修正: 発光マテリアル(Basic)は維持し、色だけ白に戻す
+                            coin.traverse((child) => {
+                                if (child.isMesh && child.material) {
+                                    if (child.material.color) {
+                                        child.material.color.setHex(0xFFFFFF);
+                                    }
+                                    // BasicMaterialであることを保証
+                                    if (!(child.material instanceof THREE.MeshBasicMaterial)) {
+                                        const oldMat = child.material;
+                                        child.material = new THREE.MeshBasicMaterial({
+                                            map: oldMat.map,
+                                            color: 0xFFFFFF,
+                                            side: THREE.DoubleSide
+                                        });
+                                    }
+                                }
+                            });
+
+                            // 3. 1.8mの壁を解除
                             if (window.testTreeCollision) {
                                 window.testTreeCollision.hasCoin = false;
                             }
