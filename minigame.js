@@ -2760,6 +2760,27 @@ const SearchGame = (() => {
                 case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
                 case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
                 case 'KeyD': case 'ArrowRight': moveState.right = true; break;
+                case 'KeyC':
+                    if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                        const x = camera.position.x.toFixed(2);
+                        const z = camera.position.z.toFixed(2);
+                        const y = camera.position.y.toFixed(2);
+
+                        const code = `createCoin(${x}, ${z}, ${y});`;
+
+                        console.log(`%c[COIN] ${code}`, 'color: #ffd700; font-weight: bold; font-size: 1.2em;');
+
+                        const panel = document.getElementById('debug-pos-panel');
+                        if (panel) {
+                            const originalColor = panel.style.color;
+                            panel.style.color = '#ffd700';
+                            panel.innerText = `COPIED: ${code}`;
+                            setTimeout(() => {
+                                panel.style.color = originalColor;
+                            }, 1500);
+                        }
+                    }
+                    break;
             }
         };
 
@@ -3485,20 +3506,10 @@ const SearchGame = (() => {
                     }
                 });
 
-                // === Game coin positions (通常コイン一時撤去中) ===
-                // ★無効化: 隠しコインのみ残し、通常コインは配置しない
+                // === Game coin positions (高さ指定配置待ち) ===
+                // ★座標と高さを指定して配置予定
                 const coinPositions = [
-                    // 以下は一時的に無効化
-                    // { x: -15, z: 15 },
-                    // { x: 15, z: 15 },
-                    // { x: -15, z: -15 },
-                    // { x: 15, z: -15 },
-                    // { x: -20, z: 0 },
-                    // { x: 20, z: 0 },
-                    // { x: 0, z: 20 },
-                    // { x: 8, z: -18 },
-                    // { x: -10, z: 20 },
-                    // { x: 14, y: 0.5, z: -12 }
+                    // 高さ指定で配置予定
                 ];
 
                 window.sgGameCoins = []; // For rotation animation
