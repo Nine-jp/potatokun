@@ -3838,8 +3838,6 @@ const SearchGame = (() => {
                         coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
 
                         coin.position.set(0, 2.2, 0); // 検証済みの高さ
-                        coin.traverse(c => { if (c.isMesh) c.material = new THREE.MeshBasicMaterial({ color: 0xFF0000, toneMapped: false }); });
-                        coin.add(new THREE.PointLight(0xFF0000, 50, 20));
 
                         coin.userData = { isCoin: true, isFalling: false, hasFallen: false };
                         targetTree.add(coin);
