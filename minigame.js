@@ -3860,6 +3860,13 @@ const SearchGame = (() => {
                         box.getSize(size);
                         coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
 
+                        // === 2.5. 強力な点光源を埋め込む ===
+                        // 色: 白 (0xFFFFFF) - テクスチャの色を邪魔しない
+                        // 強さ: 3.0 - かなり明るく
+                        // 距離: 5.0m - 周囲の木や地面を照らす範囲
+                        const coinLight = new THREE.PointLight(0xFFFFFF, 3.0, 5.0);
+                        coin.add(coinLight);
+
                         // === 3. 配置と物理設定 ===
                         coin.position.set(0, 2.2, 0); // 高さ2.2m
                         coin.userData = { isCoin: true, isFalling: false, hasFallen: false };
