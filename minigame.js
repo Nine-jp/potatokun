@@ -3833,19 +3833,28 @@ const SearchGame = (() => {
                     loader.load('models/coin.fbx', (object) => {
                         const coin = object;
 
-                        // === 1. マテリアルを通常コインと同等に置換 ===
+                        // === 0. 季節ごとの色定義（ユーザー指定） ===
+                        const seasonColors = {
+                            spring: 0xADFF2F, // 黄緑色 (Spring)
+                            summer: 0xFF69B4, // ピンク色 (Summer)
+                            autumn: 0xE0FFFF, // アイスシアン (Autumn)
+                            winter: 0xFFD700  // 金色 (Winter)
+                        };
+                        const currentSeason = (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) ? GameConfig.currentSeason : 'summer';
+                        const targetColor = seasonColors[currentSeason] || 0xFFFFFF;
+
+                        // === 1. マテリアル設定（季節色を適用） ===
                         coin.traverse((child) => {
                             if (child.isMesh) {
                                 child.castShadow = true;
-                                child.receiveShadow = false; // 影を受けない（明るさ維持）
+                                child.receiveShadow = false;
 
-                                // 既存のマテリアルからテクスチャを抽出して、BasicMaterial（発光）に載せ替える
                                 if (child.material) {
                                     const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
                                     const newMat = new THREE.MeshBasicMaterial({
-                                        map: oldMat.map, // テクスチャ引継ぎ
-                                        color: 0xFFFFFF,
-                                        transparent: false, // 不透明化
+                                        map: oldMat.map,
+                                        color: targetColor, // ★季節の色でティントする
+                                        transparent: false,
                                         opacity: 1.0,
                                         side: THREE.DoubleSide
                                     });
@@ -3860,27 +3869,24 @@ const SearchGame = (() => {
                         box.getSize(size);
                         coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
 
-                        // === 2.5. 強力な点光源を埋め込む ===
-                        // 色: 白 (0xFFFFFF) - テクスチャの色を邪魔しない
-                        // 強さ: 3.0 - かなり明るく
-                        // 距離: 5.0m - 周囲の木や地面を照らす範囲
-                        const coinLight = new THREE.PointLight(0xFFFFFF, 3.0, 5.0);
+                        // === 3. 光源追加（季節色を適用） ===
+                        const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
                         coin.add(coinLight);
 
-                        // === 3. 配置と物理設定 ===
-                        coin.position.set(0, 2.2, 0); // 高さ2.2m
+                        // === 4. 配置設定 ===
+                        coin.position.set(0, 2.2, 0);
                         coin.userData = { isCoin: true, isFalling: false, hasFallen: false };
-                        coin.userData.pointLight = coinLight; // ★後で操作するために保存
+                        coin.userData.pointLight = coinLight; // ★着地後の消灯用に保存
 
                         targetTree.add(coin);
                         targetTree.userData.hasCoin = true;
                         targetTree.userData.targetCoin = coin;
 
-                        // === 4. システム登録 ===
+                        // === 5. システム登録 ===
                         window.sgActiveCoins.push(coin);
                         coin.userData.parentTree = targetTree;
 
-                        // === 5. 1.6m壁の有効化 ===
+                        // === 6. 壁判定の有効化 ===
                         const collisionObj = window.sgTreeCollisions.find(c =>
                             Math.abs(c.x - targetTree.position.x) < 0.1 &&
                             Math.abs(c.z - targetTree.position.z) < 0.1
