@@ -5126,7 +5126,7 @@ const SearchGame = (() => {
                 if (child.isMesh) {
                     // 修正: 軽量化のため、草の影（CastShadow）をオフにする魔法
                     child.castShadow = false;
-                    child.receiveShadow = true; // 影を受けるのはOK（地面の影と馴染むため）
+                    child.receiveShadow = false; // 軽量化：影を受けない
                     // 地面判定無視
                     child.userData.ignoreGround = true;
 
@@ -5151,9 +5151,8 @@ const SearchGame = (() => {
                 window.addEdgesOutline(masterGrass, 15, 0x000000);
             }
 
-            // 草の配置数
-            // 修正: 200 -> 2000 に増量して地面をリッチにする
-            const grassCount = 2000;
+            // 草の配置数（軽量化）
+            const grassCount = 800; // 軽量化：2000 -> 800
 
             for (let i = 0; i < grassCount; i++) {
                 const grass = masterGrass.clone();
