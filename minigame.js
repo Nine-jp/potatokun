@@ -4059,6 +4059,24 @@ const SearchGame = (() => {
                 }
             };
 
+            // --- ランダムベンチ選択ロジック ---
+            const getTargetBench = () => {
+                const benches = [];
+                const START = 10.0, END = 30.0, STEP = 4.0;
+                for (let d = START; d <= END; d += STEP) {
+                    const b = d - 2.0;
+                    // 4方向、合計8つの座標と向きを追加
+                    benches.push({ x: b, z: 4, r: 180 }, { x: -b, z: 4, r: 180 });
+                    benches.push({ x: b, z: -4, r: 0 }, { x: -b, z: -4, r: 0 });
+                    benches.push({ x: 4, z: b, r: -90 }, { x: 4, z: -b, r: -90 });
+                    benches.push({ x: -4, z: b, r: 90 }, { x: -4, z: -b, r: 90 });
+                }
+                // 遊具エリア入口(x:4, z:16)のベンチを除外（全47個にする）
+                const validBenches = benches.filter(p => !(Math.abs(p.x - 4) < 0.1 && Math.abs(p.z - 16) < 0.1));
+                return validBenches[Math.floor(Math.random() * validBenches.length)];
+            };
+            const selectedBench = getTargetBench();
+
             const ASSET_CONFIG = [
                 {
                     name: 'MainFountain',
@@ -4295,18 +4313,14 @@ const SearchGame = (() => {
                 },
                 {
                     name: 'BenchCat',
-                    path: 'models/Cat.fbx', // Earsパーツを含む構成を想定
-                    pos: { x: 4.0, y: 0.45, z: 28.0 }, // 並木道の本当の終端ベンチ
-                    rot: { y: -90 }, // 南東ベンチの向き（90度）に対して正面を向くよう調整
-                    scale: 1.0, // ナイン氏のモデル標準スケールに準拠
+                    path: 'models/Cat.fbx',
+                    pos: { x: selectedBench.x, y: 0.45, z: selectedBench.z },
+                    rot: { y: selectedBench.r },
+                    scale: 1.0,
                     onLoad: (cat) => {
-                        // モデル自体のバウンディングボックスを取得
                         const box = new THREE.Box3().setFromObject(cat);
-
-                        // 【重要】地面(0)ではなく、ベンチの座面(0.28)をターゲットにする
-                        const heightOfBench = 0.28;
-                        const bottomOfModel = box.min.y;
-                        cat.position.y += (heightOfBench - bottomOfModel);
+                        const heightOfBench = 0.28; // ナイン氏調整済みの座面高
+                        cat.position.y += (heightOfBench - box.min.y);
 
                         cat.traverse(child => {
                             if (child.name === 'Ears') cat.userData.ears = child;
@@ -4317,11 +4331,11 @@ const SearchGame = (() => {
                             }
                         });
                         if (window.applyOutlineRules) window.applyOutlineRules(cat);
-                        console.log("🐱 Cat correctly seated on the BENCH surface.");
-                        window.sgBenchCat = cat; // 参照を保存
-                        cat.userData.hasReacted = false; // 反応済みフラグ
-                        cat.userData.isReacting = false; // 再生中フラグ
+                        window.sgBenchCat = cat;
+                        cat.userData.hasReacted = false;
+                        cat.userData.isReacting = false;
                         cat.userData.reactionTimer = 0;
+                        console.log(`🐱 Bench Cat Spawned at (x:${selectedBench.x}, z:${selectedBench.z})`);
                     }
                 },
                 {
