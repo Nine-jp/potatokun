@@ -8,7 +8,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'summer', // 'summer' に変更して夏仕様にする
+    currentSeason: 'winter', // 冬仕様に変更
     debugMode: true          // デバッグモードは維持
 };
 
@@ -3870,6 +3870,7 @@ const SearchGame = (() => {
                         // === 3. 配置と物理設定 ===
                         coin.position.set(0, 2.2, 0); // 高さ2.2m
                         coin.userData = { isCoin: true, isFalling: false, hasFallen: false };
+                        coin.userData.pointLight = coinLight; // ★後で操作するために保存
 
                         targetTree.add(coin);
                         targetTree.userData.hasCoin = true;
@@ -4883,6 +4884,11 @@ const SearchGame = (() => {
                             coin.position.y = targetY;
                             coin.userData.isFalling = false;
                             coin.userData.hasFallen = true;
+
+                            // ★着地したら周囲への照射をOFF
+                            if (coin.userData.pointLight) {
+                                coin.userData.pointLight.intensity = 0;
+                            }
 
                             // ★修正: 着地した瞬間に壁を解除する！
                             // これで初めてプレイヤーは0.4mまで近づけるようになる
