@@ -3863,6 +3863,10 @@ const SearchGame = (() => {
                                 }
                             });
 
+                            // ★★★ 重要：これがないと拾えません！ ★★★
+                            hiddenCoin.userData.isCoin = true; // コインとして認識させる
+                            hiddenCoin.userData.coinIndex = 999; // 特殊ID
+
                             // フラグ設定
                             hiddenCoin.userData.isFalling = false;
                             hiddenCoin.userData.hasFallen = false;
@@ -3872,7 +3876,7 @@ const SearchGame = (() => {
                             tree.userData.hasCoin = true;
                             tree.userData.targetCoin = hiddenCoin;
 
-                            console.log("✅ COMPLETE LOAD: Hidden Coin at y=2.2, Opaque, Independent.");
+                            console.log("✅ HIDDEN COIN READY: Collectible, Opaque, y=2.2");
                         });
                     }
                 });
@@ -4826,16 +4830,22 @@ const SearchGame = (() => {
                         coin.userData.isFalling = true;
                         scene.attach(coin); // 親子解除（ワールド座標へ）
 
-                        // 外向きに弱く弾く（幹を避ける）
-                        const angle = Math.random() * Math.PI * 2;
-                        const pushSpeed = 1.0; // 弱め
+                        // ★修正：この瞬間のコインの「正確な半径（高さの半分）」を計算して着地目標にする
+                        // これで木のサイズがバラバラでも、必ず地面(y=0)に接する位置で止まります。
+                        const box = new THREE.Box3().setFromObject(coin);
+                        const height = box.max.y - box.min.y;
+                        coin.userData.groundY = height / 2; // 地面に着く中心の高さ
 
-                        coin.userData.velY = 3.0; // 跳ね上がり
+                        // 外向きに弾く
+                        const angle = Math.random() * Math.PI * 2;
+                        const pushSpeed = 1.0;
+
+                        coin.userData.velY = 3.0;
                         coin.userData.velX = Math.cos(angle) * pushSpeed;
                         coin.userData.velZ = Math.sin(angle) * pushSpeed;
 
                         tree.userData.shakeTimer = 0.5;
-                        console.log("💥 Hidden Coin Triggered!");
+                        console.log(`💥 Coin Drop! Radius: ${coin.userData.groundY.toFixed(3)}`);
                     }
                 }
 
@@ -4856,14 +4866,18 @@ const SearchGame = (() => {
                     coin.position.y += coin.userData.velY * dt;
                     coin.position.z += coin.userData.velZ * dt;
 
-                    coin.rotation.x += 5 * dt; // 落下回転
+                    coin.rotation.x += 5 * dt; // 落下中は縦回転
 
-                    // 地面着地 (0.5m)
-                    if (coin.position.y <= 0.5) {
-                        coin.position.y = 0.5;
+                    // ★修正：計算したコインごとの着地地点(groundY)を使う
+                    const targetY = coin.userData.groundY || 0.25; // 安全策でデフォルト値も用意
+
+                    if (coin.position.y <= targetY) {
+                        coin.position.y = targetY; // ズレなく着地
                         coin.userData.isFalling = false;
                         coin.userData.hasFallen = true;
-                        coin.rotation.x = 0; // 直立に戻す
+
+                        // 直立状態に戻して回転継続
+                        coin.rotation.x = 0;
                         coin.rotation.z = 0;
                     }
                 }
