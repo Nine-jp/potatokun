@@ -4263,6 +4263,33 @@ const SearchGame = (() => {
                     }
                 },
                 {
+                    name: 'BenchCat',
+                    path: 'models/Cat.fbx', // Earsパーツを含む構成を想定
+                    pos: { x: 4.0, y: 0.45, z: 28.0 }, // 並木道の本当の終端ベンチ
+                    rot: { y: -90 }, // 南東ベンチの向き（90度）に対して正面を向くよう調整
+                    scale: 1.0, // ナイン氏のモデル標準スケールに準拠
+                    onLoad: (cat) => {
+                        // モデル自体のバウンディングボックスを取得
+                        const box = new THREE.Box3().setFromObject(cat);
+
+                        // 【重要】地面(0)ではなく、ベンチの座面(0.28)をターゲットにする
+                        const heightOfBench = 0.28;
+                        const bottomOfModel = box.min.y;
+                        cat.position.y += (heightOfBench - bottomOfModel);
+
+                        cat.traverse(child => {
+                            if (child.name === 'Ears') cat.userData.ears = child;
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                                child.userData.entityType = 'npc';
+                            }
+                        });
+                        if (window.applyOutlineRules) window.applyOutlineRules(cat);
+                        console.log("🐱 Cat correctly seated on the BENCH surface.");
+                    }
+                },
+                {
                     name: 'Tire',
                     path: 'models/tire.fbx',
                     pos: { x: 0, y: -10, z: 0 },
