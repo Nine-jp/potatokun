@@ -4797,48 +4797,42 @@ const SearchGame = (() => {
             // ■ 独立したコイン更新ループ（ロジック自殺防止版）
             if (window.sgActiveCoins) {
                 window.sgActiveCoins = window.sgActiveCoins.filter(coin => {
-                    if (coin.userData.collected) return false; // 取得済みはリストから外す
+                    if (coin.userData.collected) return false;
 
                     const parentTree = coin.userData.parentTree;
+                    coin.rotation.y += 5.0 * dt; // 常時回転
 
-                    // A. 常時回転
-                    coin.rotation.y += 5.0 * dt;
-
-                    // B. トリガー判定 (未落下 && プレイヤー接近)
+                    // A. トリガー判定 (1.8m)
                     if (!coin.userData.isFalling && !coin.userData.hasFallen) {
-                        // 木の位置で判定（親がまだある場合）
                         const treePos = parentTree ? parentTree.position : coin.position;
-                        const dist = playerPosition.distanceTo(treePos);
+                        // 高さ(y)を無視して、足元の距離だけで判定
+                        const dist = playerPosition.distanceTo(new THREE.Vector3(treePos.x, 0, treePos.z));
 
-                        // ★トリガー: 1.8m
                         if (dist < 1.8) {
                             coin.userData.isFalling = true;
-                            scene.attach(coin); // 親子解除
+                            scene.attach(coin); // ワールド座標へ
 
                             // 接地計算
                             const box = new THREE.Box3().setFromObject(coin);
                             coin.userData.groundY = (box.max.y - box.min.y) / 2;
 
-                            // プレイヤー方向へ弾く
+                            // プレイヤー方向(180度)へ弾く
                             const toPlayer = new THREE.Vector3().subVectors(playerPosition, coin.position).normalize();
-                            toPlayer.y = 0; // 水平成分のみ
+                            toPlayer.y = 0;
                             const angleOffset = (Math.random() - 0.5) * Math.PI; // ±90度
                             const cos = Math.cos(angleOffset); const sin = Math.sin(angleOffset);
                             coin.userData.velX = (toPlayer.x * cos - toPlayer.z * sin) * 1.5;
                             coin.userData.velZ = (toPlayer.x * sin + toPlayer.z * cos) * 1.5;
                             coin.userData.velY = 4.0;
 
-                            // 木の揺れ開始
                             if (parentTree) parentTree.userData.shakeTimer = 0.5;
 
-                            // ★重要: 壁を解除する（通常の木に戻す）
-                            if (window.testTreeCollision) {
-                                window.testTreeCollision.hasCoin = false;
-                            }
+                            // ★重要: ここではまだ壁(hasCoin)を消さない！
+                            // プレイヤーを1.6mで足止めして、落ちてくる様子を見せるため。
                         }
                     }
 
-                    // C. 木の揺れ（親木がある場合）
+                    // B. 木の揺れ（親木がある場合）
                     if (parentTree && parentTree.userData.shakeTimer > 0) {
                         parentTree.userData.shakeTimer -= dt;
                         const s = parentTree.userData.shakeTimer;
@@ -4848,8 +4842,8 @@ const SearchGame = (() => {
                         parentTree.rotation.z = 0; parentTree.rotation.x = 0;
                     }
 
-                    // D. 落下物理
-                    if (coin.userData.isFalling && !coin.userData.hasFallen) {
+                    // C. 落下物理と着地
+                    if (coin.userData.isFalling) {
                         coin.userData.velY -= 15.0 * dt;
                         coin.position.x += coin.userData.velX * dt;
                         coin.position.y += coin.userData.velY * dt;
@@ -4860,10 +4854,15 @@ const SearchGame = (() => {
                             coin.position.y = targetY;
                             coin.userData.isFalling = false;
                             coin.userData.hasFallen = true;
+
+                            // ★修正: 着地した瞬間に壁を解除する！
+                            // これで初めてプレイヤーは0.4mまで近づけるようになる
+                            if (window.testTreeCollision) {
+                                window.testTreeCollision.hasCoin = false;
+                            }
                         }
                     }
-
-                    return true; // リストに残す
+                    return true;
                 });
             }
 
