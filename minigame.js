@@ -3832,30 +3832,54 @@ const SearchGame = (() => {
                     const loader = new FBXLoader();
                     loader.load('models/coin.fbx', (object) => {
                         const coin = object;
+
+                        // === 1. マテリアルを通常コインと同等に置換 ===
+                        coin.traverse((child) => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = false; // 影を受けない（明るさ維持）
+
+                                // 既存のマテリアルからテクスチャを抽出して、BasicMaterial（発光）に載せ替える
+                                if (child.material) {
+                                    const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                                    const newMat = new THREE.MeshBasicMaterial({
+                                        map: oldMat.map, // テクスチャ引継ぎ
+                                        color: 0xFFFFFF,
+                                        transparent: false, // 不透明化
+                                        opacity: 1.0,
+                                        side: THREE.DoubleSide
+                                    });
+                                    child.material = newMat;
+                                }
+                            }
+                        });
+
+                        // === 2. サイズ調整 ===
                         const box = new THREE.Box3().setFromObject(coin);
                         const size = new THREE.Vector3();
                         box.getSize(size);
                         coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
 
-                        coin.position.set(0, 2.2, 0); // 検証済みの高さ
-
+                        // === 3. 配置と物理設定 ===
+                        coin.position.set(0, 2.2, 0); // 高さ2.2m
                         coin.userData = { isCoin: true, isFalling: false, hasFallen: false };
+
                         targetTree.add(coin);
                         targetTree.userData.hasCoin = true;
                         targetTree.userData.targetCoin = coin;
 
-                        // ★重要: コインを独立リストで管理
+                        // === 4. システム登録 ===
                         window.sgActiveCoins.push(coin);
-                        coin.userData.parentTree = targetTree; // 親木への参照を保持
+                        coin.userData.parentTree = targetTree;
 
-                        // ★重要: この木の「物理衝突データ」を特定し、特別フラグを立てる
+                        // === 5. 1.6m壁の有効化 ===
                         const collisionObj = window.sgTreeCollisions.find(c =>
                             Math.abs(c.x - targetTree.position.x) < 0.1 &&
                             Math.abs(c.z - targetTree.position.z) < 0.1
                         );
                         if (collisionObj) {
-                            collisionObj.hasCoin = true; // 通常判定をスキップさせる
-                            window.testTreeCollision = collisionObj; // 参照保持
+                            collisionObj.hasCoin = true;
+                            window.testTreeCollision = collisionObj;
                         }
                     });
                 }
