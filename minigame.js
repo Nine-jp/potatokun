@@ -3036,6 +3036,37 @@ const SearchGame = (() => {
 
             // (Old ketchup hover detection REMOVED - now using coin proximity in loop())
 
+            // ★耳ピクギミック（距離判定スイッチ & 1回切りトリガー）
+            if (currentState === GameState.PLAYING && window.sgBenchCat && window.sgBenchCat.userData.ears) {
+                const cat = window.sgBenchCat;
+                const dist = camera.position.distanceTo(cat.position);
+
+                // 接近トリガー (2.0m以内)
+                if (dist < 2.0) {
+                    if (!cat.userData.hasReacted && !cat.userData.isReacting) {
+                        cat.userData.isReacting = true;
+                        cat.userData.hasReacted = true;
+                        cat.userData.reactionTimer = 0;
+                    }
+                }
+                // 離れたらリセット (2.5m以上で再反応を許可)
+                else if (dist > 2.5) {
+                    cat.userData.hasReacted = false;
+                }
+
+                // アニメーション再生（再生中のみ計算を実行）
+                if (cat.userData.isReacting) {
+                    cat.userData.reactionTimer += dt;
+                    if (cat.userData.reactionTimer < 0.3) {
+                        const twitch = Math.sin(cat.userData.reactionTimer * 60) * 0.1;
+                        cat.userData.ears.rotation.z = twitch;
+                    } else {
+                        cat.userData.isReacting = false;
+                        cat.userData.ears.rotation.z = 0; // 停止
+                    }
+                }
+            }
+
         };
 
 
@@ -4287,6 +4318,10 @@ const SearchGame = (() => {
                         });
                         if (window.applyOutlineRules) window.applyOutlineRules(cat);
                         console.log("🐱 Cat correctly seated on the BENCH surface.");
+                        window.sgBenchCat = cat; // 参照を保存
+                        cat.userData.hasReacted = false; // 反応済みフラグ
+                        cat.userData.isReacting = false; // 再生中フラグ
+                        cat.userData.reactionTimer = 0;
                     }
                 },
                 {
