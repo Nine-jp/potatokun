@@ -2382,7 +2382,7 @@ const SearchGame = (() => {
         // bias: 影全体のオフセット。小さすぎるとアクネ、大きすぎると「ピーターパン現象（影が浮く）」
         dirLight.shadow.bias = -0.0001;
         // normalBias: 法線方向に影をずらす。平面のアクネにはこれが一番効きます！
-        dirLight.shadow.normalBias = 0.08;
+        dirLight.shadow.normalBias = 0.02;
 
         // Shadow map settings
         dirLight.shadow.mapSize.width = 2048;
