@@ -3966,6 +3966,30 @@ const SearchGame = (() => {
         // Initialize Game Season (sets grass and trees)
         window.setGameSeason(GameConfig.currentSeason);
 
+        // DEBUG: 座標表示パネル
+        if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+            const existingPanel = document.getElementById('debug-pos-panel');
+            if (existingPanel) existingPanel.remove();
+
+            const debugPanel = document.createElement('div');
+            debugPanel.id = 'debug-pos-panel';
+            debugPanel.style.position = 'absolute';
+            debugPanel.style.top = '10px';
+            debugPanel.style.left = '50%';
+            debugPanel.style.transform = 'translateX(-50%)';
+            debugPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+            debugPanel.style.color = '#00FF00';
+            debugPanel.style.padding = '8px 16px';
+            debugPanel.style.fontFamily = 'monospace';
+            debugPanel.style.fontSize = '16px';
+            debugPanel.style.fontWeight = 'bold';
+            debugPanel.style.borderRadius = '4px';
+            debugPanel.style.zIndex = '10000';
+            debugPanel.style.pointerEvents = 'none';
+            debugPanel.innerText = 'POS X:0.00 Z:0.00 H:0.00';
+            document.body.appendChild(debugPanel);
+        }
+
 
         /* REMOVED OLD TREE LOADING LOGIC */
 
@@ -5004,6 +5028,18 @@ const SearchGame = (() => {
                     console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
                 }
             }
+
+            // DEBUG: 座標情報の更新
+            if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                const panel = document.getElementById('debug-pos-panel');
+                if (panel && camera) {
+                    const x = camera.position.x.toFixed(2);
+                    const z = camera.position.z.toFixed(2);
+                    const y = camera.position.y.toFixed(2);
+                    panel.innerText = `POS X:${x} Z:${z} H:${y}`;
+                }
+            }
+
             renderer.render(scene, camera);
         }
     }
