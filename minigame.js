@@ -3485,19 +3485,20 @@ const SearchGame = (() => {
                     }
                 });
 
-                // === Game coin positions (10 coins spread around park) ===
-                // ★修正: Inverted Z Coordinates
+                // === Game coin positions (通常コイン一時撤去中) ===
+                // ★無効化: 隠しコインのみ残し、通常コインは配置しない
                 const coinPositions = [
-                    { x: -15, z: 15 },  // Old: -15 -> 15
-                    { x: 15, z: 15 },   // Old: -15 -> 15
-                    { x: -15, z: -15 }, // Old: 15 -> -15
-                    { x: 15, z: -15 },  // Old: 15 -> -15
-                    { x: -20, z: 0 },
-                    { x: 20, z: 0 },
-                    { x: 0, z: 20 },    // Old: -20 -> 20
-                    { x: 8, z: -18 },   // Old: 18 -> -18
-                    { x: -10, z: 20 },  // Old: -20 -> 20
-                    { x: 14, y: 0.5, z: -12 } // Old: 12 -> -12
+                    // 以下は一時的に無効化
+                    // { x: -15, z: 15 },
+                    // { x: 15, z: 15 },
+                    // { x: -15, z: -15 },
+                    // { x: 15, z: -15 },
+                    // { x: -20, z: 0 },
+                    // { x: 20, z: 0 },
+                    // { x: 0, z: 20 },
+                    // { x: 8, z: -18 },
+                    // { x: -10, z: 20 },
+                    // { x: 14, y: 0.5, z: -12 }
                 ];
 
                 window.sgGameCoins = []; // For rotation animation
