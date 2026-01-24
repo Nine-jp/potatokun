@@ -2894,6 +2894,26 @@ const SearchGame = (() => {
                 }
             }
 
+            // === SPECIAL BARRIER FOR COIN TREE (Radius 2.4m) ===
+            if (window.testTree && window.testTree.userData.hasCoin) {
+                const tree = window.testTree;
+                // FBXモデルなので .position でアクセス
+                const dxNew = newX - tree.position.x;
+                const dzNew = newZ - tree.position.z;
+                const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
+                const barrierRadius = 1.6; // 壁の位置（イベント判定2.5mより少し内側）
+
+                if (distNew < barrierRadius) {
+                    // 現在位置との比較
+                    const dxCurrent = playerPosition.x - tree.position.x;
+                    const dzCurrent = playerPosition.z - tree.position.z;
+
+                    // 近づく方向の移動のみブロック（離れるのは許可）
+                    if (Math.abs(dxNew) < Math.abs(dxCurrent)) blockedX = true;
+                    if (Math.abs(dzNew) < Math.abs(dzCurrent)) blockedZ = true;
+                }
+            }
+
             // === ELEPHANT FOUNTAIN COLLISION (circular) ===
             if (window.sgFountainCollision) {
                 for (const fountain of window.sgFountainCollision) {
@@ -4760,43 +4780,49 @@ const SearchGame = (() => {
                 // 1. 衝突判定（未落下の時のみ）
                 if (!coin.userData.isFalling && !coin.userData.hasFallen) {
                     const dist = camera.position.distanceTo(tree.position);
-                    if (dist < 1.5) {
+
+                    // ★修正点A：判定を 2.5m に拡大（木に触れなくても反応する距離）
+                    if (dist < 2.5) {
                         coin.userData.isFalling = true;
                         scene.attach(coin); // 親子解除
 
-                        // 【手応え演出 A】コインを上に跳ね上げる（初速3.5）
-                        coin.userData.velocity = 3.5;
-                        // 【手応え演出 B】木を揺らすタイマー（0.5秒）
-                        tree.userData.shakeTimer = 0.5;
+                        // ★修正点B：手前への移動(pushDir)を廃止し、ランダムに少し散らすだけにする
+                        coin.userData.velY = 4.0; // 上に跳ねる
+                        coin.userData.velX = (Math.random() - 0.5) * 0.2; // わずかなブレ
+                        coin.userData.velZ = (Math.random() - 0.5) * 0.2; // わずかなブレ
 
-                        console.log("💥 CRASH! Tree Shaking!");
+                        tree.userData.shakeTimer = 0.5; // 木の揺れ
+                        console.log("💥 Wall Hit! Coin Drop Triggered.");
                     }
                 }
 
-                // 2. 木の揺れアニメーション（shakeTimerがある間）
+                // 2. 木の揺れ（維持）
                 if (tree.userData.shakeTimer > 0) {
                     tree.userData.shakeTimer -= dt;
                     const s = tree.userData.shakeTimer;
-                    // 高速で小刻みに回転軸を揺らす（振幅sで減衰）
                     tree.rotation.z = Math.sin(s * 80) * 0.1 * s;
                     tree.rotation.x = Math.cos(s * 80) * 0.1 * s;
                 } else if (tree.userData.shakeTimer !== undefined) {
-                    // 揺れ終了後に回転をリセット
-                    tree.rotation.z = 0;
-                    tree.rotation.x = 0;
+                    tree.rotation.z = 0; tree.rotation.x = 0;
                     tree.userData.shakeTimer = undefined;
                 }
 
-                // 3. 落下アニメーション（跳ね上がり対応）
+                // 3. 落下アニメーション
                 if (coin.userData.isFalling && !coin.userData.hasFallen) {
-                    coin.userData.velocity -= 12.0 * dt; // 重力（少し強め）
-                    coin.position.y += coin.userData.velocity * dt;
-                    coin.rotation.y += 15 * dt; // 高速回転
+                    coin.userData.velY -= 15.0 * dt; // 重力
 
-                    if (coin.position.y <= 0.3) {
-                        coin.position.y = 0.3;
+                    coin.position.x += coin.userData.velX * dt;
+                    coin.position.y += coin.userData.velY * dt;
+                    coin.position.z += coin.userData.velZ * dt;
+
+                    coin.rotation.x += 10 * dt;
+
+                    // ★修正点C：着地判定を 0.05（地面スレスレ）で固定
+                    if (coin.position.y <= 0.05) {
+                        coin.position.y = 0.05;
                         coin.userData.isFalling = false;
                         coin.userData.hasFallen = true;
+                        coin.rotation.set(-Math.PI / 2, 0, 0); // 寝かせる
                     }
                 }
             }
