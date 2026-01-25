@@ -2828,146 +2828,51 @@ const SearchGame = (() => {
         setupDpadButton('dpad-right', 'right');
 
         // === Movement Update Function (called in loop) ===
+        // ★ネコ耳アニメーション管理
+        let nekoEarAnim = {
+            active: false,
+            startTime: 0,
+            duration: 300 // ms
+        };
+        let nekoTriggered = false; // ★追加: 1回切り制御用フラグ
+
         window.sgUpdateMovement = (dt) => {
-            // カメラ回転 (InputManager)
+            // === 1. 入力とカメラの処理 ===
             if (typeof inputManager !== 'undefined') {
                 const { dx, dy } = inputManager.consumeLookDelta();
                 cameraAngle -= dx;
                 cameraPitch -= dy;
-                // 上下の角度制限
                 const MAX_PITCH = Math.PI * 0.45;
                 cameraPitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, cameraPitch));
             }
 
-            if (isCinematic) return; // Disable movement during cinematic
-            const direction = new THREE.Vector3();
+            if (isCinematic) return;
 
-            // ★重要: 速度を「秒速」に変換して dt を掛ける
-            // moveSpeed(0.08) * 60FPS = 4.8 (秒速)
+            // === 2. 移動ベクトルの計算 ===
+            const direction = new THREE.Vector3();
             const speedFactor = (moveSpeed * 60) * dt;
 
-            // Forward/backward (along camera direction)
-            if (moveState.forward) {
-                direction.z -= speedFactor;
-            }
-            if (moveState.backward) {
-                direction.z += speedFactor;
-            }
+            if (moveState.forward) direction.z -= speedFactor;
+            if (moveState.backward) direction.z += speedFactor;
+            if (moveState.left) direction.x -= speedFactor;
+            if (moveState.right) direction.x += speedFactor;
 
-            // Strafe left/right
-            if (moveState.left) {
-                direction.x -= speedFactor;
-            }
-            if (moveState.right) {
-                direction.x += speedFactor;
-            }
-
-            // Rotate direction by cameraAngle (camera-relative movement)
             direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
 
-            // Update player facing direction when moving
             if (direction.length() > 0.001) {
                 playerFacing = Math.atan2(direction.x, direction.z);
             }
 
-            // New position before collision check (use playerPosition)
+            // 移動後の予定座標
             const newX = playerPosition.x + direction.x;
             const newZ = playerPosition.z + direction.z;
 
-            // === AABB Collision Detection for Structures ===
-            const COLLISION_MARGIN = 0.25; // Player radius (reduced for better mobility)
-            // Collision obstacles (slide and old tree REMOVED - now using FBX trees with sgTreeCollisions)
-            // ★【修正】古いボクセルアセット（ベンチ、ジム、砂場など）の衝突判定を全削除
-            // これにより、FBXモデル以外の「見えない壁」がなくなります。
-            const obstacles = [];
-
+            // === 3. 衝突判定 (木・障害物) ===
+            const COLLISION_MARGIN = 0.25;
             let blockedX = false;
             let blockedZ = false;
 
-            for (const obs of obstacles) {
-                const withinX = newX > obs.minX - COLLISION_MARGIN && newX < obs.maxX + COLLISION_MARGIN;
-                const withinZ = newZ > obs.minZ - COLLISION_MARGIN && newZ < obs.maxZ + COLLISION_MARGIN;
-                const currentWithinX = playerPosition.x > obs.minX - COLLISION_MARGIN && playerPosition.x < obs.maxX + COLLISION_MARGIN;
-                const currentWithinZ = playerPosition.z > obs.minZ - COLLISION_MARGIN && playerPosition.z < obs.maxZ + COLLISION_MARGIN;
-
-                // Block X if moving into obstacle on X axis
-                if (withinX && currentWithinZ) {
-                    blockedX = true;
-
-                }
-                // Block Z if moving into obstacle on Z axis
-                if (currentWithinX && withinZ) {
-                    blockedZ = true;
-                }
-            }
-
-            // === FBX TREE TRUNK COLLISION (通常の木 - 特別ツリーは除外) ===
-            if (window.sgTreeCollisions) {
-                for (const tree of window.sgTreeCollisions) {
-                    // ★修正: コイン持ち（特別ツリー）なら、ここでは計算しない！
-                    if (tree.hasCoin) continue;
-
-                    const dxNew = newX - tree.x;
-                    const dzNew = newZ - tree.z;
-                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
-                    const collisionRadius = tree.radius + COLLISION_MARGIN;
-
-                    if (distNew < collisionRadius) {
-                        const dxCurrent = playerPosition.x - tree.x;
-                        const dzCurrent = playerPosition.z - tree.z;
-
-                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) {
-                            blockedX = true;
-                        }
-                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) {
-                            blockedZ = true;
-                        }
-                    }
-                }
-            }
-
-            // === SPECIAL BARRIER FOR COIN TREE (1.8m壁) ===
-            if (window.testTreeCollision && window.testTreeCollision.hasCoin) {
-                const tree = window.testTreeCollision;
-                const nextX = playerPosition.x + direction.x;
-                const nextZ = playerPosition.z + direction.z;
-                const dist = Math.sqrt(Math.pow(nextX - tree.x, 2) + Math.pow(nextZ - tree.z, 2));
-
-                const barrierRadius = 1.8; // 調整済み
-                if (dist < barrierRadius) {
-                    const dx = nextX - tree.x;
-                    const dz = nextZ - tree.z;
-                    const pushOut = barrierRadius - dist;
-                    direction.x += (dx / dist) * pushOut;
-                    direction.z += (dz / dist) * pushOut;
-                }
-            }
-
-            // === ELEPHANT FOUNTAIN COLLISION (circular) ===
-            if (window.sgFountainCollision) {
-                for (const fountain of window.sgFountainCollision) {
-                    const dxNew = newX - fountain.x;
-                    const dzNew = newZ - fountain.z;
-                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
-                    const collisionRadius = fountain.radius + COLLISION_MARGIN;
-
-                    if (distNew < collisionRadius) {
-                        const dxCurrent = playerPosition.x - fountain.x;
-                        const dzCurrent = playerPosition.z - fountain.z;
-
-                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) {
-                            blockedX = true;
-                        }
-                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) {
-                            blockedZ = true;
-                        }
-                    }
-                }
-            }
-
-
-
-            // === 土管用など追加の障害物判定 (sgExtraObstacles) ===
+            // 追加障害物
             if (window.sgExtraObstacles) {
                 for (const obs of window.sgExtraObstacles) {
                     const withinX = newX > obs.minX - COLLISION_MARGIN && newX < obs.maxX + COLLISION_MARGIN;
@@ -2980,145 +2885,151 @@ const SearchGame = (() => {
                 }
             }
 
-            // Apply movement to playerPosition (not camera)
-            if (!blockedX) {
-                playerPosition.x += direction.x;
-            }
-            if (!blockedZ) {
-                playerPosition.z += direction.z;
+            // 木
+            if (window.sgTreeCollisions) {
+                for (const tree of window.sgTreeCollisions) {
+                    if (tree.hasCoin) continue;
+                    const dxNew = newX - tree.x;
+                    const dzNew = newZ - tree.z;
+                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
+
+                    if (distNew < tree.radius + COLLISION_MARGIN) {
+                        const dxCurrent = playerPosition.x - tree.x;
+                        const dzCurrent = playerPosition.z - tree.z;
+                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) blockedX = true;
+                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) blockedZ = true;
+                    }
+                }
             }
 
-            // Enforce bounds on player position
+            // コインの木のバリア
+            if (window.testTreeCollision && window.testTreeCollision.hasCoin) {
+                const tree = window.testTreeCollision;
+                const dist = Math.sqrt(Math.pow(newX - tree.x, 2) + Math.pow(newZ - tree.z, 2));
+                const barrierRadius = 1.8;
+                if (dist < barrierRadius) {
+                    const dx = newX - tree.x;
+                    const dz = newZ - tree.z;
+                    const pushOut = barrierRadius - dist;
+                    direction.x += (dx / dist) * pushOut;
+                    direction.z += (dz / dist) * pushOut;
+                }
+            }
+
+            // === 4. 象さんと噴水 (現状維持・ログ削除のみ) ===
+            // ※ナインさんの指示通り、ここのロジックは変更しません
+            if (window.sgFountainCollision) {
+                window.sgFountainCollision.forEach(fountain => {
+                    const dxNew = newX - fountain.x;
+                    const dzNew = newZ - fountain.z;
+                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
+
+                    if (distNew < fountain.radius + COLLISION_MARGIN) {
+                        const dxCurrent = playerPosition.x - fountain.x;
+                        const dzCurrent = playerPosition.z - fountain.z;
+                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) blockedX = true;
+                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) blockedZ = true;
+
+                        // 水しぶきエフェクト
+                        let lastSplashTime = window.lastSplashTime || 0;
+                        const now = Date.now();
+                        if (now - lastSplashTime > 200) {
+                            window.spawnFountainSparkles(playerPosition.x, playerPosition.y + 1.5, playerPosition.z, true, false);
+                            window.lastSplashTime = now;
+                        }
+                    }
+                });
+            }
+
+            // === 5. 移動の適用 ===
+            if (!blockedX) playerPosition.x += direction.x;
+            if (!blockedZ) playerPosition.z += direction.z;
+
+            // エリア制限
             playerPosition.x = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.x));
             playerPosition.z = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.z));
 
-            // === DYNAMIC HEIGHT (Ground Detection via Raycaster) ===
-            // Cast ray from high above player position, pointing down
+            // === 6. 地面の高さ合わせ ===
             const groundRaycaster = new THREE.Raycaster();
-            const rayOrigin = new THREE.Vector3(playerPosition.x, 50, playerPosition.z);
-            const rayDirection = new THREE.Vector3(0, -1, 0);
-            groundRaycaster.set(rayOrigin, rayDirection);
+            groundRaycaster.set(new THREE.Vector3(playerPosition.x, 50, playerPosition.z), new THREE.Vector3(0, -1, 0));
 
-            // Use CACHED walkable meshes (Optimized)
-            // If the cache is empty (init), try to refresh immediately
             if (!window.sgWalkableMeshes || window.sgWalkableMeshes.length === 0) {
-                if (typeof window.sgRefreshWalkableMeshes === 'function') {
-                    window.sgRefreshWalkableMeshes();
-                }
+                if (typeof window.sgRefreshWalkableMeshes === 'function') window.sgRefreshWalkableMeshes();
             }
-            // Fallback to empty if still nothing (prevents crash, though player might fall if no ground)
             const walkableMeshes = window.sgWalkableMeshes || [];
-
             const groundHits = groundRaycaster.intersectObjects(walkableMeshes, false);
 
-            // Find the highest walkable surface at this position
-            let targetHeight = 0; // Default ground level
+            let targetHeight = 0;
             for (const hit of groundHits) {
-                // Only consider surfaces we can stand on
                 if (hit.point.y >= 0 && hit.point.y < 10) {
-
-                    // ★【追加】段差制限 (Max Step Height)
-                    // 現在の足元より 1.0m 以上高い場所は「壁」や「天井」とみなして無視する。
-                    // これにより、土管の天井(Y=2.0)の下にいる時に、上に吸い寄せられるのを防ぐ。
-                    if (hit.point.y > playerPosition.y + 1.0) {
-                        continue;
-                    }
-
-                    if (hit.point.y > targetHeight) {
-                        targetHeight = hit.point.y;
-                    }
+                    if (hit.point.y > playerPosition.y + 1.0) continue;
+                    if (hit.point.y > targetHeight) targetHeight = hit.point.y;
                 }
             }
 
-            // Apply height with smooth interpolation (for falling)
             const desiredY = targetHeight + PLAYER_HEIGHT;
             const heightDiff = desiredY - playerPosition.y;
+            if (heightDiff > 0) playerPosition.y = desiredY;
+            else if (heightDiff < -0.1) playerPosition.y += heightDiff * 0.15;
+            else playerPosition.y = desiredY;
 
-            // Apply height smoothly to playerPosition.y
-            if (heightDiff > 0) {
-                // Going up - instant (climbing)
-                playerPosition.y = desiredY;
-            } else if (heightDiff < -0.1) {
-                // Going down - smooth fall
-                playerPosition.y += heightDiff * 0.15;
-            } else {
-                // Close enough - lock to target
-                playerPosition.y = desiredY;
-            }
-
-            // === ORBIT CAMERA POSITIONING ===
+            // === 7. カメラとモデルの更新 ===
             if (cameraDistance > 0) {
-                // TPS MODE: Camera orbits around player using cameraAngle
-                const offsetX = Math.sin(cameraAngle) * cameraDistance;
-                const offsetZ = Math.cos(cameraAngle) * cameraDistance;
-                const offsetY = cameraDistance * 0.3; // Elevate camera as we zoom out
-
-                // Position camera behind player (orbit)
-                camera.position.x = playerPosition.x + offsetX;
-                camera.position.z = playerPosition.z + offsetZ;
-                camera.position.y = playerPosition.y + offsetY;
-
-                // Always look at player center
+                camera.position.x = playerPosition.x + Math.sin(cameraAngle) * cameraDistance;
+                camera.position.z = playerPosition.z + Math.cos(cameraAngle) * cameraDistance;
+                camera.position.y = playerPosition.y + cameraDistance * 0.3;
                 camera.lookAt(playerPosition.x, playerPosition.y, playerPosition.z);
             } else {
-                // FPS MODE: Camera is player's eyes
-                camera.position.x = playerPosition.x;
-                camera.position.z = playerPosition.z;
-                camera.position.y = playerPosition.y;
-
-                // Apply FPS rotation using cameraAngle and cameraPitch
-                camera.rotation.y = cameraAngle;
-                camera.rotation.x = cameraPitch;
+                camera.position.copy(playerPosition);
+                camera.rotation.set(cameraPitch, cameraAngle, 0, 'YXZ');
             }
 
-            // === PLAYER MODEL VISIBILITY AND POSITION ===
             if (playerModel) {
-                // Position player model at player location
                 playerModel.position.set(playerPosition.x, playerModel.position.y, playerPosition.z);
-                playerModel.rotation.y = -playerFacing + Math.PI; // Face movement direction
-
-                // Hide in FPS, show in TPS
+                playerModel.rotation.y = -playerFacing + Math.PI;
                 playerModel.visible = cameraDistance >= 0.5;
             }
 
-
-
-            // (Old ketchup hover detection REMOVED - now using coin proximity in loop())
-
-            // ★耳ピクギミック（距離判定スイッチ & 1回切りトリガー）
+            // ★★★ ネコ耳ピクピク判定 (ここを完全修正) ★★★
+            // 修正点1: 存在しない player.position を playerPosition に変更
+            // 修正点2: 距離判定を camera.position から playerPosition (自分) に変更
             if (currentState === GameState.PLAYING && window.sgBenchCat && window.sgBenchCat.userData.ears) {
                 const cat = window.sgBenchCat;
-                const dist = camera.position.distanceTo(cat.position);
 
-                // 接近トリガー (2.0m以内)
-                if (dist < 2.0) {
-                    if (!cat.userData.hasReacted && !cat.userData.isReacting) {
-                        cat.userData.isReacting = true;
-                        cat.userData.hasReacted = true;
-                        cat.userData.reactionTimer = 0;
-                    }
-                }
-                // 離れたらリセット (2.5m以上で再反応を許可)
-                else if (dist > 2.5) {
-                    cat.userData.hasReacted = false;
+                // プレイヤーとネコの水平距離を計算
+                const dx = playerPosition.x - cat.position.x;
+                const dz = playerPosition.z - cat.position.z;
+                const distXZ = Math.sqrt(dx * dx + dz * dz);
+
+                // ① トリガー (3.0m以内に入ったらスイッチON)
+                if (distXZ < 3.0 && !nekoTriggered) {
+                    nekoTriggered = true;
+                    nekoEarAnim.active = true;
+                    nekoEarAnim.startTime = performance.now();
                 }
 
-                // アニメーション再生（再生中のみ計算を実行）
-                if (cat.userData.isReacting) {
-                    cat.userData.reactionTimer += dt;
-                    if (cat.userData.reactionTimer < 0.3) {
-                        const twitch = Math.sin(cat.userData.reactionTimer * 60) * 0.1;
-                        cat.userData.ears.rotation.z = twitch;
-                    } else {
-                        cat.userData.isReacting = false;
-                        cat.userData.ears.rotation.z = 0; // 停止
-                    }
+                // ② リセット (3.5m以上離れたらスイッチOFF)
+                if (distXZ > 3.5) {
+                    nekoTriggered = false;
                 }
             }
 
+            // ③ アニメーション実行 (トリガーが入っている間動く)
+            if (nekoEarAnim.active && window.sgBenchCat && window.sgBenchCat.userData.ears) {
+                const ears = window.sgBenchCat.userData.ears;
+                const t = performance.now() - nekoEarAnim.startTime;
+                const p = Math.min(t / nekoEarAnim.duration, 1); // 0.0 〜 1.0
+
+                // 左右に1回プルプル (サイン波)
+                ears.rotation.z = Math.sin(p * Math.PI * 2) * 0.25;
+
+                // アニメーション終了
+                if (p >= 1) {
+                    ears.rotation.z = 0;
+                    nekoEarAnim.active = false;
+                }
+            }
         };
-
-
 
 
 
