@@ -4250,6 +4250,10 @@ const SearchGame = (() => {
                                 c.material.opacity = 0.6;
                                 c.material.depthWrite = false;
                                 c.visible = false;
+
+                                // ★修正: 水流メッシュにはアウトラインを付けない
+                                c.userData.skipOutline = true;
+
                                 streams.push(c);
                             }
                             c.castShadow = true;
