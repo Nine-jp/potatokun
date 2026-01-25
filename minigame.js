@@ -4225,7 +4225,7 @@ const SearchGame = (() => {
                     scale: 1.0, // 必要に応じて微調整
                     collision: true,
                     collisionType: 'cylinder',
-                    collisionSize: { radius: 1.5, height: 3 },
+                    collisionSize: { radius: 1.35, height: 3 },
                     onLoad: (obj) => {
                         // ストリームメッシュの初期化と分別
                         const streams = [];
@@ -4624,15 +4624,15 @@ const SearchGame = (() => {
                     pivot.rotation.z += (targetRot - pivot.rotation.z) * 0.1;
                 }
 
-                // 象の噴水の水流制御（完全分離版）
+                // 象の噴水の水流制御
                 const elephant = scene.getObjectByName('ElephantSprayer');
                 if (elephant) {
                     const pPos = playerPosition;
 
-                    // --- 1. 鼻先 (Nose) の制御 ---
+                    // --- 1. 鼻先 (現状維持) ---
                     const noseOffset = new THREE.Vector3(0, 0, 1.8).applyQuaternion(elephant.quaternion);
                     const noseWorldPos = elephant.position.clone().add(noseOffset);
-                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.3;
+                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.4;
 
                     if (elephant.userData.noseStreams) {
                         elephant.userData.noseStreams.forEach(s => s.visible = isNoseActive);
@@ -4641,10 +4641,11 @@ const SearchGame = (() => {
                         window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
                     }
 
-                    // --- 2. 背中 (Back) の制御 ---
-                    const backOffset = new THREE.Vector3(0, 1.2, 0).applyQuaternion(elephant.quaternion);
+                    // --- 2. 背中 (お尻側に移動) ---
+                    // ★修正: Z-1.5m (お尻側) にセンサーを置く
+                    const backOffset = new THREE.Vector3(0, 0.6, -0.5).applyQuaternion(elephant.quaternion);
                     const backWorldPos = elephant.position.clone().add(backOffset);
-                    const isBackActive = pPos.distanceTo(backWorldPos) < 1.4;
+                    const isBackActive = pPos.distanceTo(backWorldPos) < 1.6;
 
                     if (elephant.userData.backStreams) {
                         elephant.userData.backStreams.forEach(s => s.visible = isBackActive);
