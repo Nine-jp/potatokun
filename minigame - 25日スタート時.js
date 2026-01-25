@@ -8,7 +8,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'summer', // 'summer' に変更して夏仕様にする
+    currentSeason: 'winter', // 冬仕様に変更
     debugMode: true          // デバッグモードは維持
 };
 
@@ -2760,6 +2760,27 @@ const SearchGame = (() => {
                 case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
                 case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
                 case 'KeyD': case 'ArrowRight': moveState.right = true; break;
+                case 'KeyC':
+                    if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                        const x = camera.position.x.toFixed(2);
+                        const z = camera.position.z.toFixed(2);
+                        const y = camera.position.y.toFixed(2);
+
+                        const code = `createCoin(${x}, ${z}, ${y});`;
+
+                        console.log(`%c[COIN] ${code}`, 'color: #ffd700; font-weight: bold; font-size: 1.2em;');
+
+                        const panel = document.getElementById('debug-pos-panel');
+                        if (panel) {
+                            const originalColor = panel.style.color;
+                            panel.style.color = '#ffd700';
+                            panel.innerText = `COPIED: ${code}`;
+                            setTimeout(() => {
+                                panel.style.color = originalColor;
+                            }, 1500);
+                        }
+                    }
+                    break;
             }
         };
 
@@ -2869,28 +2890,45 @@ const SearchGame = (() => {
                 }
             }
 
-            // === FBX TREE TRUNK COLLISION (circular) ===
+            // === FBX TREE TRUNK COLLISION (通常の木 - 特別ツリーは除外) ===
             if (window.sgTreeCollisions) {
                 for (const tree of window.sgTreeCollisions) {
+                    // ★修正: コイン持ち（特別ツリー）なら、ここでは計算しない！
+                    if (tree.hasCoin) continue;
+
                     const dxNew = newX - tree.x;
                     const dzNew = newZ - tree.z;
                     const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
                     const collisionRadius = tree.radius + COLLISION_MARGIN;
 
                     if (distNew < collisionRadius) {
-                        // Check which axis to block
                         const dxCurrent = playerPosition.x - tree.x;
                         const dzCurrent = playerPosition.z - tree.z;
 
-                        // Block X if moving closer on X axis
                         if (Math.abs(dxNew) < Math.abs(dxCurrent)) {
                             blockedX = true;
                         }
-                        // Block Z if moving closer on Z axis
                         if (Math.abs(dzNew) < Math.abs(dzCurrent)) {
                             blockedZ = true;
                         }
                     }
+                }
+            }
+
+            // === SPECIAL BARRIER FOR COIN TREE (1.8m壁) ===
+            if (window.testTreeCollision && window.testTreeCollision.hasCoin) {
+                const tree = window.testTreeCollision;
+                const nextX = playerPosition.x + direction.x;
+                const nextZ = playerPosition.z + direction.z;
+                const dist = Math.sqrt(Math.pow(nextX - tree.x, 2) + Math.pow(nextZ - tree.z, 2));
+
+                const barrierRadius = 1.8; // 調整済み
+                if (dist < barrierRadius) {
+                    const dx = nextX - tree.x;
+                    const dz = nextZ - tree.z;
+                    const pushOut = barrierRadius - dist;
+                    direction.x += (dx / dist) * pushOut;
+                    direction.z += (dz / dist) * pushOut;
                 }
             }
 
@@ -3468,19 +3506,18 @@ const SearchGame = (() => {
                     }
                 });
 
-                // === Game coin positions (10 coins spread around park) ===
-                // ★修正: Inverted Z Coordinates
+                // === Game coin positions (確定版: 9箇所・高さ指定) ===
+                // ★収集したコイン座標（高さも指定）
                 const coinPositions = [
-                    { x: -15, z: 15 },  // Old: -15 -> 15
-                    { x: 15, z: 15 },   // Old: -15 -> 15
-                    { x: -15, z: -15 }, // Old: 15 -> -15
-                    { x: 15, z: -15 },  // Old: 15 -> -15
-                    { x: -20, z: 0 },
-                    { x: 20, z: 0 },
-                    { x: 0, z: 20 },    // Old: -20 -> 20
-                    { x: 8, z: -18 },   // Old: 18 -> -18
-                    { x: -10, z: 20 },  // Old: -20 -> 20
-                    { x: 14, y: 0.5, z: -12 } // Old: 12 -> -12
+                    { x: 0.00, y: 0.62, z: 21.80 },
+                    { x: 24.14, y: 3.60, z: 23.32 },
+                    { x: 24.00, y: 0.60, z: 13.50 },
+                    { x: 2.31, y: 1.80, z: -0.23 },
+                    { x: -0.30, y: 6.60, z: -0.01 },
+                    { x: 4.26, y: 0.60, z: -30.86 },
+                    { x: -31.00, y: 0.60, z: -31.00 },
+                    { x: -30.94, y: 0.60, z: 3.84 },
+                    { x: -19.55, y: 0.60, z: 14.04 }
                 ];
 
                 window.sgGameCoins = []; // For rotation animation
@@ -3796,9 +3833,90 @@ const SearchGame = (() => {
                     window.sgTreeCollisions.push({ x: pos.x, z: pos.z, radius: 0.3 * scale });
 
                     if (window.addEdgesOutline) window.addEdgesOutline(tree, 15, 0x000000);
+
                 });
 
                 console.log(`${treePositions.length} trees placed.`);
+
+                // =================================================
+                // ★★★ 隠しコイン生成（独立管理版） ★★★
+                // =================================================
+                if (!window.sgActiveCoins) window.sgActiveCoins = []; // グローバルリスト初期化
+
+                let forestTrees = window.sgTreeObjects.filter(t => t.position.x < -10 && t.position.z > 10);
+                if (forestTrees.length === 0) forestTrees = window.sgTreeObjects;
+                if (forestTrees.length > 0) {
+                    const targetTree = forestTrees[Math.floor(Math.random() * forestTrees.length)];
+                    window.testTree = targetTree; // 物理判定用に登録
+
+                    const loader = new FBXLoader();
+                    loader.load('models/coin.fbx', (object) => {
+                        const coin = object;
+
+                        // === 0. 季節ごとの色定義（ユーザー指定） ===
+                        const seasonColors = {
+                            spring: 0xADFF2F, // 黄緑色 (Spring)
+                            summer: 0xFF69B4, // ピンク色 (Summer)
+                            autumn: 0xE0FFFF, // アイスシアン (Autumn)
+                            winter: 0xFFD700  // 金色 (Winter)
+                        };
+                        const currentSeason = (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) ? GameConfig.currentSeason : 'summer';
+                        const targetColor = seasonColors[currentSeason] || 0xFFFFFF;
+
+                        // === 1. マテリアル設定（季節色を適用） ===
+                        coin.traverse((child) => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = false;
+
+                                if (child.material) {
+                                    const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                                    const newMat = new THREE.MeshBasicMaterial({
+                                        map: oldMat.map,
+                                        color: targetColor, // ★季節の色でティントする
+                                        transparent: false,
+                                        opacity: 1.0,
+                                        side: THREE.DoubleSide
+                                    });
+                                    child.material = newMat;
+                                }
+                            }
+                        });
+
+                        // === 2. サイズ調整 ===
+                        const box = new THREE.Box3().setFromObject(coin);
+                        const size = new THREE.Vector3();
+                        box.getSize(size);
+                        coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
+
+                        // === 3. 光源追加（季節色を適用） ===
+                        const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
+                        coin.add(coinLight);
+
+                        // === 4. 配置設定 ===
+                        coin.position.set(0, 2.2, 0);
+                        coin.userData = { isCoin: true, isFalling: false, hasFallen: false };
+                        coin.userData.pointLight = coinLight; // ★着地後の消灯用に保存
+
+                        targetTree.add(coin);
+                        targetTree.userData.hasCoin = true;
+                        targetTree.userData.targetCoin = coin;
+
+                        // === 5. システム登録 ===
+                        window.sgActiveCoins.push(coin);
+                        coin.userData.parentTree = targetTree;
+
+                        // === 6. 壁判定の有効化 ===
+                        const collisionObj = window.sgTreeCollisions.find(c =>
+                            Math.abs(c.x - targetTree.position.x) < 0.1 &&
+                            Math.abs(c.z - targetTree.position.z) < 0.1
+                        );
+                        if (collisionObj) {
+                            collisionObj.hasCoin = true;
+                            window.testTreeCollision = collisionObj;
+                        }
+                    });
+                }
 
                 // C. 外周の森 (Exterior)
                 // 修正: 開始半径を45mに設定（柵35mに対して10mの余裕を持たせる）
@@ -3867,6 +3985,30 @@ const SearchGame = (() => {
 
         // Initialize Game Season (sets grass and trees)
         window.setGameSeason(GameConfig.currentSeason);
+
+        // DEBUG: 座標表示パネル
+        if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+            const existingPanel = document.getElementById('debug-pos-panel');
+            if (existingPanel) existingPanel.remove();
+
+            const debugPanel = document.createElement('div');
+            debugPanel.id = 'debug-pos-panel';
+            debugPanel.style.position = 'absolute';
+            debugPanel.style.top = '10px';
+            debugPanel.style.left = '50%';
+            debugPanel.style.transform = 'translateX(-50%)';
+            debugPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+            debugPanel.style.color = '#00FF00';
+            debugPanel.style.padding = '8px 16px';
+            debugPanel.style.fontFamily = 'monospace';
+            debugPanel.style.fontSize = '16px';
+            debugPanel.style.fontWeight = 'bold';
+            debugPanel.style.borderRadius = '4px';
+            debugPanel.style.zIndex = '10000';
+            debugPanel.style.pointerEvents = 'none';
+            debugPanel.innerText = 'POS X:0.00 Z:0.00 H:0.00';
+            document.body.appendChild(debugPanel);
+        }
 
 
         /* REMOVED OLD TREE LOADING LOGIC */
@@ -4732,6 +4874,100 @@ const SearchGame = (() => {
             // Gameplay NPC Shiver (Winter Only)
             updateGameplayShiver(dt);
 
+            // ■ 独立したコイン更新ループ（ロジック自殺防止版）
+            if (window.sgActiveCoins) {
+                window.sgActiveCoins = window.sgActiveCoins.filter(coin => {
+                    if (coin.userData.collected) return false;
+
+                    const parentTree = coin.userData.parentTree;
+                    coin.rotation.y += 5.0 * dt; // 常時回転
+
+                    // A. トリガー判定 (2.0m)
+                    if (!coin.userData.isFalling && !coin.userData.hasFallen) {
+                        const treePos = parentTree ? parentTree.position : coin.position;
+                        // 高さ(y)を無視して、足元の距離だけで判定
+                        const dist = playerPosition.distanceTo(new THREE.Vector3(treePos.x, 0, treePos.z));
+
+                        if (dist < 2.0) {
+                            coin.userData.isFalling = true;
+                            scene.attach(coin); // ワールド座標へ
+
+                            // 接地計算
+                            const box = new THREE.Box3().setFromObject(coin);
+                            coin.userData.groundY = (box.max.y - box.min.y) / 2;
+
+                            // プレイヤー方向(180度)へ弾く
+                            const toPlayer = new THREE.Vector3().subVectors(playerPosition, coin.position).normalize();
+                            toPlayer.y = 0;
+                            const angleOffset = (Math.random() - 0.5) * Math.PI; // ±90度
+                            const cos = Math.cos(angleOffset); const sin = Math.sin(angleOffset);
+                            coin.userData.velX = (toPlayer.x * cos - toPlayer.z * sin) * 1.5;
+                            coin.userData.velZ = (toPlayer.x * sin + toPlayer.z * cos) * 1.5;
+                            coin.userData.velY = 4.0;
+
+                            if (parentTree) parentTree.userData.shakeTimer = 0.5;
+
+                            // ★重要: ここではまだ壁(hasCoin)を消さない！
+                            // プレイヤーを1.6mで足止めして、落ちてくる様子を見せるため。
+                        }
+                    }
+
+                    // B. 木の揺れ（親木がある場合）
+                    if (parentTree && parentTree.userData.shakeTimer > 0) {
+                        parentTree.userData.shakeTimer -= dt;
+                        const s = parentTree.userData.shakeTimer;
+                        parentTree.rotation.z = Math.sin(s * 80) * 0.1 * s;
+                        parentTree.rotation.x = Math.cos(s * 80) * 0.1 * s;
+                    } else if (parentTree) {
+                        parentTree.rotation.z = 0; parentTree.rotation.x = 0;
+                    }
+
+                    // C. 落下物理と着地
+                    if (coin.userData.isFalling) {
+                        coin.userData.velY -= 15.0 * dt;
+                        coin.position.x += coin.userData.velX * dt;
+                        coin.position.y += coin.userData.velY * dt;
+                        coin.position.z += coin.userData.velZ * dt;
+
+                        const targetY = coin.userData.groundY || 0.25;
+                        if (coin.position.y <= targetY) {
+                            coin.position.y = targetY;
+                            coin.userData.isFalling = false;
+                            coin.userData.hasFallen = true;
+
+                            // 1. 周囲への光を消す（これはOK）
+                            if (coin.userData.pointLight) {
+                                coin.userData.pointLight.intensity = 0;
+                            }
+
+                            // 2. ★修正: 発光マテリアル(Basic)は維持し、色だけ白に戻す
+                            coin.traverse((child) => {
+                                if (child.isMesh && child.material) {
+                                    if (child.material.color) {
+                                        child.material.color.setHex(0xFFFFFF);
+                                    }
+                                    // BasicMaterialであることを保証
+                                    if (!(child.material instanceof THREE.MeshBasicMaterial)) {
+                                        const oldMat = child.material;
+                                        child.material = new THREE.MeshBasicMaterial({
+                                            map: oldMat.map,
+                                            color: 0xFFFFFF,
+                                            side: THREE.DoubleSide
+                                        });
+                                    }
+                                }
+                            });
+
+                            // 3. 1.8mの壁を解除
+                            if (window.testTreeCollision) {
+                                window.testTreeCollision.hasCoin = false;
+                            }
+                        }
+                    }
+                    return true;
+                });
+            }
+
             // Aim Detection (Moved from loop)
             // ★ Deprecated: Click interaction implemented instead
             // updateAim();
@@ -4812,6 +5048,18 @@ const SearchGame = (() => {
                     console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
                 }
             }
+
+            // DEBUG: 座標情報の更新
+            if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                const panel = document.getElementById('debug-pos-panel');
+                if (panel && camera) {
+                    const x = camera.position.x.toFixed(2);
+                    const z = camera.position.z.toFixed(2);
+                    const y = camera.position.y.toFixed(2);
+                    panel.innerText = `POS X:${x} Z:${z} H:${y}`;
+                }
+            }
+
             renderer.render(scene, camera);
         }
     }
@@ -4970,7 +5218,7 @@ const SearchGame = (() => {
                 if (child.isMesh) {
                     // 修正: 軽量化のため、草の影（CastShadow）をオフにする魔法
                     child.castShadow = false;
-                    child.receiveShadow = true; // 影を受けるのはOK（地面の影と馴染むため）
+                    child.receiveShadow = false; // 軽量化：影を受けない
                     // 地面判定無視
                     child.userData.ignoreGround = true;
 
@@ -4995,9 +5243,8 @@ const SearchGame = (() => {
                 window.addEdgesOutline(masterGrass, 15, 0x000000);
             }
 
-            // 草の配置数
-            // 修正: 200 -> 2000 に増量して地面をリッチにする
-            const grassCount = 2000;
+            // 草の配置数（軽量化）
+            const grassCount = 800; // 軽量化：2000 -> 800
 
             for (let i = 0; i < grassCount; i++) {
                 const grass = masterGrass.clone();

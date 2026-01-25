@@ -3366,97 +3366,6 @@ const SearchGame = (() => {
         // Instead, just load the NPC without callback (for potential later use)
         spawnOpeningNPC(() => { /* No-op callback */ });
 
-        // === LOAD FBX MODEL: Elephant Fountain (Water Drinking Station) ===
-        const FOUNTAIN_TARGET_HEIGHT = 0.9; // Target height: 0.9m (potato's chest height)
-
-        loader.load(
-            'models/elephant_fountain.fbx',
-            (fountainFbx) => {
-                console.log('FBX Model loaded: elephant_fountain.fbx');
-
-                // === AUTO-SIZE NORMALIZATION using Box3 ===
-                const fountainBox = new THREE.Box3().setFromObject(fountainFbx);
-                const fountainSize = new THREE.Vector3();
-                fountainBox.getSize(fountainSize);
-
-                const fountainOriginalHeight = fountainSize.y;
-                console.log('Fountain Original Height:', fountainOriginalHeight.toFixed(3));
-
-                // Calculate scale factor to achieve target height
-                const fountainScaleFactor = FOUNTAIN_TARGET_HEIGHT / fountainOriginalHeight;
-                fountainFbx.scale.setScalar(fountainScaleFactor);
-                console.log('Fountain Applied Scale:', fountainScaleFactor.toFixed(6));
-
-                // Recalculate bounding box after scaling
-                const scaledFountainBox = new THREE.Box3().setFromObject(fountainFbx);
-
-                // Position at (3, 0, 3) with Y offset for ground contact
-                const fountainOffsetY = -scaledFountainBox.min.y;
-                fountainFbx.position.set(3, fountainOffsetY, 3);
-                console.log('Fountain Position Y offset:', fountainOffsetY.toFixed(3));
-
-                // Face toward center/player
-                fountainFbx.rotation.y = -Math.PI / 4;
-
-                // Set up shadows for all meshes and handle water transparency
-                fountainFbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-
-                        // Water transparency check
-                        if (child.name.toLowerCase().includes('water')) {
-                            // Clone material to avoid affecting other models sharing the same material
-                            if (Array.isArray(child.material)) {
-                                child.material = child.material.map(m => {
-                                    const cloned = m.clone();
-                                    cloned.transparent = true;
-                                    cloned.opacity = 0.6;
-                                    cloned.depthWrite = false;
-                                    return cloned;
-                                });
-                            } else {
-                                const cloned = child.material.clone();
-                                cloned.transparent = true;
-                                cloned.opacity = 0.6;
-                                cloned.depthWrite = false;
-                                child.material = cloned;
-                            }
-                            // Skip outline for water
-                            child.userData.skipOutline = true;
-                            console.log('Water transparency applied to (Cloned Material):', child.name);
-                        }
-                    }
-                });
-
-                // Add to scene
-                scene.add(fountainFbx);
-                console.log('Elephant fountain placed at (3, 0, 3)');
-
-                // Add edge outlines (EdgesGeometry method)
-                addEdgesOutline(fountainFbx, 15, 0x000000);
-                console.log('Elephant fountain: Edge outlines applied');
-
-                // Add collision data for the fountain
-                if (!window.sgFountainCollision) {
-                    window.sgFountainCollision = [];
-                }
-                window.sgFountainCollision.push({
-                    x: 3,
-                    z: 3,
-                    radius: 0.6 // Approximate radius
-                });
-            },
-            (progress) => {
-                if (progress.total > 0) {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                    console.log(`Loading elephant_fountain.fbx: ${percent}%`);
-                }
-            },
-            (error) => {
-                console.error('Error loading elephant_fountain.fbx:', error);
-            }
-        );
 
 
         // === LOAD FBX MODEL: Coin (collectible game items) ===
@@ -4309,44 +4218,44 @@ const SearchGame = (() => {
                     }
                 },
                 {
-                    name: 'ElephantFountain',
-                    path: 'models/ElephantFountain.fbx',
+                    name: 'ElephantSprayer',
+                    path: 'models/elephant_sprayer.fbx',
                     pos: { x: -15, y: 0, z: -12 },
-                    rot: { y: 45 },
-                    scale: 1.0,
+                    rot: { y: 0 }, // ★向きを0度に完全固定
+                    scale: 1.0, // 必要に応じて微調整
                     collision: true,
                     collisionType: 'cylinder',
-                    exclusionRadius: 2.0,
+                    collisionSize: { radius: 1.5, height: 3 },
                     onLoad: (obj) => {
-                        // 自動スケール・接地ロジックは維持
-                        const box = new THREE.Box3().setFromObject(obj);
-                        const size = new THREE.Vector3();
-                        box.getSize(size);
-                        const scaleFactor = 1.5 / (size.y > 0 ? size.y : 1.0);
-                        obj.scale.setScalar(scaleFactor);
-                        const scaledBox = new THREE.Box3().setFromObject(obj);
-                        obj.position.y -= scaledBox.min.y;
-
-                        obj.userData.streams = [];
-                        obj.traverse(c => {
-                            if (c.isMesh) {
-                                c.castShadow = true;
-                                c.receiveShadow = true;
-                                const name = c.name.toLowerCase();
-                                if (name.includes('water')) {
-                                    c.material = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
-                                    c.material.transparent = true;
-                                    c.material.opacity = 0.6;
-                                    c.material.depthWrite = false;
-                                    c.castShadow = false;
-                                    c.userData.skipOutline = true;
-                                    if (name.includes('stream')) {
-                                        c.visible = false;
-                                        obj.userData.streams.push(c);
-                                    }
-                                }
+                        // ストリームメッシュの初期化と分別
+                        const streams = [];
+                        obj.traverse((c) => {
+                            if (c.isMesh && c.name.toLowerCase().includes('stream')) {
+                                c.material = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
+                                c.material.transparent = true;
+                                c.material.opacity = 0.6;
+                                c.material.depthWrite = false;
+                                c.visible = false;
+                                streams.push(c);
                             }
+                            c.castShadow = true;
                         });
+
+                        // ★相対座標による分別ロジック
+                        streams.sort((a, b) => b.position.z - a.position.z);
+
+                        obj.userData.noseStreams = [];
+                        obj.userData.backStreams = [];
+
+                        if (streams.length > 0) {
+                            obj.userData.noseStreams.push(streams[0]);
+                            for (let i = 1; i < streams.length; i++) {
+                                obj.userData.backStreams.push(streams[i]);
+                            }
+                        }
+
+                        console.log(`Elephant Streams Sorted: Nose=${obj.userData.noseStreams.length}, Back=${obj.userData.backStreams.length}`);
+
                         if (window.applyOutlineRules) window.applyOutlineRules(obj);
                     }
                 },
@@ -4715,21 +4624,33 @@ const SearchGame = (() => {
                     pivot.rotation.z += (targetRot - pivot.rotation.z) * 0.1;
                 }
 
-                // 象の噴水の水流制御
-                const elephant = scene.getObjectByName('ElephantFountain');
-                if (elephant && elephant.userData.streams) {
-                    const dist = playerPosition.distanceTo(elephant.position);
-                    const isOpen = dist < 2.5;
-                    elephant.userData.streams.forEach(s => { s.visible = isOpen; });
+                // 象の噴水の水流制御（完全分離版）
+                const elephant = scene.getObjectByName('ElephantSprayer');
+                if (elephant) {
+                    const pPos = playerPosition;
 
-                    if (isOpen) {
-                        // 鼻先 (不変)
-                        const nPos = new THREE.Vector3(0, 0, 1.7).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z, true, false);
+                    // --- 1. 鼻先 (Nose) の制御 ---
+                    const noseOffset = new THREE.Vector3(0, 0, 1.8).applyQuaternion(elephant.quaternion);
+                    const noseWorldPos = elephant.position.clone().add(noseOffset);
+                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.3;
 
-                        // 背中 (高さを 1.30 に下げ、第5引数を true に設定)
-                        const bPos = new THREE.Vector3(0, 1.15, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z, false, true);
+                    if (elephant.userData.noseStreams) {
+                        elephant.userData.noseStreams.forEach(s => s.visible = isNoseActive);
+                    }
+                    if (isNoseActive) {
+                        window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
+                    }
+
+                    // --- 2. 背中 (Back) の制御 ---
+                    const backOffset = new THREE.Vector3(0, 1.2, 0).applyQuaternion(elephant.quaternion);
+                    const backWorldPos = elephant.position.clone().add(backOffset);
+                    const isBackActive = pPos.distanceTo(backWorldPos) < 1.4;
+
+                    if (elephant.userData.backStreams) {
+                        elephant.userData.backStreams.forEach(s => s.visible = isBackActive);
+                    }
+                    if (isBackActive) {
+                        window.spawnFountainSparkles(backWorldPos.x, backWorldPos.y, backWorldPos.z, false, true);
                     }
                 }
             }, 30);
