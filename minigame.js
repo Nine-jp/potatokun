@@ -3860,6 +3860,13 @@ const SearchGame = (() => {
     // 公園遊具・設備 (Park Assets) の一括配置
     // ==========================================
     function createParkAssets() {
+        // ★追加: ガード処理
+        if (window.hasParkAssetsCreated) {
+            console.log("createParkAssets already called. Skipping.");
+            return;
+        }
+        window.hasParkAssetsCreated = true;
+
         console.log("--- createParkAssets (Cleaned) CALLED ---");
 
         try {
