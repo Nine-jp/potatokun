@@ -4278,6 +4278,38 @@ const SearchGame = (() => {
                     }
                 },
                 {
+                    name: 'InfoBoard',
+                    path: 'models/signboard.fbx',
+                    pos: { x: -28.63, y: 0, z: -12.62 },
+                    rot: { y: 90 },
+                    scale: 1.0,
+                    collision: false,
+                    userData: {
+                        title: "インフォメーション",
+                        description: "ポテトくんの公園へようこそ！\nこの看板はテスト設置中です。"
+                    },
+                    onLoad: (obj) => {
+                        const textureLoader = new THREE.TextureLoader();
+                        const posterTexture = textureLoader.load('assets/testposter.png');
+                        posterTexture.colorSpace = THREE.SRGBColorSpace;
+                        posterTexture.flipY = true;
+
+                        obj.traverse((c) => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+
+                                if (c.name.includes('Face')) {
+                                    const mat = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
+                                    mat.map = posterTexture;
+                                    mat.color.setHex(0xffffff);
+                                    c.material = mat;
+                                }
+                            }
+                        });
+                    }
+                },
+                {
                     name: 'VendingMachine',
                     path: 'models/vending_machine.fbx',
                     pos: { x: -12, y: 0, z: -17 },
