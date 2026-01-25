@@ -2629,48 +2629,53 @@ const SearchGame = (() => {
         // ★追加: カーソル変更用のRaycaster (マウス移動時に常時判定)
         const hoverRaycaster = new THREE.Raycaster();
 
-        // PC用: マウス移動時のカーソル変化
+        // PC用: マウス移動時のカーソル変化（コイン回収 ＆ リンク判定）
         renderer.domElement.addEventListener('mousemove', (event) => {
             if (!isPlaying) return;
 
             const rect = renderer.domElement.getBoundingClientRect();
-            // 座標計算
             const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
             hoverRaycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
 
-            // コインと自販機を判定対象にする
             const intersects = hoverRaycaster.intersectObjects(scene.children, true);
-            let isHovering = false;
+            let cursorState = 'default'; // 'default' | 'magnet' | 'pointer'
 
-            // ★修正: シンプルなループに戻す (壁抜け判定なし)
             for (const hit of intersects) {
-                // 距離制限: 2.5m以内
-                if (hit.distance > 2.5) continue;
-
-                const obj = hit.object;
-
-                // 親を遡ってターゲット確認
-                let targetGroup = obj;
-                while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
-                    targetGroup = targetGroup.parent;
+                // 1. リンク（看板）の判定 [距離5m以内]
+                if (hit.distance <= 5.0 && hit.object.userData.isLink) {
+                    cursorState = 'pointer';
+                    break; // 最優先で決定
                 }
 
-                // ターゲットが見つかったら即反応 (手前の障害物は無視)
-                if (targetGroup.userData.isVendingMachine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
-                    isHovering = true;
-                    break; // 見つかった時点で終了
+                // 2. コイン・自販機の判定 [距離2.5m以内]
+                if (hit.distance <= 2.5) {
+                    const obj = hit.object;
+                    // 親を遡ってターゲット確認
+                    let targetGroup = obj;
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                        targetGroup = targetGroup.parent;
+                    }
+
+                    // ターゲットが見つかったら磁石モード
+                    if (targetGroup.userData.isVendingMachine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
+                        cursorState = 'magnet';
+                        break;
+                    }
                 }
             }
 
-            // ★変更: オリジナル磁石カーソルを適用
-            // url('パス') x座標 y座標, バックアップ(auto)
-            // 64x64ピクセルの中心(32 32)を判定位置にする
-            document.body.style.cursor = isHovering
-                ? "url('assets/horseshoe_magnet.png') 32 32, auto"
-                : 'default';
+            // カーソルの適用（競合なし）
+            if (cursorState === 'magnet') {
+                document.body.style.cursor = "url('assets/horseshoe_magnet.png') 32 32, auto";
+            } else if (cursorState === 'pointer') {
+                document.body.style.cursor = 'pointer';
+            } else {
+                document.body.style.cursor = 'default';
+            }
         });
+
 
         // ★ 新・インタラクション機能 (コインをクリックで拾う)
         const handleInputInteraction = (event) => {
@@ -2704,7 +2709,13 @@ const SearchGame = (() => {
 
             // ★修正: シンプルなループに戻す (壁抜け判定なし)
             for (const hit of intersects) {
-                // 距離制限: 2.5m以内
+                // 1. リンク（看板）の判定 [距離5m以内] - 最優先
+                if (hit.distance <= 5.0 && hit.object.userData.isLink && hit.object.userData.url) {
+                    window.open(hit.object.userData.url, '_blank');
+                    return; // リンクを開いたら終了
+                }
+
+                // 2. アイテム（コイン・自販機）の判定 [距離2.5m以内]
                 if (hit.distance > 2.5) continue;
 
                 const obj = hit.object;
@@ -3234,7 +3245,7 @@ const SearchGame = (() => {
             { x: -5, y: 15, z: 25 },
             { x: 12, y: 14, z: 8 }
         ];
-     
+         
         cloudPositions.forEach(pos => {
             const cloudGroup = new THREE.Group();
             // Main body
@@ -3256,7 +3267,7 @@ const SearchGame = (() => {
             );
             puff2.position.set(1.8, 0.3, -0.3);
             cloudGroup.add(puff2);
-     
+         
             cloudGroup.position.set(pos.x, pos.y, pos.z);
             cloudGroup.rotation.y = Math.random() * Math.PI;
             scene.add(cloudGroup);
@@ -4327,31 +4338,12 @@ const SearchGame = (() => {
                             minZ: box.max.z - legThickness, maxZ: box.max.z
                         });
 
-                        // 3. クリックイベント（貫通判定ロジック）
-                        const raycaster = new THREE.Raycaster();
-                        const mouse = new THREE.Vector2();
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.max.z - legThickness, maxZ: box.max.z
+                        });
 
-                        const onBoardClick = (event) => {
-                            if (!camera || !renderer) return;
-
-                            const rect = renderer.domElement.getBoundingClientRect();
-                            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-                            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-                            raycaster.setFromCamera(mouse, camera);
-
-                            const intersects = raycaster.intersectObject(obj, true);
-
-                            // 貫通チェック: すべてのヒットを走査してLink持ちを探す
-                            for (const hit of intersects) {
-                                if (hit.object.userData.isLink) {
-                                    window.open(hit.object.userData.url, '_blank');
-                                    break;
-                                }
-                            }
-                        };
-
-                        window.addEventListener('click', onBoardClick);
+                        // 3. クリックイベントは handleInputInteraction で統合管理するため削除
                     }
                 },
                 {
