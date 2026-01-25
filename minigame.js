@@ -4286,13 +4286,16 @@ const SearchGame = (() => {
                     collision: false,
                     userData: {
                         title: "インフォメーション",
-                        description: "ポテトくんの公園へようこそ！\nこの看板はテスト設置中です。"
+                        description: "ポテトくんの公園へようこそ！"
                     },
                     onLoad: (obj) => {
+                        // 1. ポスター貼り付け & URL設定
                         const textureLoader = new THREE.TextureLoader();
                         const posterTexture = textureLoader.load('assets/testposter.png');
                         posterTexture.colorSpace = THREE.SRGBColorSpace;
                         posterTexture.flipY = true;
+
+                        const targetUrl = 'https://www.instagram.com/nine.jp.4nft/';
 
                         obj.traverse((c) => {
                             if (c.isMesh) {
@@ -4304,9 +4307,51 @@ const SearchGame = (() => {
                                     mat.map = posterTexture;
                                     mat.color.setHex(0xffffff);
                                     c.material = mat;
+
+                                    c.userData.url = targetUrl;
+                                    c.userData.isLink = true;
                                 }
                             }
                         });
+
+                        // 2. 柱の衝突判定（股下通過用）
+                        obj.updateMatrixWorld(true);
+                        const box = new THREE.Box3().setFromObject(obj);
+                        const legThickness = 0.3;
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.min.z, maxZ: box.min.z + legThickness
+                        });
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.max.z - legThickness, maxZ: box.max.z
+                        });
+
+                        // 3. クリックイベント（貫通判定ロジック）
+                        const raycaster = new THREE.Raycaster();
+                        const mouse = new THREE.Vector2();
+
+                        const onBoardClick = (event) => {
+                            if (!camera || !renderer) return;
+
+                            const rect = renderer.domElement.getBoundingClientRect();
+                            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                            raycaster.setFromCamera(mouse, camera);
+
+                            const intersects = raycaster.intersectObject(obj, true);
+
+                            // 貫通チェック: すべてのヒットを走査してLink持ちを探す
+                            for (const hit of intersects) {
+                                if (hit.object.userData.isLink) {
+                                    window.open(hit.object.userData.url, '_blank');
+                                    break;
+                                }
+                            }
+                        };
+
+                        window.addEventListener('click', onBoardClick);
                     }
                 },
                 {
