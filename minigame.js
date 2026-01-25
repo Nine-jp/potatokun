@@ -4641,17 +4641,26 @@ const SearchGame = (() => {
                         window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
                     }
 
-                    // --- 2. 背中 (お尻側に移動) ---
-                    // ★修正: Z-1.5m (お尻側) にセンサーを置く
-                    const backOffset = new THREE.Vector3(0, 0.6, -0.5).applyQuaternion(elephant.quaternion);
-                    const backWorldPos = elephant.position.clone().add(backOffset);
-                    const isBackActive = pPos.distanceTo(backWorldPos) < 1.6;
+                    // --- 2. 背中 (センサーと蛇口を分離) ---
+
+                    // A. 判定用センサー (お尻付近)
+                    const backSensorOffset = new THREE.Vector3(0, 0.6, -0.5).applyQuaternion(elephant.quaternion);
+                    const backSensorPos = elephant.position.clone().add(backSensorOffset);
+
+                    // B. パーティクル発生源 (背中の蛇口)
+                    const backFaucetOffset = new THREE.Vector3(0, 1.2, 0).applyQuaternion(elephant.quaternion);
+                    const backFaucetPos = elephant.position.clone().add(backFaucetOffset);
+
+                    // 判定はセンサーとの距離で行う
+                    const isBackActive = pPos.distanceTo(backSensorPos) < 1.6;
 
                     if (elephant.userData.backStreams) {
                         elephant.userData.backStreams.forEach(s => s.visible = isBackActive);
                     }
+
+                    // 発生は蛇口位置から行う
                     if (isBackActive) {
-                        window.spawnFountainSparkles(backWorldPos.x, backWorldPos.y, backWorldPos.z, false, true);
+                        window.spawnFountainSparkles(backFaucetPos.x, backFaucetPos.y, backFaucetPos.z, false, true);
                     }
                 }
             }, 30);
