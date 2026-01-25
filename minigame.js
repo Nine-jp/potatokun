@@ -4070,7 +4070,19 @@ const SearchGame = (() => {
             // 1. カラーパレットの変更
             // 1. 関数の書き換え（透明度・速度・寿命を最適化）
             window.spawnFountainSparkles = (x, y, z, isWaterColor = true, isBack = false) => {
-                const count = isBack ? 2 : 3; // 背中は数を絞って負荷軽減
+                // ★追加: 円形テクスチャの生成（初回のみ実行・キャッシュ）
+                if (!window.particleCircleTexture) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 32; canvas.height = 32;
+                    const ctx = canvas.getContext('2d');
+                    ctx.beginPath();
+                    ctx.arc(16, 16, 15, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fill();
+                    window.particleCircleTexture = new THREE.CanvasTexture(canvas);
+                }
+
+                const count = isBack ? 2 : 3;
                 const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
                 const goldPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
 
@@ -4080,27 +4092,29 @@ const SearchGame = (() => {
                         : goldPalette[Math.floor(Math.random() * goldPalette.length)];
 
                     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-                        color: color, transparent: true, opacity: 0.6, depthWrite: false
+                        map: window.particleCircleTexture,
+                        color: color,
+                        transparent: true,
+                        opacity: 0.6,
+                        depthWrite: false
                     }));
 
                     sprite.position.set(x + (Math.random() - 0.5) * 0.1, y, z + (Math.random() - 0.5) * 0.1);
-                    sprite.scale.setScalar(isBack ? 0.03 : 0.04);
+                    sprite.scale.setScalar(isBack ? 0.07 : 0.06);
                     scene.add(sprite);
 
-                    // 動力：背中のスピードを半分にデチューン
                     let velY = isBack ? (0.01 + Math.random() * 0.01) : (0.02 + Math.random() * 0.02);
                     let velX = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
                     let velZ = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
                     let life = 1.0;
 
                     const anim = () => {
-                        life -= 0.03; // ★寿命は 0.02 で固定
+                        life -= 0.03;
                         if (life <= 0) { scene.remove(sprite); return; }
                         sprite.position.x += velX;
                         sprite.position.y += velY;
                         sprite.position.z += velZ;
 
-                        // ★重力も 0.001 にしてスローに落とす
                         velY -= isBack ? 0.0003 : 0.002;
 
                         sprite.material.opacity = life;
