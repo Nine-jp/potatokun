@@ -3263,7 +3263,7 @@ const SearchGame = (() => {
         // (Exterior bushes removed for cleaner test field)
 
         // Add park assets
-        createParkAssets();
+        // createParkAssets();
 
 
         // ★★★ PLAYGROUND DEV: Opening Callback DISABLED ★★★
