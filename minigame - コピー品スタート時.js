@@ -2629,48 +2629,53 @@ const SearchGame = (() => {
         // ★追加: カーソル変更用のRaycaster (マウス移動時に常時判定)
         const hoverRaycaster = new THREE.Raycaster();
 
-        // PC用: マウス移動時のカーソル変化
+        // PC用: マウス移動時のカーソル変化（コイン回収 ＆ リンク判定）
         renderer.domElement.addEventListener('mousemove', (event) => {
             if (!isPlaying) return;
 
             const rect = renderer.domElement.getBoundingClientRect();
-            // 座標計算
             const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
             hoverRaycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
 
-            // コインと自販機を判定対象にする
             const intersects = hoverRaycaster.intersectObjects(scene.children, true);
-            let isHovering = false;
+            let cursorState = 'default'; // 'default' | 'magnet' | 'pointer'
 
-            // ★修正: シンプルなループに戻す (壁抜け判定なし)
             for (const hit of intersects) {
-                // 距離制限: 2.5m以内
-                if (hit.distance > 2.5) continue;
-
-                const obj = hit.object;
-
-                // 親を遡ってターゲット確認
-                let targetGroup = obj;
-                while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
-                    targetGroup = targetGroup.parent;
+                // 1. リンク（看板）の判定 [距離5m以内]
+                if (hit.distance <= 5.0 && hit.object.userData.isLink) {
+                    cursorState = 'pointer';
+                    break; // 最優先で決定
                 }
 
-                // ターゲットが見つかったら即反応 (手前の障害物は無視)
-                if (targetGroup.userData.isVendingMachine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
-                    isHovering = true;
-                    break; // 見つかった時点で終了
+                // 2. コイン・自販機の判定 [距離2.5m以内]
+                if (hit.distance <= 2.5) {
+                    const obj = hit.object;
+                    // 親を遡ってターゲット確認
+                    let targetGroup = obj;
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                        targetGroup = targetGroup.parent;
+                    }
+
+                    // ターゲットが見つかったら磁石モード
+                    if (targetGroup.userData.isVendingMachine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
+                        cursorState = 'magnet';
+                        break;
+                    }
                 }
             }
 
-            // ★変更: オリジナル磁石カーソルを適用
-            // url('パス') x座標 y座標, バックアップ(auto)
-            // 64x64ピクセルの中心(32 32)を判定位置にする
-            document.body.style.cursor = isHovering
-                ? "url('assets/horseshoe_magnet.png') 32 32, auto"
-                : 'default';
+            // カーソルの適用（競合なし）
+            if (cursorState === 'magnet') {
+                document.body.style.cursor = "url('assets/horseshoe_magnet.png') 32 32, auto";
+            } else if (cursorState === 'pointer') {
+                document.body.style.cursor = 'pointer';
+            } else {
+                document.body.style.cursor = 'default';
+            }
         });
+
 
         // ★ 新・インタラクション機能 (コインをクリックで拾う)
         const handleInputInteraction = (event) => {
@@ -2704,7 +2709,13 @@ const SearchGame = (() => {
 
             // ★修正: シンプルなループに戻す (壁抜け判定なし)
             for (const hit of intersects) {
-                // 距離制限: 2.5m以内
+                // 1. リンク（看板）の判定 [距離5m以内] - 最優先
+                if (hit.distance <= 5.0 && hit.object.userData.isLink && hit.object.userData.url) {
+                    window.open(hit.object.userData.url, '_blank');
+                    return; // リンクを開いたら終了
+                }
+
+                // 2. アイテム（コイン・自販機）の判定 [距離2.5m以内]
                 if (hit.distance > 2.5) continue;
 
                 const obj = hit.object;
@@ -2817,146 +2828,51 @@ const SearchGame = (() => {
         setupDpadButton('dpad-right', 'right');
 
         // === Movement Update Function (called in loop) ===
+        // ★ネコ耳アニメーション管理
+        let nekoEarAnim = {
+            active: false,
+            startTime: 0,
+            duration: 500 // ms
+        };
+        let nekoTriggered = false; // ★追加: 1回切り制御用フラグ
+
         window.sgUpdateMovement = (dt) => {
-            // カメラ回転 (InputManager)
+            // === 1. 入力とカメラの処理 ===
             if (typeof inputManager !== 'undefined') {
                 const { dx, dy } = inputManager.consumeLookDelta();
                 cameraAngle -= dx;
                 cameraPitch -= dy;
-                // 上下の角度制限
                 const MAX_PITCH = Math.PI * 0.45;
                 cameraPitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, cameraPitch));
             }
 
-            if (isCinematic) return; // Disable movement during cinematic
-            const direction = new THREE.Vector3();
+            if (isCinematic) return;
 
-            // ★重要: 速度を「秒速」に変換して dt を掛ける
-            // moveSpeed(0.08) * 60FPS = 4.8 (秒速)
+            // === 2. 移動ベクトルの計算 ===
+            const direction = new THREE.Vector3();
             const speedFactor = (moveSpeed * 60) * dt;
 
-            // Forward/backward (along camera direction)
-            if (moveState.forward) {
-                direction.z -= speedFactor;
-            }
-            if (moveState.backward) {
-                direction.z += speedFactor;
-            }
+            if (moveState.forward) direction.z -= speedFactor;
+            if (moveState.backward) direction.z += speedFactor;
+            if (moveState.left) direction.x -= speedFactor;
+            if (moveState.right) direction.x += speedFactor;
 
-            // Strafe left/right
-            if (moveState.left) {
-                direction.x -= speedFactor;
-            }
-            if (moveState.right) {
-                direction.x += speedFactor;
-            }
-
-            // Rotate direction by cameraAngle (camera-relative movement)
             direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
 
-            // Update player facing direction when moving
             if (direction.length() > 0.001) {
                 playerFacing = Math.atan2(direction.x, direction.z);
             }
 
-            // New position before collision check (use playerPosition)
+            // 移動後の予定座標
             const newX = playerPosition.x + direction.x;
             const newZ = playerPosition.z + direction.z;
 
-            // === AABB Collision Detection for Structures ===
-            const COLLISION_MARGIN = 0.25; // Player radius (reduced for better mobility)
-            // Collision obstacles (slide and old tree REMOVED - now using FBX trees with sgTreeCollisions)
-            // ★【修正】古いボクセルアセット（ベンチ、ジム、砂場など）の衝突判定を全削除
-            // これにより、FBXモデル以外の「見えない壁」がなくなります。
-            const obstacles = [];
-
+            // === 3. 衝突判定 (木・障害物) ===
+            const COLLISION_MARGIN = 0.25;
             let blockedX = false;
             let blockedZ = false;
 
-            for (const obs of obstacles) {
-                const withinX = newX > obs.minX - COLLISION_MARGIN && newX < obs.maxX + COLLISION_MARGIN;
-                const withinZ = newZ > obs.minZ - COLLISION_MARGIN && newZ < obs.maxZ + COLLISION_MARGIN;
-                const currentWithinX = playerPosition.x > obs.minX - COLLISION_MARGIN && playerPosition.x < obs.maxX + COLLISION_MARGIN;
-                const currentWithinZ = playerPosition.z > obs.minZ - COLLISION_MARGIN && playerPosition.z < obs.maxZ + COLLISION_MARGIN;
-
-                // Block X if moving into obstacle on X axis
-                if (withinX && currentWithinZ) {
-                    blockedX = true;
-
-                }
-                // Block Z if moving into obstacle on Z axis
-                if (currentWithinX && withinZ) {
-                    blockedZ = true;
-                }
-            }
-
-            // === FBX TREE TRUNK COLLISION (通常の木 - 特別ツリーは除外) ===
-            if (window.sgTreeCollisions) {
-                for (const tree of window.sgTreeCollisions) {
-                    // ★修正: コイン持ち（特別ツリー）なら、ここでは計算しない！
-                    if (tree.hasCoin) continue;
-
-                    const dxNew = newX - tree.x;
-                    const dzNew = newZ - tree.z;
-                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
-                    const collisionRadius = tree.radius + COLLISION_MARGIN;
-
-                    if (distNew < collisionRadius) {
-                        const dxCurrent = playerPosition.x - tree.x;
-                        const dzCurrent = playerPosition.z - tree.z;
-
-                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) {
-                            blockedX = true;
-                        }
-                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) {
-                            blockedZ = true;
-                        }
-                    }
-                }
-            }
-
-            // === SPECIAL BARRIER FOR COIN TREE (1.8m壁) ===
-            if (window.testTreeCollision && window.testTreeCollision.hasCoin) {
-                const tree = window.testTreeCollision;
-                const nextX = playerPosition.x + direction.x;
-                const nextZ = playerPosition.z + direction.z;
-                const dist = Math.sqrt(Math.pow(nextX - tree.x, 2) + Math.pow(nextZ - tree.z, 2));
-
-                const barrierRadius = 1.8; // 調整済み
-                if (dist < barrierRadius) {
-                    const dx = nextX - tree.x;
-                    const dz = nextZ - tree.z;
-                    const pushOut = barrierRadius - dist;
-                    direction.x += (dx / dist) * pushOut;
-                    direction.z += (dz / dist) * pushOut;
-                }
-            }
-
-            // === ELEPHANT FOUNTAIN COLLISION (circular) ===
-            if (window.sgFountainCollision) {
-                for (const fountain of window.sgFountainCollision) {
-                    const dxNew = newX - fountain.x;
-                    const dzNew = newZ - fountain.z;
-                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
-                    const collisionRadius = fountain.radius + COLLISION_MARGIN;
-
-                    if (distNew < collisionRadius) {
-                        const dxCurrent = playerPosition.x - fountain.x;
-                        const dzCurrent = playerPosition.z - fountain.z;
-
-                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) {
-                            blockedX = true;
-                        }
-                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) {
-                            blockedZ = true;
-                        }
-                    }
-                }
-            }
-
-
-
-            // === 土管用など追加の障害物判定 (sgExtraObstacles) ===
+            // 追加障害物
             if (window.sgExtraObstacles) {
                 for (const obs of window.sgExtraObstacles) {
                     const withinX = newX > obs.minX - COLLISION_MARGIN && newX < obs.maxX + COLLISION_MARGIN;
@@ -2969,145 +2885,152 @@ const SearchGame = (() => {
                 }
             }
 
-            // Apply movement to playerPosition (not camera)
-            if (!blockedX) {
-                playerPosition.x += direction.x;
-            }
-            if (!blockedZ) {
-                playerPosition.z += direction.z;
+            // 木
+            if (window.sgTreeCollisions) {
+                for (const tree of window.sgTreeCollisions) {
+                    if (tree.hasCoin) continue;
+                    const dxNew = newX - tree.x;
+                    const dzNew = newZ - tree.z;
+                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
+
+                    if (distNew < tree.radius + COLLISION_MARGIN) {
+                        const dxCurrent = playerPosition.x - tree.x;
+                        const dzCurrent = playerPosition.z - tree.z;
+                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) blockedX = true;
+                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) blockedZ = true;
+                    }
+                }
             }
 
-            // Enforce bounds on player position
+            // コインの木のバリア
+            if (window.testTreeCollision && window.testTreeCollision.hasCoin) {
+                const tree = window.testTreeCollision;
+                const dist = Math.sqrt(Math.pow(newX - tree.x, 2) + Math.pow(newZ - tree.z, 2));
+                const barrierRadius = 1.8;
+                if (dist < barrierRadius) {
+                    const dx = newX - tree.x;
+                    const dz = newZ - tree.z;
+                    const pushOut = barrierRadius - dist;
+                    direction.x += (dx / dist) * pushOut;
+                    direction.z += (dz / dist) * pushOut;
+                }
+            }
+
+            // === 4. 象さんと噴水 (現状維持・ログ削除のみ) ===
+            // ※ナインさんの指示通り、ここのロジックは変更しません
+            if (window.sgFountainCollision) {
+                window.sgFountainCollision.forEach(fountain => {
+                    const dxNew = newX - fountain.x;
+                    const dzNew = newZ - fountain.z;
+                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
+
+                    if (distNew < fountain.radius + COLLISION_MARGIN) {
+                        const dxCurrent = playerPosition.x - fountain.x;
+                        const dzCurrent = playerPosition.z - fountain.z;
+                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) blockedX = true;
+                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) blockedZ = true;
+
+                        // 水しぶきエフェクト
+                        let lastSplashTime = window.lastSplashTime || 0;
+                        const now = Date.now();
+                        if (now - lastSplashTime > 200) {
+                            window.spawnFountainSparkles(playerPosition.x, playerPosition.y + 1.5, playerPosition.z, true, false);
+                            window.lastSplashTime = now;
+                        }
+                    }
+                });
+            }
+
+            // === 5. 移動の適用 ===
+            if (!blockedX) playerPosition.x += direction.x;
+            if (!blockedZ) playerPosition.z += direction.z;
+
+            // エリア制限
             playerPosition.x = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.x));
             playerPosition.z = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.z));
 
-            // === DYNAMIC HEIGHT (Ground Detection via Raycaster) ===
-            // Cast ray from high above player position, pointing down
+            // === 6. 地面の高さ合わせ ===
             const groundRaycaster = new THREE.Raycaster();
-            const rayOrigin = new THREE.Vector3(playerPosition.x, 50, playerPosition.z);
-            const rayDirection = new THREE.Vector3(0, -1, 0);
-            groundRaycaster.set(rayOrigin, rayDirection);
+            groundRaycaster.set(new THREE.Vector3(playerPosition.x, 50, playerPosition.z), new THREE.Vector3(0, -1, 0));
 
-            // Use CACHED walkable meshes (Optimized)
-            // If the cache is empty (init), try to refresh immediately
             if (!window.sgWalkableMeshes || window.sgWalkableMeshes.length === 0) {
-                if (typeof window.sgRefreshWalkableMeshes === 'function') {
-                    window.sgRefreshWalkableMeshes();
-                }
+                if (typeof window.sgRefreshWalkableMeshes === 'function') window.sgRefreshWalkableMeshes();
             }
-            // Fallback to empty if still nothing (prevents crash, though player might fall if no ground)
             const walkableMeshes = window.sgWalkableMeshes || [];
-
             const groundHits = groundRaycaster.intersectObjects(walkableMeshes, false);
 
-            // Find the highest walkable surface at this position
-            let targetHeight = 0; // Default ground level
+            let targetHeight = 0;
             for (const hit of groundHits) {
-                // Only consider surfaces we can stand on
                 if (hit.point.y >= 0 && hit.point.y < 10) {
-
-                    // ★【追加】段差制限 (Max Step Height)
-                    // 現在の足元より 1.0m 以上高い場所は「壁」や「天井」とみなして無視する。
-                    // これにより、土管の天井(Y=2.0)の下にいる時に、上に吸い寄せられるのを防ぐ。
-                    if (hit.point.y > playerPosition.y + 1.0) {
-                        continue;
-                    }
-
-                    if (hit.point.y > targetHeight) {
-                        targetHeight = hit.point.y;
-                    }
+                    if (hit.point.y > playerPosition.y + 1.0) continue;
+                    if (hit.point.y > targetHeight) targetHeight = hit.point.y;
                 }
             }
 
-            // Apply height with smooth interpolation (for falling)
             const desiredY = targetHeight + PLAYER_HEIGHT;
             const heightDiff = desiredY - playerPosition.y;
+            if (heightDiff > 0) playerPosition.y = desiredY;
+            else if (heightDiff < -0.1) playerPosition.y += heightDiff * 0.15;
+            else playerPosition.y = desiredY;
 
-            // Apply height smoothly to playerPosition.y
-            if (heightDiff > 0) {
-                // Going up - instant (climbing)
-                playerPosition.y = desiredY;
-            } else if (heightDiff < -0.1) {
-                // Going down - smooth fall
-                playerPosition.y += heightDiff * 0.15;
-            } else {
-                // Close enough - lock to target
-                playerPosition.y = desiredY;
-            }
-
-            // === ORBIT CAMERA POSITIONING ===
+            // === 7. カメラとモデルの更新 ===
             if (cameraDistance > 0) {
-                // TPS MODE: Camera orbits around player using cameraAngle
-                const offsetX = Math.sin(cameraAngle) * cameraDistance;
-                const offsetZ = Math.cos(cameraAngle) * cameraDistance;
-                const offsetY = cameraDistance * 0.3; // Elevate camera as we zoom out
-
-                // Position camera behind player (orbit)
-                camera.position.x = playerPosition.x + offsetX;
-                camera.position.z = playerPosition.z + offsetZ;
-                camera.position.y = playerPosition.y + offsetY;
-
-                // Always look at player center
+                camera.position.x = playerPosition.x + Math.sin(cameraAngle) * cameraDistance;
+                camera.position.z = playerPosition.z + Math.cos(cameraAngle) * cameraDistance;
+                camera.position.y = playerPosition.y + cameraDistance * 0.3;
                 camera.lookAt(playerPosition.x, playerPosition.y, playerPosition.z);
             } else {
-                // FPS MODE: Camera is player's eyes
-                camera.position.x = playerPosition.x;
-                camera.position.z = playerPosition.z;
-                camera.position.y = playerPosition.y;
-
-                // Apply FPS rotation using cameraAngle and cameraPitch
-                camera.rotation.y = cameraAngle;
-                camera.rotation.x = cameraPitch;
+                camera.position.copy(playerPosition);
+                camera.rotation.set(cameraPitch, cameraAngle, 0, 'YXZ');
             }
 
-            // === PLAYER MODEL VISIBILITY AND POSITION ===
             if (playerModel) {
-                // Position player model at player location
                 playerModel.position.set(playerPosition.x, playerModel.position.y, playerPosition.z);
-                playerModel.rotation.y = -playerFacing + Math.PI; // Face movement direction
-
-                // Hide in FPS, show in TPS
+                playerModel.rotation.y = -playerFacing + Math.PI;
                 playerModel.visible = cameraDistance >= 0.5;
             }
 
-
-
-            // (Old ketchup hover detection REMOVED - now using coin proximity in loop())
-
-            // ★耳ピクギミック（距離判定スイッチ & 1回切りトリガー）
+            // ★★★ ネコ耳ピクピク判定 (ここを完全修正) ★★★
+            // 修正点1: 存在しない player.position を playerPosition に変更
+            // 修正点2: 距離判定を camera.position から playerPosition (自分) に変更
             if (currentState === GameState.PLAYING && window.sgBenchCat && window.sgBenchCat.userData.ears) {
                 const cat = window.sgBenchCat;
-                const dist = camera.position.distanceTo(cat.position);
 
-                // 接近トリガー (2.0m以内)
-                if (dist < 2.0) {
-                    if (!cat.userData.hasReacted && !cat.userData.isReacting) {
-                        cat.userData.isReacting = true;
-                        cat.userData.hasReacted = true;
-                        cat.userData.reactionTimer = 0;
-                    }
-                }
-                // 離れたらリセット (2.5m以上で再反応を許可)
-                else if (dist > 2.5) {
-                    cat.userData.hasReacted = false;
+                // プレイヤーとネコの水平距離を計算
+                const dx = playerPosition.x - cat.position.x;
+                const dz = playerPosition.z - cat.position.z;
+                const distXZ = Math.sqrt(dx * dx + dz * dz);
+
+                // ① トリガー (3.0m以内に入ったらスイッチON)
+                if (distXZ < 3.0 && !nekoTriggered) {
+                    nekoTriggered = true;
+                    nekoEarAnim.active = true;
+                    nekoEarAnim.startTime = performance.now();
                 }
 
-                // アニメーション再生（再生中のみ計算を実行）
-                if (cat.userData.isReacting) {
-                    cat.userData.reactionTimer += dt;
-                    if (cat.userData.reactionTimer < 0.3) {
-                        const twitch = Math.sin(cat.userData.reactionTimer * 60) * 0.1;
-                        cat.userData.ears.rotation.z = twitch;
-                    } else {
-                        cat.userData.isReacting = false;
-                        cat.userData.ears.rotation.z = 0; // 停止
-                    }
+                // ② リセット (3.5m以上離れたらスイッチOFF)
+                if (distXZ > 3.5) {
+                    nekoTriggered = false;
                 }
             }
 
+            // ③ アニメーション実行 (トリガーが入っている間動く)
+            if (nekoEarAnim.active && window.sgBenchCat && window.sgBenchCat.userData.ears) {
+                const ears = window.sgBenchCat.userData.ears;
+                const t = performance.now() - nekoEarAnim.startTime;
+                const p = Math.min(t / nekoEarAnim.duration, 1); // 0.0 〜 1.0
+
+                // 左右に1回プルプル (サイン波)
+                // ★修正: 0.5秒, 周波数40, 振幅0.1 (完璧な設定)
+                ears.rotation.z = Math.sin((t / 1000) * 40) * 0.1;
+
+                // アニメーション終了
+                if (p >= 1) {
+                    ears.rotation.z = 0;
+                    nekoEarAnim.active = false;
+                }
+            }
         };
-
-
 
 
 
@@ -3234,7 +3157,7 @@ const SearchGame = (() => {
             { x: -5, y: 15, z: 25 },
             { x: 12, y: 14, z: 8 }
         ];
-     
+         
         cloudPositions.forEach(pos => {
             const cloudGroup = new THREE.Group();
             // Main body
@@ -3256,7 +3179,7 @@ const SearchGame = (() => {
             );
             puff2.position.set(1.8, 0.3, -0.3);
             cloudGroup.add(puff2);
-     
+         
             cloudGroup.position.set(pos.x, pos.y, pos.z);
             cloudGroup.rotation.y = Math.random() * Math.PI;
             scene.add(cloudGroup);
@@ -3340,7 +3263,7 @@ const SearchGame = (() => {
         // (Exterior bushes removed for cleaner test field)
 
         // Add park assets
-        createParkAssets();
+        // createParkAssets();
 
 
         // ★★★ PLAYGROUND DEV: Opening Callback DISABLED ★★★
@@ -3366,97 +3289,6 @@ const SearchGame = (() => {
         // Instead, just load the NPC without callback (for potential later use)
         spawnOpeningNPC(() => { /* No-op callback */ });
 
-        // === LOAD FBX MODEL: Elephant Fountain (Water Drinking Station) ===
-        const FOUNTAIN_TARGET_HEIGHT = 0.9; // Target height: 0.9m (potato's chest height)
-
-        loader.load(
-            'models/elephant_fountain.fbx',
-            (fountainFbx) => {
-                console.log('FBX Model loaded: elephant_fountain.fbx');
-
-                // === AUTO-SIZE NORMALIZATION using Box3 ===
-                const fountainBox = new THREE.Box3().setFromObject(fountainFbx);
-                const fountainSize = new THREE.Vector3();
-                fountainBox.getSize(fountainSize);
-
-                const fountainOriginalHeight = fountainSize.y;
-                console.log('Fountain Original Height:', fountainOriginalHeight.toFixed(3));
-
-                // Calculate scale factor to achieve target height
-                const fountainScaleFactor = FOUNTAIN_TARGET_HEIGHT / fountainOriginalHeight;
-                fountainFbx.scale.setScalar(fountainScaleFactor);
-                console.log('Fountain Applied Scale:', fountainScaleFactor.toFixed(6));
-
-                // Recalculate bounding box after scaling
-                const scaledFountainBox = new THREE.Box3().setFromObject(fountainFbx);
-
-                // Position at (3, 0, 3) with Y offset for ground contact
-                const fountainOffsetY = -scaledFountainBox.min.y;
-                fountainFbx.position.set(3, fountainOffsetY, 3);
-                console.log('Fountain Position Y offset:', fountainOffsetY.toFixed(3));
-
-                // Face toward center/player
-                fountainFbx.rotation.y = -Math.PI / 4;
-
-                // Set up shadows for all meshes and handle water transparency
-                fountainFbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-
-                        // Water transparency check
-                        if (child.name.toLowerCase().includes('water')) {
-                            // Clone material to avoid affecting other models sharing the same material
-                            if (Array.isArray(child.material)) {
-                                child.material = child.material.map(m => {
-                                    const cloned = m.clone();
-                                    cloned.transparent = true;
-                                    cloned.opacity = 0.6;
-                                    cloned.depthWrite = false;
-                                    return cloned;
-                                });
-                            } else {
-                                const cloned = child.material.clone();
-                                cloned.transparent = true;
-                                cloned.opacity = 0.6;
-                                cloned.depthWrite = false;
-                                child.material = cloned;
-                            }
-                            // Skip outline for water
-                            child.userData.skipOutline = true;
-                            console.log('Water transparency applied to (Cloned Material):', child.name);
-                        }
-                    }
-                });
-
-                // Add to scene
-                scene.add(fountainFbx);
-                console.log('Elephant fountain placed at (3, 0, 3)');
-
-                // Add edge outlines (EdgesGeometry method)
-                addEdgesOutline(fountainFbx, 15, 0x000000);
-                console.log('Elephant fountain: Edge outlines applied');
-
-                // Add collision data for the fountain
-                if (!window.sgFountainCollision) {
-                    window.sgFountainCollision = [];
-                }
-                window.sgFountainCollision.push({
-                    x: 3,
-                    z: 3,
-                    radius: 0.6 // Approximate radius
-                });
-            },
-            (progress) => {
-                if (progress.total > 0) {
-                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                    console.log(`Loading elephant_fountain.fbx: ${percent}%`);
-                }
-            },
-            (error) => {
-                console.error('Error loading elephant_fountain.fbx:', error);
-            }
-        );
 
 
         // === LOAD FBX MODEL: Coin (collectible game items) ===
@@ -4029,6 +3861,13 @@ const SearchGame = (() => {
     // 公園遊具・設備 (Park Assets) の一括配置
     // ==========================================
     function createParkAssets() {
+        // ★追加: ガード処理
+        if (window.hasParkAssetsCreated) {
+            console.log("createParkAssets already called. Skipping.");
+            return;
+        }
+        window.hasParkAssetsCreated = true;
+
         console.log("--- createParkAssets (Cleaned) CALLED ---");
 
         try {
@@ -4161,7 +4000,19 @@ const SearchGame = (() => {
             // 1. カラーパレットの変更
             // 1. 関数の書き換え（透明度・速度・寿命を最適化）
             window.spawnFountainSparkles = (x, y, z, isWaterColor = true, isBack = false) => {
-                const count = isBack ? 2 : 3; // 背中は数を絞って負荷軽減
+                // ★追加: 円形テクスチャの生成（初回のみ実行・キャッシュ）
+                if (!window.particleCircleTexture) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 32; canvas.height = 32;
+                    const ctx = canvas.getContext('2d');
+                    ctx.beginPath();
+                    ctx.arc(16, 16, 15, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fill();
+                    window.particleCircleTexture = new THREE.CanvasTexture(canvas);
+                }
+
+                const count = isBack ? 2 : 3;
                 const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
                 const goldPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
 
@@ -4171,27 +4022,29 @@ const SearchGame = (() => {
                         : goldPalette[Math.floor(Math.random() * goldPalette.length)];
 
                     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-                        color: color, transparent: true, opacity: 0.6, depthWrite: false
+                        map: window.particleCircleTexture,
+                        color: color,
+                        transparent: true,
+                        opacity: 0.6,
+                        depthWrite: false
                     }));
 
                     sprite.position.set(x + (Math.random() - 0.5) * 0.1, y, z + (Math.random() - 0.5) * 0.1);
-                    sprite.scale.setScalar(isBack ? 0.03 : 0.04);
+                    sprite.scale.setScalar(isBack ? 0.07 : 0.06);
                     scene.add(sprite);
 
-                    // 動力：背中のスピードを半分にデチューン
                     let velY = isBack ? (0.01 + Math.random() * 0.01) : (0.02 + Math.random() * 0.02);
                     let velX = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
                     let velZ = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
                     let life = 1.0;
 
                     const anim = () => {
-                        life -= 0.03; // ★寿命は 0.02 で固定
+                        life -= 0.03;
                         if (life <= 0) { scene.remove(sprite); return; }
                         sprite.position.x += velX;
                         sprite.position.y += velY;
                         sprite.position.z += velZ;
 
-                        // ★重力も 0.001 にしてスローに落とす
                         velY -= isBack ? 0.0003 : 0.002;
 
                         sprite.material.opacity = life;
@@ -4309,45 +4162,107 @@ const SearchGame = (() => {
                     }
                 },
                 {
-                    name: 'ElephantFountain',
-                    path: 'models/ElephantFountain.fbx',
+                    name: 'ElephantSprayer',
+                    path: 'models/elephant_sprayer.fbx',
                     pos: { x: -15, y: 0, z: -12 },
-                    rot: { y: 45 },
-                    scale: 1.0,
+                    rot: { y: 0 }, // ★向きを0度に完全固定
+                    scale: 1.0, // 必要に応じて微調整
                     collision: true,
                     collisionType: 'cylinder',
-                    exclusionRadius: 2.0,
+                    collisionSize: { radius: 1.35, height: 3 },
                     onLoad: (obj) => {
-                        // 自動スケール・接地ロジックは維持
-                        const box = new THREE.Box3().setFromObject(obj);
-                        const size = new THREE.Vector3();
-                        box.getSize(size);
-                        const scaleFactor = 1.5 / (size.y > 0 ? size.y : 1.0);
-                        obj.scale.setScalar(scaleFactor);
-                        const scaledBox = new THREE.Box3().setFromObject(obj);
-                        obj.position.y -= scaledBox.min.y;
+                        // ストリームメッシュの初期化と分別
+                        const streams = [];
+                        obj.traverse((c) => {
+                            if (c.isMesh && c.name.toLowerCase().includes('stream')) {
+                                c.material = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
+                                c.material.transparent = true;
+                                c.material.opacity = 0.6;
+                                c.material.depthWrite = false;
+                                c.visible = false;
 
-                        obj.userData.streams = [];
-                        obj.traverse(c => {
+                                // ★修正: 水流メッシュにはアウトラインを付けない
+                                c.userData.skipOutline = true;
+
+                                streams.push(c);
+                            }
+                            c.castShadow = true;
+                        });
+
+                        // ★相対座標による分別ロジック
+                        streams.sort((a, b) => b.position.z - a.position.z);
+
+                        obj.userData.noseStreams = [];
+                        obj.userData.backStreams = [];
+
+                        if (streams.length > 0) {
+                            obj.userData.noseStreams.push(streams[0]);
+                            for (let i = 1; i < streams.length; i++) {
+                                obj.userData.backStreams.push(streams[i]);
+                            }
+                        }
+
+                        console.log(`Elephant Streams Sorted: Nose=${obj.userData.noseStreams.length}, Back=${obj.userData.backStreams.length}`);
+
+                        if (window.applyOutlineRules) window.applyOutlineRules(obj);
+                    }
+                },
+                {
+                    name: 'InfoBoard',
+                    path: 'models/signboard.fbx',
+                    pos: { x: -28.63, y: 0, z: -12.62 },
+                    rot: { y: 90 },
+                    scale: 1.0,
+                    collision: false,
+                    userData: {
+                        title: "インフォメーション",
+                        description: "ポテトくんの公園へようこそ！"
+                    },
+                    onLoad: (obj) => {
+                        // 1. ポスター貼り付け & URL設定
+                        const textureLoader = new THREE.TextureLoader();
+                        const posterTexture = textureLoader.load('assets/testposter.png');
+                        posterTexture.colorSpace = THREE.SRGBColorSpace;
+                        posterTexture.flipY = true;
+
+                        const targetUrl = 'https://www.instagram.com/nine.jp.4nft/';
+
+                        obj.traverse((c) => {
                             if (c.isMesh) {
                                 c.castShadow = true;
                                 c.receiveShadow = true;
-                                const name = c.name.toLowerCase();
-                                if (name.includes('water')) {
-                                    c.material = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
-                                    c.material.transparent = true;
-                                    c.material.opacity = 0.6;
-                                    c.material.depthWrite = false;
-                                    c.castShadow = false;
-                                    c.userData.skipOutline = true;
-                                    if (name.includes('stream')) {
-                                        c.visible = false;
-                                        obj.userData.streams.push(c);
-                                    }
+
+                                if (c.name.includes('Face')) {
+                                    const mat = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
+                                    mat.map = posterTexture;
+                                    mat.color.setHex(0xffffff);
+                                    c.material = mat;
+
+                                    c.userData.url = targetUrl;
+                                    c.userData.isLink = true;
                                 }
                             }
                         });
-                        if (window.applyOutlineRules) window.applyOutlineRules(obj);
+
+                        // 2. 柱の衝突判定（股下通過用）
+                        obj.updateMatrixWorld(true);
+                        const box = new THREE.Box3().setFromObject(obj);
+                        const legThickness = 0.3;
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.min.z, maxZ: box.min.z + legThickness
+                        });
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.max.z - legThickness, maxZ: box.max.z
+                        });
+
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.max.z - legThickness, maxZ: box.max.z
+                        });
+
+                        // 3. クリックイベントは handleInputInteraction で統合管理するため削除
                     }
                 },
                 {
@@ -4716,20 +4631,42 @@ const SearchGame = (() => {
                 }
 
                 // 象の噴水の水流制御
-                const elephant = scene.getObjectByName('ElephantFountain');
-                if (elephant && elephant.userData.streams) {
-                    const dist = playerPosition.distanceTo(elephant.position);
-                    const isOpen = dist < 2.5;
-                    elephant.userData.streams.forEach(s => { s.visible = isOpen; });
+                const elephant = scene.getObjectByName('ElephantSprayer');
+                if (elephant) {
+                    const pPos = playerPosition;
 
-                    if (isOpen) {
-                        // 鼻先 (不変)
-                        const nPos = new THREE.Vector3(0, 0, 1.7).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(nPos.x, 0.1, nPos.z, true, false);
+                    // --- 1. 鼻先 (現状維持) ---
+                    const noseOffset = new THREE.Vector3(0, 0, 1.8).applyQuaternion(elephant.quaternion);
+                    const noseWorldPos = elephant.position.clone().add(noseOffset);
+                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.4;
 
-                        // 背中 (高さを 1.30 に下げ、第5引数を true に設定)
-                        const bPos = new THREE.Vector3(0, 1.15, 0.0).applyQuaternion(elephant.quaternion).add(elephant.position);
-                        window.spawnFountainSparkles(bPos.x, bPos.y, bPos.z, false, true);
+                    if (elephant.userData.noseStreams) {
+                        elephant.userData.noseStreams.forEach(s => s.visible = isNoseActive);
+                    }
+                    if (isNoseActive) {
+                        window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
+                    }
+
+                    // --- 2. 背中 (センサーと蛇口を分離) ---
+
+                    // A. 判定用センサー (お尻付近)
+                    const backSensorOffset = new THREE.Vector3(0, 0.6, -0.5).applyQuaternion(elephant.quaternion);
+                    const backSensorPos = elephant.position.clone().add(backSensorOffset);
+
+                    // B. パーティクル発生源 (背中の蛇口)
+                    const backFaucetOffset = new THREE.Vector3(0, 1.2, 0).applyQuaternion(elephant.quaternion);
+                    const backFaucetPos = elephant.position.clone().add(backFaucetOffset);
+
+                    // 判定はセンサーとの距離で行う
+                    const isBackActive = pPos.distanceTo(backSensorPos) < 1.6;
+
+                    if (elephant.userData.backStreams) {
+                        elephant.userData.backStreams.forEach(s => s.visible = isBackActive);
+                    }
+
+                    // 発生は蛇口位置から行う
+                    if (isBackActive) {
+                        window.spawnFountainSparkles(backFaucetPos.x, backFaucetPos.y, backFaucetPos.z, false, true);
                     }
                 }
             }, 30);
