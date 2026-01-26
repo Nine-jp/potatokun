@@ -4534,7 +4534,7 @@ const SearchGame = (() => {
                     name: 'Parasol',
                     path: 'models/parasol.fbx',
                     pos: { x: 0, y: 0, z: 0 }, // Base position (unused due to cloning)
-                    scale: 1.0,
+                    scale: 0.8,
                     onload: null, // Custom handling below
                     collision: false, // 判定なし
                     onLoad: (masterParasol) => {
