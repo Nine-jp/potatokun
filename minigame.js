@@ -3803,6 +3803,31 @@ const SearchGame = (() => {
 
             // 4. Clouds ★追加
             if (window.setCloudSeason) window.setCloudSeason(seasonName);
+
+            // 5. Parasols ★追加
+            if (window.setParasolSeason) window.setParasolSeason(seasonName);
+        };
+
+        // ★ Parasol Season Manager
+        window.sgParasolCanopies = [];
+        window.setParasolSeason = (seasonName) => {
+            const seasonColors = {
+                spring: 0xFFC0CB, // Pink
+                summer: 0x00BFFF, // Blue
+                autumn: 0xD2691E, // Orange/Brown
+                winter: 0xE0FFFF  // White/Cyan
+            };
+            const color = seasonColors[seasonName] || seasonColors.summer;
+
+            if (window.sgParasolCanopies) {
+                window.sgParasolCanopies.forEach(mesh => {
+                    if (mesh.material) {
+                        // MeshLambertMaterial or MeshBasicMaterial depending on loaded asset
+                        // Ensure we clone if needed or just set color if unique
+                        mesh.material.color.setHex(color);
+                    }
+                });
+            }
         };
 
         // 1. Place Park Assets (Registers Exclusion Zones)
@@ -4267,48 +4292,81 @@ const SearchGame = (() => {
                 {
                     name: 'VendingMachine',
                     path: 'models/vending_machine.fbx',
-                    pos: { x: -12, y: 0, z: -17 },
+                    pos: { x: 0, y: 0, z: 0 }, // Dummy position
+                    rot: { y: 90 },
+                    scale: 1.0,
+                    collision: false, // Handle manually in onLoad
+                    onLoad: (masterVM) => {
+                        console.log("🥤 Vending Machine Loaded");
+                        masterVM.visible = false; // Hide template
+
+                        const positions = [
+                            { x: -28, z: -18.0 },
+                            { x: -28, z: -19.3 },
+                            { x: -28, z: -20.6 },
+                            { x: -28, z: -21.9 }
+                        ];
+
+                        positions.forEach((pos) => {
+                            const vm = masterVM.clone();
+                            vm.visible = true;
+                            vm.position.set(pos.x, 0, pos.z);
+                            vm.rotation.y = 90 * (Math.PI / 180);
+
+                            // Apply materials logic
+                            vm.traverse(c => {
+                                if (c.isMesh) {
+                                    const name = c.name.toLowerCase();
+                                    if (name.includes('body')) {
+                                        c.castShadow = true; c.receiveShadow = true;
+                                    } else if (name.includes('light')) {
+                                        c.castShadow = false; c.receiveShadow = false;
+                                        if (c.material) {
+                                            c.material = c.material.clone();
+                                            c.material.emissive = new THREE.Color(0xFFFFFF);
+                                        }
+                                    } else if (name.includes('water')) {
+                                        c.castShadow = false; c.receiveShadow = true;
+                                        if (c.material) {
+                                            c.material = c.material.clone();
+                                            c.material.transparent = true;
+                                            c.material.opacity = 0.5;
+                                            c.material.depthWrite = false;
+                                        }
+                                    } else {
+                                        c.castShadow = true; c.receiveShadow = true;
+                                    }
+                                }
+                            });
+
+                            // Manual Collision & Exclusion
+                            if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(pos.x, pos.z, 2.0);
+
+                            vm.updateMatrixWorld(true);
+                            const box = new THREE.Box3().setFromObject(vm);
+                            const legThickness = 0.3;
+                            window.sgExtraObstacles.push(
+                                { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.min.z + legThickness },
+                                { minX: box.min.x, maxX: box.max.x, minZ: box.max.z - legThickness, maxZ: box.max.z }
+                            );
+
+                            window.parkGroup.add(vm);
+                        });
+                    }
+                },
+                {
+                    name: 'TrashCan',
+                    path: 'models/recyclebin.fbx',
+                    pos: { x: -28, y: 0, z: -23.2 },
                     rot: { y: 90 },
                     scale: 1.0,
                     collision: true,
-                    exclusionRadius: 2.0,
-                    // ★追加: パーツ名に応じた個別処理
+                    exclusionRadius: 1.0,
                     onLoad: (obj) => {
                         obj.traverse(c => {
                             if (c.isMesh) {
-                                // Blenderなどの名前は大文字小文字がブレるので小文字化して判定
-                                const name = c.name.toLowerCase();
-
-                                if (name.includes('body')) {
-                                    // 本体: 影を落とすし、受ける
-                                    c.castShadow = true;
-                                    c.receiveShadow = true;
-                                }
-                                else if (name.includes('light')) {
-                                    // ライト: 影を落とさない！光らせる！
-                                    c.castShadow = false;
-                                    c.receiveShadow = false;
-                                    if (c.material) {
-                                        c.material.emissive = new THREE.Color(0xFFFFFF);
-                                        c.material.emissiveIntensity = 0.5;
-                                    }
-                                }
-                                else if (name.includes('water')) {
-                                    // 水/窓: 透明にする！影は落とさない
-                                    c.castShadow = false;
-                                    c.receiveShadow = true; // 影は受けてもいい
-                                    if (c.material) {
-                                        c.material.transparent = true;
-                                        c.material.opacity = 0.5;
-                                        // 描画順序バグ防止
-                                        c.material.depthWrite = false;
-                                    }
-                                }
-                                else {
-                                    // その他（名前が一致しない場合）は標準設定
-                                    c.castShadow = true;
-                                    c.receiveShadow = true;
-                                }
+                                c.castShadow = true;
+                                c.receiveShadow = true;
                             }
                         });
                     }
@@ -4472,6 +4530,62 @@ const SearchGame = (() => {
                         console.log(`Placed ${tirePositions.length} tires (Walkable).`);
                     }
                 },
+                {
+                    name: 'Parasol',
+                    path: 'models/parasol.fbx',
+                    pos: { x: 0, y: 0, z: 0 }, // Base position (unused due to cloning)
+                    scale: 1.0,
+                    onload: null, // Custom handling below
+                    collision: false, // 判定なし
+                    onLoad: (masterParasol) => {
+                        console.log("⛱️ Parasol Loaded");
+                        masterParasol.visible = false;
+                        window.sgParasolCanopies = []; // Reset list
+
+                        // Identify canopy
+                        let masterCanopy = null;
+                        masterParasol.traverse(c => {
+                            if (c.isMesh && c.name.toLowerCase().includes('canopy')) {
+                                masterCanopy = c;
+                                // Clone material for independent coloring
+                                c.material = c.material.clone();
+                            }
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                            }
+                        });
+
+                        const positions = [
+                            { x: -9, z: -13 },   // NE
+                            { x: -15, z: -13 },  // NW
+                            { x: -16.5, z: -18 }, // SW Edge
+                            { x: -7.5, z: -18 },  // SE Edge
+                            { x: -12, z: -21 }    // South Edge
+                        ];
+
+                        positions.forEach((pos, i) => {
+                            const parasol = masterParasol.clone();
+                            parasol.visible = true;
+                            parasol.position.set(pos.x, 0, pos.z);
+                            parasol.rotation.y = Math.random() * Math.PI * 2; // Random rot
+
+                            // Register canopy for season updates
+                            parasol.traverse(c => {
+                                if (c.isMesh && c.name.toLowerCase().includes('canopy')) {
+                                    window.sgParasolCanopies.push(c);
+                                }
+                            });
+
+                            window.parkGroup.add(parasol);
+                        });
+
+                        // Apply initial season color
+                        if (window.setParasolSeason && typeof GameConfig !== 'undefined') {
+                            window.setParasolSeason(GameConfig.currentSeason);
+                        }
+                    }
+                }
             ];
 
             const loader = new FBXLoader();
