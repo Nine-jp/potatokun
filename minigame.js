@@ -4371,7 +4371,7 @@ const SearchGame = (() => {
                         });
                     }
                 },
-                { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -12, y: 0, z: -18.6 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 }, // Old z: 18.6
+                { name: 'RecycleBin', path: 'models/RecycleBin.fbx', pos: { x: -28, y: 0, z: -23.9 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 }, // Old z: 18.6
                 {
                     name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: 14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, // Old z: -14
                     onLoad: (obj) => {
