@@ -2832,7 +2832,7 @@ const SearchGame = (() => {
         let nekoEarAnim = {
             active: false,
             startTime: 0,
-            duration: 500 // ms
+            duration: 250 // ms
         };
         let nekoTriggered = false; // ★追加: 1回切り制御用フラグ
 
@@ -3021,8 +3021,8 @@ const SearchGame = (() => {
                 const p = Math.min(t / nekoEarAnim.duration, 1); // 0.0 〜 1.0
 
                 // 左右に1回プルプル (サイン波)
-                // ★修正: 0.5秒, 周波数40, 振幅0.1 (完璧な設定)
-                ears.rotation.z = Math.sin((t / 1000) * 40) * 0.1;
+                // ★修正: 0.25秒, 周波数60, 振幅0.1
+                ears.rotation.z = Math.sin((t / 1000) * 60) * 0.1;
 
                 // アニメーション終了
                 if (p >= 1) {
