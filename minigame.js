@@ -4292,74 +4292,67 @@ const SearchGame = (() => {
                 {
                     name: 'VendingMachine',
                     path: 'models/vending_machine.fbx',
-                    pos: { x: 0, y: 0, z: 0 }, // Dummy position
+                    pos: { x: 0, y: 0, z: 0 }, // Template pos
                     rot: { y: 90 },
                     scale: 1.0,
+                    // positions: Defined here for the loader to clone
+                    positions: [
+                        { x: -28, z: -18.0 },
+                        { x: -28, z: -19.3 },
+                        { x: -28, z: -20.6 },
+                        { x: -28, z: -21.9 }
+                    ],
                     collision: false, // Handle manually in onLoad
-                    onLoad: (masterVM) => {
-                        console.log("🥤 Vending Machine Loaded");
-                        masterVM.visible = false; // Hide template
+                    onLoad: (vm) => {
+                        // This callback runs for EACH clone
+                        vm.visible = true;
 
-                        const positions = [
-                            { x: -28, z: -18.0 },
-                            { x: -28, z: -19.3 },
-                            { x: -28, z: -20.6 },
-                            { x: -28, z: -21.9 }
-                        ];
-
-                        positions.forEach((pos) => {
-                            const vm = masterVM.clone();
-                            vm.visible = true;
-                            vm.position.set(pos.x, 0, pos.z);
-                            vm.rotation.y = 90 * (Math.PI / 180);
-
-                            // Apply materials logic
-                            vm.traverse(c => {
-                                if (c.isMesh) {
-                                    const name = c.name.toLowerCase();
-                                    if (name.includes('body')) {
-                                        c.castShadow = true; c.receiveShadow = true;
-                                    } else if (name.includes('light')) {
-                                        c.castShadow = false; c.receiveShadow = false;
-                                        if (c.material) {
-                                            c.material = c.material.clone();
-                                            c.material.emissive = new THREE.Color(0xFFFFFF);
-                                        }
-                                    } else if (name.includes('water')) {
-                                        c.castShadow = false; c.receiveShadow = true;
-                                        if (c.material) {
-                                            c.material = c.material.clone();
-                                            c.material.transparent = true;
-                                            c.material.opacity = 0.5;
-                                            c.material.depthWrite = false;
-                                        }
-                                    } else {
-                                        c.castShadow = true; c.receiveShadow = true;
+                        // Apply materials logic
+                        vm.traverse(c => {
+                            if (c.isMesh) {
+                                const name = c.name.toLowerCase();
+                                if (name.includes('body')) {
+                                    c.castShadow = true; c.receiveShadow = true;
+                                } else if (name.includes('light')) {
+                                    c.castShadow = false; c.receiveShadow = false;
+                                    if (c.material) {
+                                        c.material = c.material.clone();
+                                        c.material.emissive = new THREE.Color(0xFFFFFF);
                                     }
+                                } else if (name.includes('water')) {
+                                    c.castShadow = false; c.receiveShadow = true;
+                                    if (c.material) {
+                                        c.material = c.material.clone();
+                                        c.material.transparent = true;
+                                        c.material.opacity = 0.5;
+                                        c.material.depthWrite = false;
+                                    }
+                                } else {
+                                    c.castShadow = true; c.receiveShadow = true;
                                 }
-                            });
-
-                            // Manual Collision & Exclusion
-                            if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(pos.x, pos.z, 2.0);
-
-                            vm.updateMatrixWorld(true);
-                            const box = new THREE.Box3().setFromObject(vm);
-                            const legThickness = 0.3;
-                            window.sgExtraObstacles.push(
-                                { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.min.z + legThickness },
-                                { minX: box.min.x, maxX: box.max.x, minZ: box.max.z - legThickness, maxZ: box.max.z }
-                            );
-
-                            window.parkGroup.add(vm);
+                            }
                         });
+
+
+                        vm.updateMatrixWorld(true);
+                        const box = new THREE.Box3().setFromObject(vm);
+                        const legThickness = 0.3;
+                        window.sgExtraObstacles.push(
+                            { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.min.z + legThickness },
+                            { minX: box.min.x, maxX: box.max.x, minZ: box.max.z - legThickness, maxZ: box.max.z }
+                        );
                     }
                 },
                 {
                     name: 'TrashCan',
                     path: 'models/recyclebin.fbx',
-                    pos: { x: -28, y: 0, z: -23.2 },
+                    pos: { x: 0, y: 0, z: 0 },
                     rot: { y: 90 },
                     scale: 1.0,
+                    positions: [
+                        { x: -28, z: -23.2 },
+                        { x: -28, z: -23.9 }
+                    ],
                     collision: true,
                     exclusionRadius: 1.0,
                     onLoad: (obj) => {
@@ -4371,7 +4364,6 @@ const SearchGame = (() => {
                         });
                     }
                 },
-                { name: 'recycleBin', path: 'models/recycleBin.fbx', pos: { x: -28, y: 0, z: -23.9 }, rot: { y: 90 }, scale: 1.0, collision: true, exclusionRadius: 1.5 }, // Old z: 18.6
                 {
                     name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: 14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, // Old z: -14
                     onLoad: (obj) => {
@@ -4533,22 +4525,32 @@ const SearchGame = (() => {
                 {
                     name: 'Parasol',
                     path: 'models/parasol.fbx',
-                    pos: { x: 0, y: 0, z: 0 }, // Base position (unused due to cloning)
+                    pos: { x: 0, y: 0, z: 0 },
                     scale: 0.8,
-                    onload: null, // Custom handling below
-                    collision: false, // 判定なし
-                    onLoad: (masterParasol) => {
-                        console.log("⛱️ Parasol Loaded");
-                        masterParasol.visible = false;
-                        window.sgParasolCanopies = []; // Reset list
+                    // positions: Moved here
+                    positions: [
+                        // 1. 西側列 (Near Vending Line X:-23)
+                        { x: -23, z: -9.0 }, { x: -22, z: -14.0 }, { x: -23, z: -19.0 },
+                        { x: -22, z: -24.0 }, { x: -23, z: -27.5 },
 
-                        // Identify canopy
-                        let masterCanopy = null;
-                        masterParasol.traverse(c => {
+                        // 2. 中央列 (Mid Area X:-18 ~ -13)
+                        { x: -18, z: -11.0 }, { x: -17, z: -16.0 }, { x: -18, z: -21.0 }, { x: -17, z: -26.0 },
+                        { x: -13, z: -9.0 }, { x: -13, z: -13.0 }, { x: -12, z: -18.0 }, { x: -13, z: -23.0 }, { x: -12, z: -27.0 },
+
+                        // 3. 東側列 (Near East Line X:-7) - Avoid Elephant (-9, -8.5)
+                        { x: -8, z: -15.0 }
+                    ],
+                    collision: false,
+                    onLoad: (parasol) => {
+                        // Runs for EACH clone
+                        parasol.visible = true;
+                        parasol.rotation.y = Math.random() * Math.PI * 2; // Random rot
+
+                        // Register canopy for season updates
+                        parasol.traverse(c => {
                             if (c.isMesh && c.name.toLowerCase().includes('canopy')) {
-                                masterCanopy = c;
-                                // Clone material for independent coloring
-                                c.material = c.material.clone();
+                                c.material = c.material.clone(); // Clone mat for independence
+                                window.sgParasolCanopies.push(c);
                             }
                             if (c.isMesh) {
                                 c.castShadow = true;
@@ -4556,95 +4558,98 @@ const SearchGame = (() => {
                             }
                         });
 
-                        const positions = [
-                            // 1. 西側列 (Near Vending Line X:-23)
-                            { x: -23, z: -9.0 }, { x: -22, z: -14.0 }, { x: -23, z: -19.0 },
-                            { x: -22, z: -24.0 }, { x: -23, z: -27.5 },
-
-                            // 2. 中央列 (Mid Area X:-18 ~ -13)
-                            { x: -18, z: -11.0 }, { x: -17, z: -16.0 }, { x: -18, z: -21.0 }, { x: -17, z: -26.0 },
-                            { x: -13, z: -9.0 }, { x: -13, z: -13.0 }, { x: -12, z: -18.0 }, { x: -13, z: -23.0 }, { x: -12, z: -27.0 },
-
-                            // 3. 東側列 (Near East Line X:-7) - Avoid Elephant (-9, -8.5)
-                            { x: -8, z: -15.0 } // Only placing south of the elephant to be safe
-                        ];
-
-                        positions.forEach((pos, i) => {
-                            const parasol = masterParasol.clone();
-                            parasol.visible = true;
-                            parasol.position.set(pos.x, 0, pos.z);
-                            parasol.rotation.y = Math.random() * Math.PI * 2; // Random rot
-
-                            // Register canopy for season updates
-                            parasol.traverse(c => {
-                                if (c.isMesh && c.name.toLowerCase().includes('canopy')) {
-                                    window.sgParasolCanopies.push(c);
-                                }
-                            });
-
-                            // ★追加: 円柱衝突判定 (半径0.6)
-                            if (window.sgFountainCollision) {
-                                window.sgFountainCollision.push({ x: pos.x, z: pos.z, radius: 0.6 });
-                            }
-
-                            window.parkGroup.add(parasol);
-                        });
-
-                        // Apply initial season color
-                        if (window.setParasolSeason && typeof GameConfig !== 'undefined') {
-                            window.setParasolSeason(GameConfig.currentSeason);
+                        // ★追加: 円柱衝突判定 (半径0.6)
+                        if (window.sgFountainCollision) {
+                            window.sgFountainCollision.push({ x: parasol.position.x, z: parasol.position.z, radius: 0.6 });
                         }
                     }
                 }
             ];
 
             const loader = new FBXLoader();
+            window.sgMixers = []; // Clear mixers
+
             ASSET_CONFIG.forEach(config => {
+                // Pre-register exclusions if positions are defined
                 if (typeof ExclusionManager !== 'undefined' && ExclusionManager.addCircle) {
-                    ExclusionManager.addCircle(config.pos.x, config.pos.z, config.exclusionRadius || 2.0);
+                    if (config.positions) {
+                        config.positions.forEach(p => ExclusionManager.addCircle(p.x, p.z, config.exclusionRadius || 2.0));
+                    } else {
+                        ExclusionManager.addCircle(config.pos.x, config.pos.z, config.exclusionRadius || 2.0);
+                    }
                 }
 
-                loader.load(config.path, (fbx) => {
+                loader.load(config.path, (masterFBX) => {
                     try {
-                        fbx.name = config.name;
-                        fbx.position.set(config.pos.x, config.pos.y, config.pos.z);
-                        if (config.rot && config.rot.y !== undefined) fbx.rotation.y = config.rot.y * (Math.PI / 180);
-                        fbx.scale.setScalar(config.scale || 1.0);
+                        const targets = config.positions ? config.positions : [config.pos];
 
-                        // ★徹底洗浄: マテリアルを標準状態にリセット
-                        fbx.traverse(c => {
-                            if (c.isMesh) {
-                                c.castShadow = true;
-                                c.receiveShadow = true;
+                        targets.forEach((pos, i) => {
+                            let fbx;
+                            if (typeof SkeletonUtils !== 'undefined') {
+                                fbx = SkeletonUtils.clone(masterFBX);
+                            } else {
+                                fbx = masterFBX.clone(); // Fallback
+                            }
 
-                                if (c.material) {
-                                    // 配列マテリアル対応
-                                    const materials = Array.isArray(c.material) ? c.material : [c.material];
+                            fbx.name = config.name + (config.positions ? `_${i}` : '');
+                            fbx.position.set(pos.x, config.pos.y || 0, pos.z);
 
-                                    materials.forEach(mat => {
-                                        // ★アクネ対策（影計算のみ裏面で行う）は全モデルに適用
-                                        mat.shadowSide = THREE.BackSide;
-                                    });
+                            if (config.rot && config.rot.y !== undefined) {
+                                fbx.rotation.y = config.rot.y * (Math.PI / 180);
+                            }
+
+                            // Scale
+                            fbx.scale.setScalar(config.scale || 1.0);
+
+                            // ★徹底洗浄: マテリアルを標準状態にリセット
+                            fbx.traverse(c => {
+                                if (c.isMesh) {
+                                    c.castShadow = true;
+                                    c.receiveShadow = true;
+
+                                    if (c.material) {
+                                        // 配列マテリアル対応
+                                        const materials = Array.isArray(c.material) ? c.material : [c.material];
+
+                                        materials.forEach(mat => {
+                                            // ★アクネ対策（影計算のみ裏面で行う）は全モデルに適用
+                                            mat.shadowSide = THREE.BackSide;
+                                        });
+                                    }
+                                }
+                            });
+
+                            // ★ Animation Handling
+                            if (fbx.animations && fbx.animations.length > 0) {
+                                const mixer = new THREE.AnimationMixer(fbx);
+                                const action = mixer.clipAction(fbx.animations[0]);
+                                action.play();
+                                if (window.sgMixers) window.sgMixers.push(mixer);
+                            }
+
+                            if (config.onLoad) config.onLoad(fbx);
+
+                            if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(fbx);
+
+                            if (config.collision) {
+                                fbx.updateMatrixWorld(true);
+                                const box = new THREE.Box3().setFromObject(fbx);
+                                if (config.collisionType === 'cylinder') {
+                                    const sizeX = box.max.x - box.min.x; const sizeZ = box.max.z - box.min.z;
+                                    const radius = Math.max(sizeX, sizeZ) / 2 * 0.9;
+                                    window.sgFountainCollision.push({ x: pos.x, z: pos.z, radius: radius });
+                                } else {
+                                    window.sgExtraObstacles.push({ minX: box.min.x + 0.1, maxX: box.max.x - 0.1, minZ: box.min.z + 0.1, maxZ: box.max.z - 0.1 });
                                 }
                             }
+                            window.parkGroup.add(fbx);
                         });
 
-                        if (config.onLoad) config.onLoad(fbx); // 個別のonLoad処理（水などはここで上書きされるのでOK）
-
-                        if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(fbx);
-
-                        if (config.collision) {
-                            fbx.updateMatrixWorld(true);
-                            const box = new THREE.Box3().setFromObject(fbx);
-                            if (config.collisionType === 'cylinder') {
-                                const sizeX = box.max.x - box.min.x; const sizeZ = box.max.z - box.min.z;
-                                const radius = Math.max(sizeX, sizeZ) / 2 * 0.9;
-                                window.sgFountainCollision.push({ x: config.pos.x, z: config.pos.z, radius: radius });
-                            } else {
-                                window.sgExtraObstacles.push({ minX: box.min.x + 0.1, maxX: box.max.x - 0.1, minZ: box.min.z + 0.1, maxZ: box.max.z - 0.1 });
-                            }
+                        // Re-apply seasons after cloning (e.g. Parasol initial color)
+                        if (config.name === 'Parasol' && window.setParasolSeason && typeof GameConfig !== 'undefined') {
+                            window.setParasolSeason(GameConfig.currentSeason);
                         }
-                        window.parkGroup.add(fbx);
+
                     } catch (e) { console.error(`Error loading asset ${config.name}:`, e); }
                 }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
             });
@@ -5099,6 +5104,15 @@ const SearchGame = (() => {
     }
 
     function render() {
+        // Init mix clock if needed
+        if (!window.sgClock) window.sgClock = new THREE.Clock();
+        const delta = window.sgClock.getDelta();
+
+        // Update Mixers
+        if (window.sgMixers && window.sgMixers.length > 0) {
+            window.sgMixers.forEach(mixer => mixer.update(delta));
+        }
+
         if (renderer && scene && camera) {
             // Debug Log for Ending Camera
             if (currentState === GameState.ENDING) {
