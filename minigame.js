@@ -4188,7 +4188,7 @@ const SearchGame = (() => {
                 {
                     name: 'ElephantSprayer',
                     path: 'models/elephant_sprayer.fbx',
-                    pos: { x: -15, y: 0, z: -12 },
+                    pos: { x: -9, y: 0, z: -8.5 },
                     rot: { y: 0 }, // ★向きを0度に完全固定
                     scale: 1.0, // 必要に応じて微調整
                     collision: true,
