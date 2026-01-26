@@ -4557,11 +4557,16 @@ const SearchGame = (() => {
                         });
 
                         const positions = [
-                            { x: -9, z: -13 },   // NE
-                            { x: -15, z: -13 },  // NW
-                            { x: -16.5, z: -18 }, // SW Edge
-                            { x: -7.5, z: -18 },  // SE Edge
-                            { x: -12, z: -21 }    // South Edge
+                            // 1. 西側列 (Near Vending Line X:-23)
+                            { x: -23, z: -9.0 }, { x: -22, z: -14.0 }, { x: -23, z: -19.0 },
+                            { x: -22, z: -24.0 }, { x: -23, z: -27.5 },
+
+                            // 2. 中央列 (Mid Area X:-18 ~ -13)
+                            { x: -18, z: -11.0 }, { x: -17, z: -16.0 }, { x: -18, z: -21.0 }, { x: -17, z: -26.0 },
+                            { x: -13, z: -9.0 }, { x: -13, z: -13.0 }, { x: -12, z: -18.0 }, { x: -13, z: -23.0 }, { x: -12, z: -27.0 },
+
+                            // 3. 東側列 (Near East Line X:-7) - Avoid Elephant (-9, -8.5)
+                            { x: -8, z: -15.0 } // Only placing south of the elephant to be safe
                         ];
 
                         positions.forEach((pos, i) => {
