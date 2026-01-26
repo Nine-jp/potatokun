@@ -4582,6 +4582,11 @@ const SearchGame = (() => {
                                 }
                             });
 
+                            // ★追加: 円柱衝突判定 (半径0.6)
+                            if (window.sgFountainCollision) {
+                                window.sgFountainCollision.push({ x: pos.x, z: pos.z, radius: 0.6 });
+                            }
+
                             window.parkGroup.add(parasol);
                         });
 
