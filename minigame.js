@@ -4331,7 +4331,7 @@ const SearchGame = (() => {
                                     c.castShadow = false; c.receiveShadow = false;
                                     if (c.material) {
                                         c.material = c.material.clone();
-                                        c.material.emissive = new THREE.Color(0xFFFFFF);
+                                        c.material.emissive = new THREE.Color(0xFFBF00);
                                     }
                                 } else if (name.includes('water')) {
                                     c.castShadow = false; c.receiveShadow = true;
