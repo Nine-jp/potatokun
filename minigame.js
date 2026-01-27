@@ -4303,9 +4303,23 @@ const SearchGame = (() => {
                         { x: -28, z: -21.9 }
                     ],
                     collision: false, // Handle manually in onLoad
-                    onLoad: (vm) => {
+                    onLoad: (vm, index) => {
                         // This callback runs for EACH clone
                         vm.visible = true;
+
+                        // ★商品パネル (Decal) の追加
+                        const texLoader = new THREE.TextureLoader();
+                        const panelTex = texLoader.load(`assets/vending_panel_${index + 1}.png`);
+                        // Planeはデフォルトで+Z向き。自販機のFrontが+Zならそのまま見手側に向く。
+                        // 暗所でも見えるように BasicMaterial + Transparent
+                        const panelMat = new THREE.MeshBasicMaterial({ map: panelTex, transparent: true });
+                        const panelGeo = new THREE.PlaneGeometry(1.0, 1.6);
+                        const panel = new THREE.Mesh(panelGeo, panelMat);
+
+                        // 位置合わせ (Y:1.15, Z:0.28) -> (Y:1.38, Z:0.285)
+                        panel.position.set(0, 1.05, 0.285);
+
+                        vm.add(panel);
 
                         // Apply materials logic
                         vm.traverse(c => {
@@ -4627,7 +4641,7 @@ const SearchGame = (() => {
                                 if (window.sgMixers) window.sgMixers.push(mixer);
                             }
 
-                            if (config.onLoad) config.onLoad(fbx);
+                            if (config.onLoad) config.onLoad(fbx, i); // Pass index i here
 
                             if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(fbx);
 
