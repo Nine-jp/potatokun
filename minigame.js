@@ -2043,96 +2043,85 @@ const SearchGame = (() => {
 
 
     function setupGameUI() {
-        container.innerHTML = `
-            <!-- Loading Overlay -->
-            <div id="sg-loading-overlay" style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: #87CEEB;
-                z-index: 9999;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                color: white;
-                font-family: 'Courier New', monospace;
-                font-size: 24px;
-                font-weight: bold;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            ">Now Loading...</div>
+        const targetContainer = document.getElementById('active-game-container');
+        if (!targetContainer) {
+            console.error("setupGameUI: active-game-container not found.");
+            return;
+        }
+
+        // 【1. 親コンテナのレイアウト崩壊防止 & スクロールロック】
+        // 中身を absolute で積み重ねるため、親には relative とサイズ確定が必須。
+        // overflow: hidden で、画面端の操作による予期せぬスクロールを防ぐ。
+        if (getComputedStyle(targetContainer).position === 'static') {
+            targetContainer.style.position = 'relative';
+        }
+        targetContainer.style.width = '100%';
+        targetContainer.style.height = '100%';
+        targetContainer.style.overflow = 'hidden';
+
+        // 【2. HTML構造の再構築（高速化チューニング済み）】
+        // Layer 0: Canvas (最背面)
+        // Layer 1: UI Container (z:1000)
+        // Layer 2: SKIP Button (z:1500)
+        // Layer 3: Loading (z:2000)
+
+        // ★Touch Tuning: 各操作エリアに 'touch-action: none' を追加。
+        // これによりiPhone特有の「ダブルタップ判定待ち(300ms)」と「スクロール干渉」を殺し、即座に反応させる。
+
+        targetContainer.innerHTML = `
+            <div id="sg-loading-overlay" style="position:absolute; inset:0; background:#87CEEB; z-index:2000; display:flex; justify-content:center; align-items:center; color:white; font-family:monospace; font-size:24px; font-weight:bold;">
+                Now Loading...
+            </div>
             
-            <div id="sg-canvas-container" style="width:100%; height:100%; background: #1a1a1a;"></div>
+            <div id="sg-canvas-container" style="position:absolute; inset:0; background:#1a1a1a; z-index:0;"></div>
 
-            <!-- SKIP Button -->
-            <div id="sg-skip-btn" style="
-                position: absolute;
-                top: 80px;
-                right: 20px;
-                z-index: 250;
-                color: white;
-                font-family: 'Courier New', monospace;
-                font-weight: bold;
-                font-size: 18px;
-                border: 2px solid white;
-                background: rgba(0, 0, 0, 0.5);
-                padding: 8px 16px;
-                border-radius: 6px;
-                cursor: pointer;
-                display: none;
-                user-select: none;
-                -webkit-tap-highlight-color: transparent;
-            ">SKIP ▶</div>
-
-            <!-- Crosshair -->
-            <style>
-                #sg-crosshair .crosshair-h, #sg-crosshair .crosshair-v { background: white; transition: background 0.15s; }
-                #sg-crosshair .crosshair-circle { border-color: white; transition: border-color 0.15s; }
-                #sg-crosshair.target-locked .crosshair-h, #sg-crosshair.target-locked .crosshair-v { background: #FF4444; }
-                #sg-crosshair.target-locked .crosshair-circle { border-color: #FF4444; }
-            </style>
-            <div id="sg-crosshair" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:150; pointer-events:none !important;">
-                <div class="crosshair-h" style="width:24px; height:3px; position:absolute; left:-12px; top:-1.5px; opacity:0.9;"></div>
-                <div class="crosshair-v" style="width:3px; height:24px; position:absolute; left:-1.5px; top:-12px; opacity:0.9;"></div>
-                <div class="crosshair-circle" style="width:8px; height:8px; border:2px solid white; border-radius:50%; position:absolute; left:-6px; top:-6px; opacity:0.7;"></div>
+            <div id="sg-skip-btn" style="position:absolute; top:80px; right:20px; z-index:1500; color:white; font-weight:bold; border:2px solid white; background:rgba(0,0,0,0.5); padding:8px 16px; border-radius:6px; cursor:pointer; display:none;">
+                SKIP ▶
             </div>
 
-            <!-- NEW UI CONTAINER (Fixed Absolute Layout) -->
-            <div id="ui-container">
+            <div id="ui-container" style="position:absolute; inset:0; pointer-events:none; z-index:1000;">
                 
-                <div id="hud-top-left">
+                <div id="hud-top-left" style="pointer-events: auto; touch-action: none;">
                     <h1>ポテトコイン</h1>
                     <div id="score">コイン: <span id="sg-coin-counter">0</span>/10</div>
                     <div id="tutorial-hint" style="display:none;">🎮 移動: D-Pad / 🦅 視点切替</div>
                 </div>
 
-                <div id="controls-bottom-left">
-                    <!-- Fused D-Pad (CSS Grid) -->
+                <div id="controls-bottom-left" style="pointer-events: auto; touch-action: none;">
                     <div id="dpad-cross">
-                        <div class="dpad-empty"></div> <button id="dpad-up">▲</button>   <div class="dpad-empty"></div> 
-                        <button id="dpad-left">◀</button> <div id="dpad-center"></div>   <button id="dpad-right">▶</button>
+                        <div class="dpad-empty"></div> <button id="dpad-up">▲</button> <div class="dpad-empty"></div> 
+                        <button id="dpad-left">◀</button> <div id="dpad-center"></div> <button id="dpad-right">▶</button>
                         <div class="dpad-empty"></div> <button id="dpad-down">▼</button> <div class="dpad-empty"></div> 
                     </div>
                 </div>
 
-                <div id="controls-bottom-right">
-                    <!-- Vertical Stack -->
+                <div id="controls-bottom-right" style="pointer-events: auto; touch-action: none;">
                     <button id="btn-action-pickup" class="action-btn pickup-btn" style="display: none;">
                         <img src="assets/horseshoe_magnet.png" alt="GET">
                     </button>
-                    
                     <button id="toggle-view-btn" class="action-btn view-btn">🦅</button>
                 </div>
-                
             </div>
         `;
 
-        // ★追加: 視点切替ボタンのイベントリスナー (新ID対応)
-        // DOM挿入直後なので、ここでイベントを設定する
+        // 【3. データの復元（スコア維持）】
+        // 画面の再構築時、獲得済みのコイン枚数が0に戻らないよう表示を更新する
+        if (window.sgItemData && typeof window.sgItemData.collected === 'number') {
+            const counter = document.getElementById('sg-coin-counter');
+            if (counter) counter.textContent = window.sgItemData.collected;
+        }
+
+        // 【4. イベントリスナーの接続】
+        // DOM生成直後だと要素が見つからないリスクがあるため、
+        // わずかな遅延(0ms)を入れて、描画完了後に確実にイベントを結びつける
         setTimeout(() => {
-            bindUIEvents(); // Bind listeners
-        }, 100);
+            // クロージャ内の関数、またはグローバル関数として存在するかチェックして実行
+            if (typeof bindUIEvents === 'function') {
+                bindUIEvents();
+            } else {
+                console.error("Critical: bindUIEvents is missing in this scope.");
+            }
+        }, 0);
     }
 
     // === UI Event Binding Helper ===
