@@ -4583,9 +4583,10 @@ const SearchGame = (() => {
                     onLoad: (tuktuk) => {
                         console.log("🚙 TukTuk KitchenCar: Ground-level Deployment (South Facing)");
 
-                        // 影とマテリアルの基本設定
+                        // 影とマテリアルの基本設定 & 詳細チューニング
                         tuktuk.traverse(c => {
                             if (c.isMesh) {
+                                // 0. ベース設定
                                 c.castShadow = true;
                                 c.receiveShadow = true;
                                 if (c.material) {
@@ -4593,6 +4594,57 @@ const SearchGame = (() => {
                                     mats.forEach(m => {
                                         m.shadowSide = THREE.BackSide;
                                     });
+                                }
+
+                                const name = c.name.toLowerCase();
+
+                                // 1. ライトの控えめな発光
+                                if (name.includes('light')) {
+                                    if (!Array.isArray(c.material)) {
+                                        c.material = c.material.clone();
+                                        c.material.emissive = new THREE.Color(0xFFFFCC); // 暖かみのある白
+                                        c.material.emissiveIntensity = 0.4; // ★光量少なめ
+                                        c.castShadow = false; // ライト自体は影を落とさない
+                                    }
+                                }
+
+                                // 2. ガラスの透過設定
+                                if (name.includes('glass')) {
+                                    if (!Array.isArray(c.material)) {
+                                        c.material = c.material.clone();
+                                        c.material.transparent = true;
+                                        c.material.opacity = 0.3; // ★しっかり透過
+                                        c.material.depthWrite = false; // 描画順のバグ防止
+                                        c.castShadow = false; // ガラスは影を落とさない
+                                    }
+                                }
+
+                                // 3. ポスター面 (画像適用)
+                                if (name.includes('kitchencar_face')) {
+                                    if (!Array.isArray(c.material)) {
+                                        c.material = c.material.clone();
+
+                                        // テクスチャの非同期ロード
+                                        const textureLoader = new THREE.TextureLoader();
+                                        textureLoader.load('assets/kitchencar_ad1.png', (tex) => {
+                                            tex.colorSpace = THREE.SRGBColorSpace;
+                                            tex.colorSpace = THREE.SRGBColorSpace;
+                                            tex.flipY = true; // 反転
+
+                                            // 画像を時計回りに270度回転 (さらに180度追加)
+                                            tex.center.set(0.5, 0.5);
+                                            tex.rotation = -Math.PI * 1.5;
+
+                                            c.material.map = tex;
+                                            c.material.color.setHex(0xFFFFFF); // 画像の色を出すため白
+                                            c.material.emissive = new THREE.Color(0xFFFFFF);
+                                            c.material.emissiveMap = tex;
+                                            c.material.emissiveIntensity = 0.2; // ほんのり自発光
+                                            c.material.needsUpdate = true;
+
+                                            console.log("🖼️ KitchenCar Poster applied to:", name);
+                                        });
+                                    }
                                 }
                             }
                         });
