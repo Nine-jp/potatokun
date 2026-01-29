@@ -3607,7 +3607,7 @@ const SearchGame = (() => {
                 const NUM_TREES = 160;
                 let attempts = 0;
                 // 修正: 狭いエリアに160本入れるため、距離制限を極限まで縮める (5.0 -> 2.5)
-                const MIN_TREE_DISTANCE = 2.5;
+                const MIN_TREE_DISTANCE = 2.0;
 
                 function isTooClose(x, z) {
                     for (const placed of placedTrees) {
