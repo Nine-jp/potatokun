@@ -4571,6 +4571,41 @@ const SearchGame = (() => {
                             window.sgFountainCollision.push({ x: parasol.position.x, z: parasol.position.z, radius: 0.6 });
                         }
                     }
+                },
+                {
+                    name: 'KitchenCar_Tuktuk',
+                    path: 'models/tuktuk.fbx',
+                    pos: { x: -7, y: 0, z: -25 },
+                    rot: { y: 180 }, // 南向き
+                    scale: 1.0,
+                    collision: false, // カスタム衝突判定を使用するためfalse
+                    exclusionRadius: 3.5,
+                    onLoad: (tuktuk) => {
+                        console.log("🚙 TukTuk KitchenCar: Ground-level Deployment (South Facing)");
+
+                        // 影とマテリアルの基本設定
+                        tuktuk.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                                if (c.material) {
+                                    const mats = Array.isArray(c.material) ? c.material : [c.material];
+                                    mats.forEach(m => {
+                                        m.shadowSide = THREE.BackSide;
+                                    });
+                                }
+                            }
+                        });
+
+                        // 「いい感じ」の物理判定登録
+                        // 車体の中心から前後左右にバリアを張る
+                        if (window.sgExtraObstacles) {
+                            window.sgExtraObstacles.push({
+                                minX: -7 - 1.8, maxX: -7 + 1.8,
+                                minZ: -25 - 3.5, maxZ: -25 + 3.5
+                            });
+                        }
+                    }
                 }
             ];
 
