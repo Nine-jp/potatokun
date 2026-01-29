@@ -4712,99 +4712,117 @@ const SearchGame = (() => {
                 const dropAnim = setInterval(() => { if (!coin.parent) { clearInterval(dropAnim); return; } coin.position.add(velocity); velocity.y -= gravity; if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); } }, 16);
             };
 
-            // アニメーション
+            // アニメーション監視ループ (エラー修正・安全化版)
             if (window.sgSnowmanInterval) clearInterval(window.sgSnowmanInterval);
+
             window.sgSnowmanInterval = setInterval(() => {
-                if (typeof playerPosition === 'undefined') return;
+                // 【安全装置1】プレイヤー座標やシーンが未ロードなら何もせずリターン
+                // これで "reading 'z'" エラーの9割を防ぎます
+                if (!playerPosition || !scene) return;
+
+                // 1. 雪だるま判定
                 if (window.sgSnowmen) {
                     window.sgSnowmen.forEach(snowman => {
-                        if (snowman.userData.isDead || !snowman.visible) return;
-                        const worldPos = new THREE.Vector3(); snowman.getWorldPosition(worldPos);
+                        // 【安全装置2】親から外れた(削除された)雪だるまは無視
+                        if (!snowman || !snowman.parent || snowman.userData.isDead || !snowman.visible) return;
+
+                        const worldPos = new THREE.Vector3();
+                        snowman.getWorldPosition(worldPos);
+
+                        // 距離チェック
                         if (playerPosition.distanceTo(worldPos) < 2.0) {
-                            snowman.visible = false; snowman.userData.isDead = true;
-                            spawnSnowExplosion(worldPos);
+                            snowman.visible = false;
+                            snowman.userData.isDead = true;
+
+                            if (typeof spawnSnowExplosion === 'function') spawnSnowExplosion(worldPos);
+
                             if (snowman.userData.isWinner && !snowman.userData.hasPaid) {
-                                snowman.userData.hasPaid = true; spawnDropCoin(worldPos);
-                                const div = document.createElement('div'); div.textContent = "🎉POP!"; div.style.position = 'fixed'; div.style.left = '50%'; div.style.top = '50%'; div.style.color = '#FFD700'; div.style.fontSize = '40px'; div.style.fontWeight = 'bold'; div.style.textShadow = '0 0 10px black'; div.style.transform = 'translate(-50%, -50%)'; div.style.zIndex = 3000; div.style.animation = 'floatUp 1s forwards'; document.body.appendChild(div); setTimeout(() => div.remove(), 1000);
+                                snowman.userData.hasPaid = true;
+                                if (typeof spawnDropCoin === 'function') spawnDropCoin(worldPos);
+
+                                const div = document.createElement('div');
+                                div.textContent = "🎉POP!";
+                                div.style.position = 'fixed'; div.style.left = '50%'; div.style.top = '50%'; div.style.color = '#FFD700';
+                                div.style.fontSize = '40px'; div.style.fontWeight = 'bold'; div.style.textShadow = '0 0 10px black';
+                                div.style.transform = 'translate(-50%, -50%)'; div.style.zIndex = 3000;
+                                div.style.animation = 'floatUp 1s forwards';
+                                document.body.appendChild(div); setTimeout(() => div.remove(), 1000);
                             }
+
                             setTimeout(() => {
-                                snowman.visible = true; snowman.userData.isDead = false; snowman.scale.set(0.1, 0.1, 0.1);
-                                let s = 0.1; const anim = setInterval(() => { s += 0.1; if (s >= 1.0) { s = 1.0; clearInterval(anim); } snowman.scale.setScalar(s); }, 30);
+                                if (snowman && snowman.parent) {
+                                    snowman.visible = true;
+                                    snowman.userData.isDead = false;
+                                    snowman.scale.set(0.1, 0.1, 0.1);
+                                    let s = 0.1;
+                                    const anim = setInterval(() => {
+                                        if (!snowman.parent) { clearInterval(anim); return; }
+                                        s += 0.1;
+                                        if (s >= 1.0) { s = 1.0; clearInterval(anim); }
+                                        snowman.scale.setScalar(s);
+                                    }, 30);
+                                }
                             }, 5000);
                         }
                     });
                 }
 
-
-                // シーソーの制御
+                // 2. シーソー制御
                 const seesaw = scene.getObjectByName('Seesaw');
-                // movingPart (さきほど作ったPivotGroup) が存在する場合のみ実行
-                if (seesaw && seesaw.userData.movingPart) {
-
+                // ★修正: seesaw.position の存在チェックを追加 (念のため)
+                if (seesaw && seesaw.position && seesaw.userData.movingPart) {
                     const dx = Math.abs(playerPosition.x - seesaw.position.x);
-                    const dz = Math.abs(playerPosition.z - seesaw.position.z);
+                    const dz = Math.abs(playerPosition.z - seesaw.position.z); // ★ここがエラーの震源地候補
 
                     let targetRot = 0;
-
-                    // エリア判定: 南北(dz)に長く、東西(dx)に狭く
                     if (dz < 2.5 && dx < 1.0) {
                         const relativeZ = playerPosition.z - seesaw.position.z;
-
-                        // 傾き計算:
-                        // Z軸回転を採用。
-                        // ※もし傾く方向が逆（自分が乗った方が上がる）なら、ここの符号を反転させてください
                         let tilt = relativeZ * 0.15;
-
-                        // 角度制限 (約20度)
                         tilt = Math.max(-0.35, Math.min(0.35, tilt));
                         targetRot = tilt;
                     }
 
                     const pivot = seesaw.userData.movingPart;
-
-                    // Z軸回転 (Pitch) で回す
-                    pivot.rotation.z += (targetRot - pivot.rotation.z) * 0.1;
+                    if (pivot) {
+                        pivot.rotation.z += (targetRot - pivot.rotation.z) * 0.1;
+                    }
                 }
 
-                // 象の噴水の水流制御
+                // 3. 象の噴水
                 const elephant = scene.getObjectByName('ElephantSprayer');
-                if (elephant) {
+                // ★修正: elephant.position の存在チェックを追加
+                if (elephant && elephant.position) {
                     const pPos = playerPosition;
 
-                    // --- 1. 鼻先 (現状維持) ---
+                    // 鼻先
                     const noseOffset = new THREE.Vector3(0, 0, 1.8).applyQuaternion(elephant.quaternion);
                     const noseWorldPos = elephant.position.clone().add(noseOffset);
-                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.4;
 
+                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.4;
                     if (elephant.userData.noseStreams) {
                         elephant.userData.noseStreams.forEach(s => s.visible = isNoseActive);
                     }
                     if (isNoseActive) {
-                        window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
+                        if (typeof window.spawnFountainSparkles === 'function')
+                            window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
                     }
 
-                    // --- 2. 背中 (センサーと蛇口を分離) ---
-
-                    // A. 判定用センサー (お尻付近)
+                    // 背中
                     const backSensorOffset = new THREE.Vector3(0, 0.6, -0.5).applyQuaternion(elephant.quaternion);
                     const backSensorPos = elephant.position.clone().add(backSensorOffset);
-
-                    // B. パーティクル発生源 (背中の蛇口)
                     const backFaucetOffset = new THREE.Vector3(0, 1.2, 0).applyQuaternion(elephant.quaternion);
                     const backFaucetPos = elephant.position.clone().add(backFaucetOffset);
 
-                    // 判定はセンサーとの距離で行う
                     const isBackActive = pPos.distanceTo(backSensorPos) < 1.6;
-
                     if (elephant.userData.backStreams) {
                         elephant.userData.backStreams.forEach(s => s.visible = isBackActive);
                     }
-
-                    // 発生は蛇口位置から行う
                     if (isBackActive) {
-                        window.spawnFountainSparkles(backFaucetPos.x, backFaucetPos.y, backFaucetPos.z, false, true);
+                        if (typeof window.spawnFountainSparkles === 'function')
+                            window.spawnFountainSparkles(backFaucetPos.x, backFaucetPos.y, backFaucetPos.z, false, true);
                     }
                 }
+
             }, 30);
 
 
