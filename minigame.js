@@ -5143,6 +5143,309 @@ const SearchGame = (() => {
 
 
 
+
+    // ==========================================
+    // 木 (Tree) と ベンチ (Bench) の配置（品質維持・最適化版）
+    // ==========================================
+    function spawnTrees() {
+        console.log("--- spawnTrees CALLED (High Quality & Optimized) ---");
+
+        // ★ 葉っぱ専用カラーパレット
+        const TREE_PALETTES = {
+            spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
+            summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+            autumn: [0xFF4500, 0xD2691E, 0xFF8C00, 0xFFD700],
+            winter: [0xE6E6FA, 0xF8F8FF, 0xD8BFD8]
+        };
+
+        window.sgTreeObjects = [];
+        window.sgTreeCollisions = [];
+
+        // ★ 季節切り替え関数
+        window.setTreeSeason = (seasonName) => {
+            console.log(`Setting Tree Season to: ${seasonName}`);
+            const palette = TREE_PALETTES[seasonName] || TREE_PALETTES.summer;
+
+            window.sgTreeObjects.forEach((tree, index) => {
+                // indexを使って色をばらけさせる
+                const colorHex = palette[index % palette.length];
+                const leafColorObj = new THREE.Color(colorHex);
+                const trunkColorObj = new THREE.Color(0xFFFFFF); // 幹はテクスチャ依存
+
+                tree.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        const name = child.name.toLowerCase();
+                        // 葉っぱ判定
+                        const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
+                        if (child.material.color) {
+                            child.material.color.copy(isLeaves ? leafColorObj : trunkColorObj);
+                        }
+                    }
+                });
+            });
+        };
+
+        // 並木設定
+        const AVENUE_OFFSET = 4.0;
+        const AVENUE_START = 10.0;
+        const AVENUE_END = 30.0;
+        const AVENUE_STEP = 4.0;
+
+        // ===================================
+        // 1. ベンチの配置 (Benches)
+        // ===================================
+        const benchLoader = new FBXLoader();
+        benchLoader.load('models/bench.fbx', (masterBench) => {
+            masterBench.scale.setScalar(1.0);
+
+            // ★マスター段階でアウトラインを計算（焼き付け）
+            if (typeof window.applyOutlineRules === 'function') {
+                window.applyOutlineRules(masterBench);
+            }
+
+            masterBench.traverse(c => {
+                if (c.isMesh) {
+                    c.castShadow = true;
+                    c.receiveShadow = true;
+                }
+            });
+
+            const addBench = (x, z, rotY) => {
+                // 遊具エリア入口(x:4, z:16)はスキップ
+                if (Math.abs(x - 4) < 0.1 && Math.abs(z - 16) < 0.1) return;
+
+                const bench = masterBench.clone();
+                bench.position.set(x, 0, z);
+                bench.rotation.y = rotY * (Math.PI / 180);
+
+                // ※CloneしてもLineSegments（アウトライン）はついてくるので再計算不要
+                scene.add(bench);
+                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5);
+            };
+
+            // 並木道のベンチ配置
+            for (let d = AVENUE_START; d <= AVENUE_END; d += AVENUE_STEP) {
+                const b = d - 2.0;
+                addBench(b, 4, 180); addBench(-b, 4, 180);
+                addBench(b, -4, 0); addBench(-b, -4, 0);
+                addBench(4, b, -90); addBench(4, -b, -90);
+                addBench(-4, b, 90); addBench(-4, -b, 90);
+            }
+        });
+
+        // ===================================
+        // 2. 木の配置 (Trees) - ★品質維持＆最適化★
+        // ===================================
+        const treeLoader = new FBXLoader();
+        treeLoader.load('models/tree.fbx', (masterTree) => {
+            console.log('FBX Loaded: tree.fbx (Pre-baked Outline Mode)');
+            window.sgMasterTree = masterTree;
+
+            // ★Step 1: 親玉（マスター）のセットアップ
+            // ここで重い処理（アウトライン計算など）を全部済ませる
+            masterTree.traverse((child) => {
+                if (child.isMesh) {
+                    // ボスの指示通り：影は落とすし、自分も受ける（立体感重視）
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+
+                    // エミッシブ（自己発光）のリセット
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(m => m.emissive.setHex(0x000000));
+                        } else {
+                            child.material.emissive.setHex(0x000000);
+                        }
+                    }
+                    child.userData.isTree = true;
+
+                    // ★最重要: アウトラインをここで生成して child に add しておく
+                    // これにより、clone() した時に「計算済みの線」も一緒にコピーされる
+                    // （new EdgesGeometry の計算コストを 200回 -> 1回 に削減）
+                    if (child.geometry) {
+                        const thresholdAngle = 15;
+                        const edgesGeometry = new THREE.EdgesGeometry(child.geometry, thresholdAngle);
+                        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+                        const edges = new THREE.LineSegments(edgesGeometry, lineMaterial);
+                        edges.userData.isOutline = true; // 重複防止フラグ
+                        child.add(edges);
+                    }
+                }
+            });
+
+            const treePositions = [];
+            const placedTrees = [];
+
+            // A. 並木道 (Avenue)
+            const addFixedTree = (x, z) => {
+                treePositions.push({ x, z });
+                placedTrees.push({ x, z });
+                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.0);
+            };
+
+            for (let d = AVENUE_START; d <= AVENUE_END; d += AVENUE_STEP) {
+                addFixedTree(d, AVENUE_OFFSET); addFixedTree(d, -AVENUE_OFFSET);
+                addFixedTree(-d, AVENUE_OFFSET); addFixedTree(-d, -AVENUE_OFFSET);
+                addFixedTree(AVENUE_OFFSET, d); addFixedTree(-AVENUE_OFFSET, d);
+                addFixedTree(AVENUE_OFFSET, -d); addFixedTree(-AVENUE_OFFSET, -d);
+            }
+
+            // B. ランダム配置 (Forest)
+            const NUM_TREES = 160;
+            let attempts = 0;
+            const MIN_TREE_DISTANCE = 2.5;
+
+            function isTooClose(x, z) {
+                for (const placed of placedTrees) {
+                    const dx = x - placed.x;
+                    const dz = z - placed.z;
+                    if (Math.sqrt(dx * dx + dz * dz) < MIN_TREE_DISTANCE) return true;
+                }
+                return false;
+            }
+
+            while (treePositions.length < NUM_TREES + 24 && attempts < 10000) {
+                attempts++;
+                const range = 62;
+                const x = (Math.random() - 0.5) * range;
+                const z = (Math.random() - 0.5) * range;
+
+                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
+                if (isTooClose(x, z)) continue;
+
+                treePositions.push({ x, z });
+                placedTrees.push({ x, z });
+                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
+            }
+
+            // ★Step 2: 高速クローン配置ループ
+            treePositions.forEach((pos, index) => {
+                // clone() は子要素（先ほど作ったLineSegments）も連れてくるが、
+                // Geometry（形状データ）は参照コピーなのでメモリを食わない。最高。
+                const tree = masterTree.clone();
+
+                tree.userData.isTree = true;
+                tree.name = `Tree_${index}`;
+
+                // スケールと回転
+                const scale = 0.8 + Math.random() * 0.4;
+                tree.scale.setScalar(scale);
+
+                const box = new THREE.Box3().setFromObject(tree);
+                const offsetY = -box.min.y;
+                tree.position.set(pos.x, offsetY, pos.z);
+                tree.rotation.y = Math.random() * Math.PI * 2;
+
+                // ★重要: マテリアルの独立化（Independency）
+                // これをやらないと、全ての木が同じ色になってしまう
+                tree.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(m => m.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
+                    }
+                });
+
+                scene.add(tree);
+                window.sgTreeObjects.push(tree);
+                window.sgTreeCollisions.push({ x: pos.x, z: pos.z, radius: 0.3 * scale });
+
+                // ★注意: ここで window.addEdgesOutline を呼んではいけない（既に持っているから）
+            });
+
+            console.log(`${treePositions.length} trees placed (High Quality).`);
+
+            // --- 隠しコイン生成 (変更なし) ---
+            if (!window.sgActiveCoins) window.sgActiveCoins = [];
+            let forestTrees = window.sgTreeObjects.filter(t => t.position.x < -10 && t.position.z > 10);
+            if (forestTrees.length === 0) forestTrees = window.sgTreeObjects;
+            if (forestTrees.length > 0) {
+                const targetTree = forestTrees[Math.floor(Math.random() * forestTrees.length)];
+                window.testTree = targetTree;
+
+                const loader = new FBXLoader();
+                loader.load('models/coin.fbx', (object) => {
+                    const coin = object;
+                    const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
+                    const currentSeason = (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) ? GameConfig.currentSeason : 'summer';
+                    const targetColor = seasonColors[currentSeason] || 0xFFFFFF;
+
+                    coin.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = false;
+                            if (child.material) {
+                                const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                                const newMat = new THREE.MeshBasicMaterial({
+                                    map: oldMat.map, color: targetColor, transparent: false, opacity: 1.0, side: THREE.DoubleSide
+                                });
+                                child.material = newMat;
+                            }
+                        }
+                    });
+                    const box = new THREE.Box3().setFromObject(coin);
+                    const size = new THREE.Vector3(); box.getSize(size);
+                    coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
+                    const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
+                    coin.add(coinLight);
+                    coin.position.set(0, 2.2, 0);
+                    coin.userData = { isCoin: true, isFalling: false, hasFallen: false, pointLight: coinLight };
+
+                    targetTree.add(coin);
+                    targetTree.userData.hasCoin = true;
+                    targetTree.userData.targetCoin = coin;
+                    window.sgActiveCoins.push(coin);
+                    coin.userData.parentTree = targetTree;
+
+                    const collisionObj = window.sgTreeCollisions.find(c =>
+                        Math.abs(c.x - targetTree.position.x) < 0.1 && Math.abs(c.z - targetTree.position.z) < 0.1
+                    );
+                    if (collisionObj) {
+                        collisionObj.hasCoin = true;
+                        window.testTreeCollision = collisionObj;
+                    }
+                });
+            }
+
+            // C. 外周の木 (Exterior)
+            const NUM_EXTERIOR = 70;
+            for (let i = 0; i < NUM_EXTERIOR; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 45 + Math.random() * 35;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+
+                // 外周の木も同じマスターから生成
+                const extTree = masterTree.clone();
+                extTree.userData.isTree = true;
+                extTree.scale.setScalar(1.2 + Math.random() * 0.8);
+                const box = new THREE.Box3().setFromObject(extTree);
+                extTree.position.set(x, -box.min.y, z);
+                extTree.rotation.y = Math.random() * Math.PI * 2;
+
+                // 外周も色を変えるためにマテリアルをクローン
+                extTree.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(m => m.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
+                    }
+                });
+
+                scene.add(extTree);
+                window.sgTreeObjects.push(extTree);
+            }
+
+            // 配置が終わったら、現在の季節カラーを適用
+            if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
+
+        }, undefined, (error) => console.error('Error loading tree.fbx:', error));
+    }
+
     // ==========================================
     // 雲 (Cloud) の配置と季節カラー管理
     // ==========================================
