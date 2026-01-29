@@ -5154,6 +5154,196 @@ const SearchGame = (() => {
 
 
 
+    // ========================================
+    // 最適化された森林生成システム (Poisson Disk Sampling)
+    // ========================================
+    const ForestGenerator = {
+        /**
+         * メイン生成関数
+         */
+        generate: function (scene, masterTree, options = {}) {
+            const config = {
+                numTrees: options.numTrees || 160,
+                areaSize: options.areaSize || 62,
+                minDistance: options.minDistance || 2.5,
+                exclusionManager: options.exclusionManager || null,
+                preplacedTrees: options.preplacedTrees || [],
+                collisionRadius: options.collisionRadius || 1.2,
+                ...options
+            };
+
+            console.time('ForestGeneration');
+
+            // ポアソンディスク・サンプリングで位置を生成
+            const positions = this.poissonDiskSampling(config);
+
+            // 木を配置
+            const trees = this.placeTrees(scene, masterTree, positions, config);
+
+            console.timeEnd('ForestGeneration');
+            console.log(`Forest: ${positions.length} trees placed (target: ${config.numTrees})`);
+
+            return trees;
+        },
+
+        /**
+         * ポアソンディスク・サンプリング
+         * O(n)に近い効率で均等分布を生成
+         */
+        poissonDiskSampling: function (config) {
+            const { areaSize, minDistance, numTrees, exclusionManager, preplacedTrees } = config;
+
+            const cellSize = minDistance / Math.SQRT2;
+            const gridWidth = Math.ceil(areaSize / cellSize);
+            const grid = new Array(gridWidth * gridWidth).fill(null);
+
+            const halfArea = areaSize / 2;
+            const positions = [];
+            const activeList = [];
+
+            // グリッド座標変換
+            const toGrid = (x, z) => ({
+                gx: Math.floor((x + halfArea) / cellSize),
+                gz: Math.floor((z + halfArea) / cellSize)
+            });
+
+            const getGridIndex = (gx, gz) => {
+                if (gx < 0 || gx >= gridWidth || gz < 0 || gz >= gridWidth) return -1;
+                return gz * gridWidth + gx;
+            };
+
+            // 既存の木をグリッドに登録
+            preplacedTrees.forEach(pos => {
+                const { gx, gz } = toGrid(pos.x, pos.z);
+                const idx = getGridIndex(gx, gz);
+                if (idx >= 0) grid[idx] = pos;
+            });
+
+            // 距離チェック（グリッド利用で高速化）
+            const isValidPosition = (x, z) => {
+                // エリア外チェック
+                if (Math.abs(x) > halfArea || Math.abs(z) > halfArea) return false;
+
+                // 禁止エリアチェック
+                if (exclusionManager && exclusionManager.isBlocked(x, z)) return false;
+
+                // 近傍グリッドのみチェック（9セル）
+                const { gx, gz } = toGrid(x, z);
+                for (let dz = -2; dz <= 2; dz++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        const idx = getGridIndex(gx + dx, gz + dz);
+                        if (idx >= 0 && grid[idx]) {
+                            const neighbor = grid[idx];
+                            const distSq = (x - neighbor.x) ** 2 + (z - neighbor.z) ** 2;
+                            if (distSq < minDistance * minDistance) return false;
+                        }
+                    }
+                }
+                return true;
+            };
+
+            // 初期点を追加
+            const startX = (Math.random() - 0.5) * areaSize * 0.5;
+            const startZ = (Math.random() - 0.5) * areaSize * 0.5;
+
+            if (isValidPosition(startX, startZ)) {
+                const startPos = { x: startX, z: startZ };
+                positions.push(startPos);
+                activeList.push(startPos);
+                const { gx, gz } = toGrid(startX, startZ);
+                const idx = getGridIndex(gx, gz);
+                if (idx >= 0) grid[idx] = startPos;
+            }
+
+            // サンプリングループ
+            const maxCandidates = 30;
+
+            while (activeList.length > 0 && positions.length < numTrees) {
+                const randomIndex = Math.floor(Math.random() * activeList.length);
+                const current = activeList[randomIndex];
+                let found = false;
+
+                for (let i = 0; i < maxCandidates; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = minDistance + Math.random() * minDistance;
+
+                    const newX = current.x + Math.cos(angle) * distance;
+                    const newZ = current.z + Math.sin(angle) * distance;
+
+                    if (isValidPosition(newX, newZ)) {
+                        const newPos = { x: newX, z: newZ };
+                        positions.push(newPos);
+                        activeList.push(newPos);
+
+                        const { gx, gz } = toGrid(newX, newZ);
+                        const idx = getGridIndex(gx, gz);
+                        if (idx >= 0) grid[idx] = newPos;
+
+                        found = true;
+
+                        if (positions.length >= numTrees) break;
+                    }
+                }
+
+                if (!found) {
+                    activeList.splice(randomIndex, 1);
+                }
+            }
+
+            return positions;
+        },
+
+        /**
+         * 木の実際の配置
+         */
+        placeTrees: function (scene, masterTree, positions, config) {
+            const trees = [];
+            const collisions = [];
+
+            positions.forEach((pos, index) => {
+                const tree = masterTree.clone();
+                tree.userData.isTree = true;
+                tree.name = `Tree_${index}`;
+
+                const scale = 0.8 + Math.random() * 0.4;
+                tree.scale.setScalar(scale);
+
+                const box = new THREE.Box3().setFromObject(tree);
+                const offsetY = -box.min.y;
+                tree.position.set(pos.x, offsetY, pos.z);
+                tree.rotation.y = Math.random() * Math.PI * 2;
+
+                // ★重要: マテリアルの独立化（Independency）
+                tree.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(m => m.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
+                    }
+                });
+
+                scene.add(tree);
+                trees.push(tree);
+                collisions.push({ x: pos.x, z: pos.z, radius: 0.3 * scale });
+
+                // ExclusionManagerに登録
+                if (config.exclusionManager) {
+                    config.exclusionManager.addCircle(pos.x, pos.z, config.collisionRadius);
+                }
+            });
+
+            // グローバル変数に格納
+            window.sgTreeObjects = window.sgTreeObjects || [];
+            window.sgTreeCollisions = window.sgTreeCollisions || [];
+            window.sgTreeObjects.push(...trees);
+            window.sgTreeCollisions.push(...collisions);
+
+            return trees;
+        }
+    };
+
     // ==========================================
     // 木 (Tree) と ベンチ (Bench) の配置（品質維持・最適化版）
     // ==========================================
@@ -5301,78 +5491,36 @@ const SearchGame = (() => {
             }
 
             // B. ランダム配置 (Forest)
-            const NUM_TREES = 160;
-            let attempts = 0;
-            const MIN_TREE_DISTANCE = 2.5;
+            // ========================================
+            // 最適化版: ポアソンディスク・サンプリング使用
+            // ========================================
 
-            function isTooClose(x, z) {
-                for (const placed of placedTrees) {
-                    const dx = x - placed.x;
-                    const dz = z - placed.z;
-                    if (Math.sqrt(dx * dx + dz * dz) < MIN_TREE_DISTANCE) return true;
-                }
-                return false;
-            }
+            // 1. まず並木道（Avenue）の木を配置
+            // (Aセクションで treePositions に追加された分を実体化)
+            const avenueTrees = ForestGenerator.placeTrees(scene, masterTree, treePositions, {
+                exclusionManager: null, // Aセクションですでに登録済みなので重複回避
+                collisionRadius: 1.2
+            });
+            console.log(`${avenueTrees.length} avenue trees placed.`);
 
-            while (treePositions.length < NUM_TREES + 24 && attempts < 10000) {
-                attempts++;
-                const range = 62;
-                const x = (Math.random() - 0.5) * range;
-                const z = (Math.random() - 0.5) * range;
-
-                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
-                if (isTooClose(x, z)) continue;
-
-                treePositions.push({ x, z });
-                placedTrees.push({ x, z });
-                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
-            }
-
-            // ★Step 2: 高速クローン配置ループ
-            treePositions.forEach((pos, index) => {
-                // clone() は子要素（先ほど作ったLineSegments）も連れてくるが、
-                // Geometry（形状データ）は参照コピーなのでメモリを食わない。最高。
-                const tree = masterTree.clone();
-
-                tree.userData.isTree = true;
-                tree.name = `Tree_${index}`;
-
-                // スケールと回転
-                const scale = 0.8 + Math.random() * 0.4;
-                tree.scale.setScalar(scale);
-
-                const box = new THREE.Box3().setFromObject(tree);
-                const offsetY = -box.min.y;
-                tree.position.set(pos.x, offsetY, pos.z);
-                tree.rotation.y = Math.random() * Math.PI * 2;
-
-                // ★重要: マテリアルの独立化（Independency）
-                // これをやらないと、全ての木が同じ色になってしまう
-                tree.traverse(child => {
-                    if (child.isMesh && child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material = child.material.map(m => m.clone());
-                        } else {
-                            child.material = child.material.clone();
-                        }
-                    }
-                });
-
-                scene.add(tree);
-                window.sgTreeObjects.push(tree);
-                window.sgTreeCollisions.push({ x: pos.x, z: pos.z, radius: 0.3 * scale });
-
-                // ★注意: ここで window.addEdgesOutline を呼んではいけない（既に持っているから）
+            // 2. 森林の生成 (Poisson Disk Sampling)
+            const forestTrees = ForestGenerator.generate(scene, masterTree, {
+                numTrees: 160,
+                areaSize: 62,
+                minDistance: 2.5,
+                exclusionManager: typeof ExclusionManager !== 'undefined' ? ExclusionManager : null,
+                preplacedTrees: placedTrees, // 並木道の位置を渡して重なり防止
+                collisionRadius: 1.2
             });
 
-            console.log(`${treePositions.length} trees placed (High Quality).`);
+            console.log(`${forestTrees.length + avenueTrees.length} total trees placed.`);
 
             // --- 隠しコイン生成 (変更なし) ---
             if (!window.sgActiveCoins) window.sgActiveCoins = [];
-            let forestTrees = window.sgTreeObjects.filter(t => t.position.x < -10 && t.position.z > 10);
-            if (forestTrees.length === 0) forestTrees = window.sgTreeObjects;
-            if (forestTrees.length > 0) {
-                const targetTree = forestTrees[Math.floor(Math.random() * forestTrees.length)];
+            let coinCandidates = window.sgTreeObjects.filter(t => t.position.x < -10 && t.position.z > 10);
+            if (coinCandidates.length === 0) coinCandidates = window.sgTreeObjects;
+            if (coinCandidates.length > 0) {
+                const targetTree = coinCandidates[Math.floor(Math.random() * coinCandidates.length)];
                 window.testTree = targetTree;
 
                 const loader = new FBXLoader();
