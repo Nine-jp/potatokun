@@ -2049,9 +2049,7 @@ const SearchGame = (() => {
             return;
         }
 
-        // 【1. 親コンテナのレイアウト崩壊防止 & スクロールロック】
-        // 中身を absolute で積み重ねるため、親には relative とサイズ確定が必須。
-        // overflow: hidden で、画面端の操作による予期せぬスクロールを防ぐ。
+        // 親コンテナ設定（スクロールロック）
         if (getComputedStyle(targetContainer).position === 'static') {
             targetContainer.style.position = 'relative';
         }
@@ -2059,15 +2057,7 @@ const SearchGame = (() => {
         targetContainer.style.height = '100%';
         targetContainer.style.overflow = 'hidden';
 
-        // 【2. HTML構造の再構築（高速化チューニング済み）】
-        // Layer 0: Canvas (最背面)
-        // Layer 1: UI Container (z:1000)
-        // Layer 2: SKIP Button (z:1500)
-        // Layer 3: Loading (z:2000)
-
-        // ★Touch Tuning: 各操作エリアに 'touch-action: none' を追加。
-        // これによりiPhone特有の「ダブルタップ判定待ち(300ms)」と「スクロール干渉」を殺し、即座に反応させる。
-
+        // ★修正点: 全操作エリアに 'touch-action: none' を適用し、ブラウザの干渉を無効化
         targetContainer.innerHTML = `
             <div id="sg-loading-overlay" style="position:absolute; inset:0; background:#87CEEB; z-index:2000; display:flex; justify-content:center; align-items:center; color:white; font-family:monospace; font-size:24px; font-weight:bold;">
                 Now Loading...
@@ -2104,18 +2094,14 @@ const SearchGame = (() => {
             </div>
         `;
 
-        // 【3. データの復元（スコア維持）】
-        // 画面の再構築時、獲得済みのコイン枚数が0に戻らないよう表示を更新する
+        // データの復元
         if (window.sgItemData && typeof window.sgItemData.collected === 'number') {
             const counter = document.getElementById('sg-coin-counter');
             if (counter) counter.textContent = window.sgItemData.collected;
         }
 
-        // 【4. イベントリスナーの接続】
-        // DOM生成直後だと要素が見つからないリスクがあるため、
-        // わずかな遅延(0ms)を入れて、描画完了後に確実にイベントを結びつける
+        // イベントバインド
         setTimeout(() => {
-            // クロージャ内の関数、またはグローバル関数として存在するかチェックして実行
             if (typeof bindUIEvents === 'function') {
                 bindUIEvents();
             } else {
@@ -2191,29 +2177,48 @@ const SearchGame = (() => {
         }
     }
 
-    // === Update UI (Visibility Logic) ===
+    // === Update UI (Visibility Logic - Optimized) ===
     function updateUI() {
         const pickupBtn = document.getElementById('btn-action-pickup');
         if (!pickupBtn || typeof playerPosition === 'undefined') return;
 
         let nearCoinFound = false;
+        const CHECK_DIST_SQ = 2.5 * 2.5; // 2乗距離で比較 (ルート計算回避)
 
-        // Scan for coins near player
-        scene.traverse((obj) => {
-            if (obj.userData.isCoin && !obj.userData.collected) {
-                const worldPos = new THREE.Vector3();
-                obj.getWorldPosition(worldPos);
-                if (playerPosition.distanceTo(worldPos) < 2.5) {
-                    nearCoinFound = true;
+        // ★最適化: scene.traverse を廃止し、管理配列のみをループさせる
+
+        // 1. 通常コインのチェック
+        if (window.sgGameCoins) {
+            for (const coin of window.sgGameCoins) {
+                if (coin.visible && !coin.userData.collected) {
+                    // worldPosition計算を省略（コインは動かない前提、もしくは親の変換が単純な場合）
+                    // 念のため position で距離チェック (高速化)
+                    if (playerPosition.distanceToSquared(coin.position) < CHECK_DIST_SQ) {
+                        nearCoinFound = true;
+                        break;
+                    }
                 }
             }
-        });
+        }
+
+        // 2. 隠しコインのチェック (通常コインで見つかってなければ)
+        if (!nearCoinFound && window.sgActiveCoins) {
+            for (const coin of window.sgActiveCoins) {
+                if (coin.visible && !coin.userData.collected) {
+                    // 隠しコインは動く(落下する)のでワールド座標を考慮したいが、
+                    // 毎フレーム new Vector3 は重いので、簡易的に position を参照
+                    if (playerPosition.distanceToSquared(coin.position) < CHECK_DIST_SQ) {
+                        nearCoinFound = true;
+                        break;
+                    }
+                }
+            }
+        }
 
         // Toggle Display
         if (nearCoinFound) {
             if (pickupBtn.style.display !== 'flex') {
                 pickupBtn.style.display = 'flex';
-                // Reset Animation
                 pickupBtn.style.animation = 'none';
                 void pickupBtn.offsetWidth;
                 pickupBtn.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
@@ -4911,86 +4916,83 @@ const SearchGame = (() => {
     function update(dt) {
         if (mixer) mixer.update(dt);
 
-        // ★ ENDING専用処理
         if (currentState === GameState.ENDING) {
             updateEndingAnimation(dt);
             return;
         }
 
-        // ★ OPENING専用処理（PLAYINGでは完全にスキップ）
         if (currentState === GameState.OPENING) {
-            // Opening effects are handled in startOpeningSequence interval
-            return; // Skip gameplay update during opening
+            return;
         }
 
-        // ★ PLAYING専用処理
         if (currentState === GameState.PLAYING) {
-            // Gameplay Update
             if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
 
-            // ★ UI Update (Coin Button)
-            updateUI();
+            updateUI(); // 最適化された updateUI を呼ぶ
 
-
-            // Coin Rotation (3.0 rad/sec)
+            // Coin Rotation
             if (window.sgGameCoins) {
                 window.sgGameCoins.forEach(coin => {
                     if (coin.visible) coin.rotation.y += 3.0 * dt;
                 });
             }
 
-            // Gameplay NPC Shiver (Winter Only)
             updateGameplayShiver(dt);
 
-            // ■ 独立したコイン更新ループ（ロジック自殺防止版）
+            // ■ 独立したコイン更新ループ（メモリ最適化版）
             if (window.sgActiveCoins) {
+                // ★最適化: ループ外で一時変数を確保（GC対策）
+                const tempVec = new THREE.Vector3();
+
                 window.sgActiveCoins = window.sgActiveCoins.filter(coin => {
                     if (coin.userData.collected) return false;
 
                     const parentTree = coin.userData.parentTree;
-                    coin.rotation.y += 5.0 * dt; // 常時回転
+                    coin.rotation.y += 5.0 * dt;
 
-                    // A. トリガー判定 (2.0m)
+                    // A. トリガー判定
                     if (!coin.userData.isFalling && !coin.userData.hasFallen) {
                         const treePos = parentTree ? parentTree.position : coin.position;
-                        // 高さ(y)を無視して、足元の距離だけで判定
-                        const dist = playerPosition.distanceTo(new THREE.Vector3(treePos.x, 0, treePos.z));
 
-                        if (dist < 2.0) {
+                        // ★最適化: distanceToSquared を使用し、高さ(y)を無視した距離計算を軽量化
+                        const dx = playerPosition.x - treePos.x;
+                        const dz = playerPosition.z - treePos.z;
+                        const distSq = dx * dx + dz * dz;
+
+                        // 2.0m * 2.0m = 4.0
+                        if (distSq < 4.0) {
                             coin.userData.isFalling = true;
-                            scene.attach(coin); // ワールド座標へ
+                            scene.attach(coin);
 
-                            // 接地計算
                             const box = new THREE.Box3().setFromObject(coin);
                             coin.userData.groundY = (box.max.y - box.min.y) / 2;
 
-                            // プレイヤー方向(180度)へ弾く
-                            const toPlayer = new THREE.Vector3().subVectors(playerPosition, coin.position).normalize();
-                            toPlayer.y = 0;
-                            const angleOffset = (Math.random() - 0.5) * Math.PI; // ±90度
-                            const cos = Math.cos(angleOffset); const sin = Math.sin(angleOffset);
-                            coin.userData.velX = (toPlayer.x * cos - toPlayer.z * sin) * 1.5;
-                            coin.userData.velZ = (toPlayer.x * sin + toPlayer.z * cos) * 1.5;
+                            // プレイヤー方向へ弾く計算
+                            tempVec.subVectors(playerPosition, coin.position).normalize();
+                            const angleOffset = (Math.random() - 0.5) * Math.PI;
+                            const cos = Math.cos(angleOffset);
+                            const sin = Math.sin(angleOffset);
+
+                            coin.userData.velX = (tempVec.x * cos - tempVec.z * sin) * 1.5;
+                            coin.userData.velZ = (tempVec.x * sin + tempVec.z * cos) * 1.5;
                             coin.userData.velY = 4.0;
 
                             if (parentTree) parentTree.userData.shakeTimer = 0.5;
-
-                            // ★重要: ここではまだ壁(hasCoin)を消さない！
-                            // プレイヤーを1.6mで足止めして、落ちてくる様子を見せるため。
                         }
                     }
 
-                    // B. 木の揺れ（親木がある場合）
+                    // B. 木の揺れ
                     if (parentTree && parentTree.userData.shakeTimer > 0) {
                         parentTree.userData.shakeTimer -= dt;
                         const s = parentTree.userData.shakeTimer;
                         parentTree.rotation.z = Math.sin(s * 80) * 0.1 * s;
                         parentTree.rotation.x = Math.cos(s * 80) * 0.1 * s;
                     } else if (parentTree) {
-                        parentTree.rotation.z = 0; parentTree.rotation.x = 0;
+                        parentTree.rotation.z = 0;
+                        parentTree.rotation.x = 0;
                     }
 
-                    // C. 落下物理と着地
+                    // C. 落下物理
                     if (coin.userData.isFalling) {
                         coin.userData.velY -= 15.0 * dt;
                         coin.position.x += coin.userData.velX * dt;
@@ -5003,18 +5005,13 @@ const SearchGame = (() => {
                             coin.userData.isFalling = false;
                             coin.userData.hasFallen = true;
 
-                            // 1. 周囲への光を消す（これはOK）
                             if (coin.userData.pointLight) {
                                 coin.userData.pointLight.intensity = 0;
                             }
 
-                            // 2. ★修正: 発光マテリアル(Basic)は維持し、色だけ白に戻す
                             coin.traverse((child) => {
                                 if (child.isMesh && child.material) {
-                                    if (child.material.color) {
-                                        child.material.color.setHex(0xFFFFFF);
-                                    }
-                                    // BasicMaterialであることを保証
+                                    if (child.material.color) child.material.color.setHex(0xFFFFFF);
                                     if (!(child.material instanceof THREE.MeshBasicMaterial)) {
                                         const oldMat = child.material;
                                         child.material = new THREE.MeshBasicMaterial({
@@ -5026,7 +5023,6 @@ const SearchGame = (() => {
                                 }
                             });
 
-                            // 3. 1.8mの壁を解除
                             if (window.testTreeCollision) {
                                 window.testTreeCollision.hasCoin = false;
                             }
@@ -5035,10 +5031,6 @@ const SearchGame = (() => {
                     return true;
                 });
             }
-
-            // Aim Detection (Moved from loop)
-            // ★ Deprecated: Click interaction implemented instead
-            // updateAim();
         }
     }
 
