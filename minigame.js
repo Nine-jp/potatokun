@@ -6,47 +6,35 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 
 /**
- * 🎵 AntiGravity Audio Manager (AGAM) - The Invincible Audio System
- * * 特徴:
- * 1. Singleton: AudioContextを1つだけ生成し、全員で共有する。
- * 2. Preload: 音声ファイルは事前に読み込み、デコードしておく（ラグ防止）。
- * 3. iOS Unlock: 画面タップ時に「無音バッファ」を再生し、確実にエンジンを叩き起こす。
- * 4. 3D/2D Hybrid: 3D空間の音（ネコ）と、UI音（コインGET）を両立。
+ * 🎵 AntiGravity Audio Manager (AGAM) - 2D Pure Edition
+ * 3D音響機能を完全に削除し、全デバイスで確実な再生を保証するシンプル設計
  */
 const AudioManager = {
     context: null,
-    listener: null, // 3D Audio Listener
     buffers: {},    // 音声データの保管庫
     isUnlocked: false,
 
-    // ■ 1. 初期化（Start Game時などに呼ぶ）
-    init: function (camera) {
-        // 既存があれば何もしない（二重起動防止）
+    // ■ 1. 初期化 (カメラ不要)
+    init: function () {
         if (this.context) return;
 
-        // AudioContextの生成 (THREE.jsと共有)
-        this.context = THREE.AudioContext.getContext();
-        console.log("🔊 AudioManager: Context Created (State: " + this.context.state + ")");
+        // AudioContextの生成
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.context = new AudioContext();
 
-        // 3Dオーディオ用の耳（Listener）をカメラに装着
-        if (camera) {
-            this.listener = new THREE.AudioListener();
-            camera.add(this.listener);
-            // this.context.listener = ... (削除: Read-only property error fix)
-            console.log("👂 AudioManager: Ears attached to Camera.");
-        }
+        console.log("🔊 AudioManager: Context Created (2D Only)");
 
         // iOSアンロックの罠を仕掛ける
         this.setupUnlock();
     },
 
-    // ■ 2. 音声ファイルのロード（非同期）
+    // ■ 2. 音声ファイルのロード
     load: function (key, url) {
-        if (!this.context) this.init(); // 念のため
+        if (!this.context) this.init();
 
         return new Promise((resolve, reject) => {
             if (this.buffers[key]) {
-                resolve(this.buffers[key]); // 既にロード済み
+                resolve(this.buffers[key]);
                 return;
             }
 
@@ -62,68 +50,49 @@ const AudioManager = {
         });
     },
 
-    // ■ 3. 再生（2D: UIやBGM用）
+    // ■ 3. 再生（シンプルかつ堅牢）
     play: function (key, volume = 1.0) {
+        // バッファが無い場合は無視
         if (!this.buffers[key]) return;
 
-        // 再生用ノードの作成（使い捨て）
+        // iOS対策: 再生直前にコンテキストの状態を確認
+        if (this.context.state === 'suspended') {
+            this.context.resume().catch(e => console.error(e));
+        }
+
         const source = this.context.createBufferSource();
         source.buffer = this.buffers[key];
 
-        // 音量調整用ノード
         const gainNode = this.context.createGain();
         gainNode.gain.value = volume;
 
-        // 接続: Source -> Gain -> Speaker
         source.connect(gainNode);
         gainNode.connect(this.context.destination);
 
-        source.start(0);
+        // iOS対策: currentTime 指定
+        source.start(this.context.currentTime);
     },
 
-    // ■ 4. 再生（3D: ネコや配置されたコイン用）
-    play3D: function (key, object, volume = 1.0, refDistance = 1.0) {
-        if (!this.buffers[key]) return;
-        if (!this.listener) {
-            this.play(key, volume); // Listenerがなければ2Dで鳴らすフォールバック
-            return;
-        }
+    // (以前ここにあった play3D 関数は削除されました)
 
-        const sound = new THREE.PositionalAudio(this.listener);
-        sound.setBuffer(this.buffers[key]);
-        sound.setRefDistance(refDistance);
-        sound.setVolume(volume);
-
-        object.add(sound);
-        sound.play();
-
-        // 再生が終わったらオブジェクトから削除（掃除）
-        sound.onEnded = () => {
-            object.remove(sound);
-        };
-    },
-
-    // ■ 5. iOS強力アンロック（最強の呪文）
+    // ■ 4. iOS強力アンロック
     setupUnlock: function () {
         const unlock = () => {
             if (this.isUnlocked) return;
 
-            // コンテキストが死んでたら叩き起こす
             if (this.context.state === 'suspended') {
                 this.context.resume();
             }
 
-            // 【重要】無音のバッファを一瞬再生する（これがiOSを納得させる鍵）
             const emptyBuffer = this.context.createBuffer(1, 1, 22050);
             const source = this.context.createBufferSource();
             source.buffer = emptyBuffer;
             source.connect(this.context.destination);
             source.start(0);
 
-            console.log("🔓 AudioManager: Unlocked by user interaction!");
+            console.log("🔓 AudioManager: Unlocked!");
             this.isUnlocked = true;
 
-            // イベント削除
             ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
                 document.removeEventListener(evt, unlock);
             });
@@ -135,7 +104,7 @@ const AudioManager = {
     }
 };
 
-// グローバル公開（どこからでも呼べるように）
+// グローバル公開
 window.AudioManager = AudioManager;
 
 /* Mini-Game System Controller */
@@ -2608,9 +2577,10 @@ const SearchGame = (() => {
         camera.rotation.order = 'YXZ'; // Important for FPS camera
 
         // ★★★ Audio Managerの初期化 & リソースロード ★★★
-        window.AudioManager.init(camera);
+        window.AudioManager.init();
         window.AudioManager.load('coin', 'assets/coin_se.mp3');
         window.AudioManager.load('cat', 'assets/cat_voice.mp3');
+        window.AudioManager.load('thud', 'assets/thud.mp3');
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
@@ -3123,6 +3093,14 @@ const SearchGame = (() => {
                     const pushOut = barrierRadius - dist;
                     direction.x += (dx / dist) * pushOut;
                     direction.z += (dz / dist) * pushOut;
+
+                    // ★追加: 衝突音 (0.5秒のクールダウン) - コインの木のみ
+                    const now = Date.now();
+                    if (!window.lastThudTime) window.lastThudTime = 0;
+                    if (now - window.lastThudTime > 500) {
+                        window.AudioManager.play('thud', 0.5);
+                        window.lastThudTime = now;
+                    }
                 }
             }
 
@@ -3217,9 +3195,8 @@ const SearchGame = (() => {
                     nekoEarAnim.active = true;
                     nekoEarAnim.startTime = performance.now();
 
-                    // ★追加: 接近時に鳴き声を再生
-                    // ★追加: 接近時に鳴き声を再生 (AudioManager 3D)
-                    window.AudioManager.play3D('cat', cat, 1.0, 3.0);
+                    // ★修正: 3D再生(play3D)を廃止し、通常の2D再生(play)に変更
+                    window.AudioManager.play('cat', 1.0);
                 }
 
                 // ② リセット (3.5m以上離れたらスイッチOFF)
