@@ -4,6 +4,140 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 
+
+/**
+ * 🎵 AntiGravity Audio Manager (AGAM) - The Invincible Audio System
+ * * 特徴:
+ * 1. Singleton: AudioContextを1つだけ生成し、全員で共有する。
+ * 2. Preload: 音声ファイルは事前に読み込み、デコードしておく（ラグ防止）。
+ * 3. iOS Unlock: 画面タップ時に「無音バッファ」を再生し、確実にエンジンを叩き起こす。
+ * 4. 3D/2D Hybrid: 3D空間の音（ネコ）と、UI音（コインGET）を両立。
+ */
+const AudioManager = {
+    context: null,
+    listener: null, // 3D Audio Listener
+    buffers: {},    // 音声データの保管庫
+    isUnlocked: false,
+
+    // ■ 1. 初期化（Start Game時などに呼ぶ）
+    init: function (camera) {
+        // 既存があれば何もしない（二重起動防止）
+        if (this.context) return;
+
+        // AudioContextの生成 (THREE.jsと共有)
+        this.context = THREE.AudioContext.getContext();
+        console.log("🔊 AudioManager: Context Created (State: " + this.context.state + ")");
+
+        // 3Dオーディオ用の耳（Listener）をカメラに装着
+        if (camera) {
+            this.listener = new THREE.AudioListener();
+            camera.add(this.listener);
+            // this.context.listener = ... (削除: Read-only property error fix)
+            console.log("👂 AudioManager: Ears attached to Camera.");
+        }
+
+        // iOSアンロックの罠を仕掛ける
+        this.setupUnlock();
+    },
+
+    // ■ 2. 音声ファイルのロード（非同期）
+    load: function (key, url) {
+        if (!this.context) this.init(); // 念のため
+
+        return new Promise((resolve, reject) => {
+            if (this.buffers[key]) {
+                resolve(this.buffers[key]); // 既にロード済み
+                return;
+            }
+
+            const loader = new THREE.AudioLoader();
+            loader.load(url, (buffer) => {
+                this.buffers[key] = buffer;
+                console.log(`💿 Loaded Audio: ${key}`);
+                resolve(buffer);
+            }, undefined, (err) => {
+                console.error(`❌ Failed to load audio: ${key}`, err);
+                reject(err);
+            });
+        });
+    },
+
+    // ■ 3. 再生（2D: UIやBGM用）
+    play: function (key, volume = 1.0) {
+        if (!this.buffers[key]) return;
+
+        // 再生用ノードの作成（使い捨て）
+        const source = this.context.createBufferSource();
+        source.buffer = this.buffers[key];
+
+        // 音量調整用ノード
+        const gainNode = this.context.createGain();
+        gainNode.gain.value = volume;
+
+        // 接続: Source -> Gain -> Speaker
+        source.connect(gainNode);
+        gainNode.connect(this.context.destination);
+
+        source.start(0);
+    },
+
+    // ■ 4. 再生（3D: ネコや配置されたコイン用）
+    play3D: function (key, object, volume = 1.0, refDistance = 1.0) {
+        if (!this.buffers[key]) return;
+        if (!this.listener) {
+            this.play(key, volume); // Listenerがなければ2Dで鳴らすフォールバック
+            return;
+        }
+
+        const sound = new THREE.PositionalAudio(this.listener);
+        sound.setBuffer(this.buffers[key]);
+        sound.setRefDistance(refDistance);
+        sound.setVolume(volume);
+
+        object.add(sound);
+        sound.play();
+
+        // 再生が終わったらオブジェクトから削除（掃除）
+        sound.onEnded = () => {
+            object.remove(sound);
+        };
+    },
+
+    // ■ 5. iOS強力アンロック（最強の呪文）
+    setupUnlock: function () {
+        const unlock = () => {
+            if (this.isUnlocked) return;
+
+            // コンテキストが死んでたら叩き起こす
+            if (this.context.state === 'suspended') {
+                this.context.resume();
+            }
+
+            // 【重要】無音のバッファを一瞬再生する（これがiOSを納得させる鍵）
+            const emptyBuffer = this.context.createBuffer(1, 1, 22050);
+            const source = this.context.createBufferSource();
+            source.buffer = emptyBuffer;
+            source.connect(this.context.destination);
+            source.start(0);
+
+            console.log("🔓 AudioManager: Unlocked by user interaction!");
+            this.isUnlocked = true;
+
+            // イベント削除
+            ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
+                document.removeEventListener(evt, unlock);
+            });
+        };
+
+        ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
+            document.addEventListener(evt, unlock, { once: true, capture: true });
+        });
+    }
+};
+
+// グローバル公開（どこからでも呼べるように）
+window.AudioManager = AudioManager;
+
 /* Mini-Game System Controller */
 
 // ★季節管理＆開発設定の司令塔
@@ -137,45 +271,10 @@ function initGameSystem() {
     // ==========================================
     // iOS/Mobile Audio Unlock (Robust Version)
     // ==========================================
-    (() => {
-        console.log("🔊 Initializing iOS Audio Unlocker...");
-
-        const unlockAudioContext = () => {
-            // Three.jsが管理しているAudioContextを取得
-            const context = THREE.AudioContext.getContext();
-
-            if (context.state === 'suspended') {
-                context.resume().then(() => {
-                    console.log("🔓 AudioContext Resumed! (iOS Restriction Cleared)");
-                });
-            } else if (context.state === 'running') {
-                console.log("✅ AudioContext is already running.");
-            }
-
-            // 念には念を：空の音を再生して「音を出しましたよ」という実績を作るハック
-            const buffer = context.createBuffer(1, 1, 22050);
-            const source = context.createBufferSource();
-            source.buffer = buffer;
-            source.connect(context.destination);
-            if (source.start) {
-                source.start(0);
-            } else if (source.noteOn) {
-                source.noteOn(0);
-            }
-
-            // イベントリスナーを削除（1回やればOKだからな）
-            ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
-                document.removeEventListener(evt, unlockAudioContext);
-            });
-        };
-
-        // 画面のどこを触っても解除されるように全域にトラップを仕掛ける
-        ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
-            document.addEventListener(evt, unlockAudioContext, { once: true, capture: true });
-        });
-
-        console.log("👂 Waiting for user interaction to unlock audio...");
-    })();
+    // ==========================================
+    // iOS/Mobile Audio Unlock
+    // ==========================================
+    // AudioManagerに統合されたため削除 (AudioManager.setupUnlock)
 
     // Initialize Menu Buttons (Continued)
 
@@ -1899,102 +1998,3 @@ const SearchGame = (() => {
                         camera.lookAt(base.lookAt);
                         camera.updateMatrixWorld();
 
-                        // Assets Init (Hidden at start)
-                        if (banzaiNPC) {
-                            banzaiNPC.visible = false; // Hidden until Step 3
-                            banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
-                            banzaiNPC.rotation.y = -Math.PI / 8;
-                        } else {
-                            // Emergency Spawn check
-                            spawnEndingAssets(() => {
-                                if (banzaiNPC) {
-                                    addEndingObject(banzaiNPC);
-                                    banzaiNPC.visible = false;
-                                    banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
-                                    banzaiNPC.rotation.y = -Math.PI / 8;
-                                }
-                            });
-                        }
-                        if (juiceModel) {
-                            juiceModel.visible = false; // Hidden until Step 2
-                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
-                            const vm = NPC_CONFIG.vendingMachine;
-                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
-                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
-
-                            // Rotation: Sideways (Z-axis rotation)
-                            juiceModel.rotation.set(0, 0, Math.PI / 2);
-                        }
-                    }
-                },
-                {
-                    time: 1.5,
-                    fired: false,
-                    action: () => {
-                        console.log("Ending Step 2: Juice Slide");
-                        if (juiceModel) juiceModel.visible = true;
-                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
-                    }
-                },
-                {
-                    time: 3.5,
-                    fired: false,
-                    action: () => {
-                        console.log("Ending Step 3: Potato Appears");
-                        if (banzaiNPC) banzaiNPC.visible = true;
-                        if (juiceModel) juiceModel.visible = false; // Hide Juice (Picked up by Potato)
-                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ありがとう💕", "#FFA500");
-                    }
-                },
-                {
-                    time: 6.5,
-                    fired: false,
-                    action: () => {
-                        console.log("Ending Step 4: Finish");
-                        finishEnding();
-                    }
-                }
-            ];
-
-            // Execute time 0 immediately
-            this.update(0);
-        },
-
-        update: function (dt) {
-            this.time += dt;
-
-            // Execute Steps
-            this.steps.forEach(step => {
-                if (!step.fired && this.time >= step.time) {
-                    step.action();
-                    step.fired = true;
-                }
-            });
-
-            // --- Continuous Animations ---
-
-            // Juice Slide (1.5s ~ 3.0s)
-            if (this.time >= 1.5 && this.time < 3.0) {
-                if (juiceModel && juiceModel.visible) {
-                    // Slide forward/up slightly
-                    juiceModel.position.z += dt * 0.1;
-                }
-            }
-
-            // Potato Bob (3.5s ~)
-            if (this.time >= 3.5) {
-                if (banzaiNPC && banzaiNPC.visible) {
-                    // Gentle vertical bob
-                    banzaiNPC.position.y = Math.sin((this.time - 3.5) * 4) * 0.05;
-                }
-            }
-        }
-    };
-
-    /**
-     * エンディング演出用アップデート関数
-     * @param {number} dt 
-     */
-    function updateEndingAnimation(dt) {
-        EndingController.update(dt);
-    }

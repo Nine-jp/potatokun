@@ -1,3 +1,102 @@
+                        // Assets Init (Hidden at start)
+                        if (banzaiNPC) {
+                            banzaiNPC.visible = false; // Hidden until Step 3
+                            banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                            banzaiNPC.rotation.y = -Math.PI / 8;
+                        } else {
+                            // Emergency Spawn check
+                            spawnEndingAssets(() => {
+                                if (banzaiNPC) {
+                                    addEndingObject(banzaiNPC);
+                                    banzaiNPC.visible = false;
+                                    banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                                    banzaiNPC.rotation.y = -Math.PI / 8;
+                                }
+                            });
+                        }
+                        if (juiceModel) {
+                            juiceModel.visible = false; // Hidden until Step 2
+                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+                            const vm = NPC_CONFIG.vendingMachine;
+                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
+                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+
+                            // Rotation: Sideways (Z-axis rotation)
+                            juiceModel.rotation.set(0, 0, Math.PI / 2);
+                        }
+                    }
+                },
+                {
+                    time: 1.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 2: Juice Slide");
+                        if (juiceModel) juiceModel.visible = true;
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
+                    }
+                },
+                {
+                    time: 3.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 3: Potato Appears");
+                        if (banzaiNPC) banzaiNPC.visible = true;
+                        if (juiceModel) juiceModel.visible = false; // Hide Juice (Picked up by Potato)
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ありがとう💕", "#FFA500");
+                    }
+                },
+                {
+                    time: 6.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 4: Finish");
+                        finishEnding();
+                    }
+                }
+            ];
+
+            // Execute time 0 immediately
+            this.update(0);
+        },
+
+        update: function (dt) {
+            this.time += dt;
+
+            // Execute Steps
+            this.steps.forEach(step => {
+                if (!step.fired && this.time >= step.time) {
+                    step.action();
+                    step.fired = true;
+                }
+            });
+
+            // --- Continuous Animations ---
+
+            // Juice Slide (1.5s ~ 3.0s)
+            if (this.time >= 1.5 && this.time < 3.0) {
+                if (juiceModel && juiceModel.visible) {
+                    // Slide forward/up slightly
+                    juiceModel.position.z += dt * 0.1;
+                }
+            }
+
+            // Potato Bob (3.5s ~)
+            if (this.time >= 3.5) {
+                if (banzaiNPC && banzaiNPC.visible) {
+                    // Gentle vertical bob
+                    banzaiNPC.position.y = Math.sin((this.time - 3.5) * 4) * 0.05;
+                }
+            }
+        }
+    };
+
+    /**
+     * エンディング演出用アップデート関数
+     * @param {number} dt 
+     */
+    function updateEndingAnimation(dt) {
+        EndingController.update(dt);
+    }
 
     function finishEnding() {
         console.log("Ending Finished.");
@@ -299,18 +398,8 @@
         }
 
         // 3. 効果音
-        try {
-            const audio = new AudioContext();
-            const osc = audio.createOscillator();
-            const gain = audio.createGain();
-            osc.connect(gain);
-            gain.connect(audio.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, audio.currentTime);
-            gain.gain.setValueAtTime(0.1, audio.currentTime);
-            osc.start();
-            osc.stop(audio.currentTime + 0.1);
-        } catch (err) { console.warn("Audio error:", err); }
+        // 3. 効果音 (AudioManager)
+        window.AudioManager.play('coin', 0.8);
 
         // 4. ★パーティクルエフェクト (Delta Time対応版)
         const particleCount = 15;
@@ -517,6 +606,11 @@
         // Let's assume standard inversion: 25 -> -25.
         camera.rotation.order = 'YXZ'; // Important for FPS camera
         camera.rotation.order = 'YXZ'; // Important for FPS camera
+
+        // ★★★ Audio Managerの初期化 & リソースロード ★★★
+        window.AudioManager.init(camera);
+        window.AudioManager.load('coin', 'assets/coin_se.mp3');
+        window.AudioManager.load('cat', 'assets/cat_voice.mp3');
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
@@ -1047,9 +1141,8 @@
                     nekoEarAnim.startTime = performance.now();
 
                     // ★追加: 接近時に鳴き声を再生
-                    const audio = new Audio('assets/cat_voice.mp3');
-                    audio.volume = 0.5; // 音量調整
-                    audio.play().catch(e => console.log('Audio play blocked:', e));
+                    // ★追加: 接近時に鳴き声を再生 (AudioManager 3D)
+                    window.AudioManager.play3D('cat', cat, 1.0, 3.0);
                 }
 
                 // ② リセット (3.5m以上離れたらスイッチOFF)
@@ -1905,96 +1998,3 @@
             debugPanel.style.fontWeight = 'bold';
             debugPanel.style.borderRadius = '4px';
             debugPanel.style.zIndex = '10000';
-            debugPanel.style.pointerEvents = 'none';
-            debugPanel.innerText = 'POS X:0.00 Z:0.00 H:0.00';
-            document.body.appendChild(debugPanel);
-        }
-
-
-        /* REMOVED OLD TREE LOADING LOGIC */
-
-
-
-
-
-        // === GRASS MAZE GENERATION REMOVED ===
-        // (Field cleared for better visibility)
-
-        // (Ketchup items REMOVED - now using Coins via FBX loader)
-    }
-
-
-
-    // ==========================================
-    // 公園遊具・設備 (Park Assets) の一括配置
-    // ==========================================
-    function createParkAssets() {
-        // ★追加: ガード処理
-        if (window.hasParkAssetsCreated) {
-            console.log("createParkAssets already called. Skipping.");
-            return;
-        }
-        window.hasParkAssetsCreated = true;
-
-        console.log("--- createParkAssets (Cleaned) CALLED ---");
-
-        try {
-            if (!window.sgExtraObstacles) window.sgExtraObstacles = [];
-            if (!window.sgFountainCollision) window.sgFountainCollision = [];
-
-            if (window.sgSnowmen) {
-                window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
-            }
-            window.sgSnowmen = [];
-
-            if (window.parkGroup) {
-                scene.remove(window.parkGroup);
-                window.parkGroup = null;
-            }
-            window.parkGroup = new THREE.Group();
-            window.parkGroup.name = "ParkAssetsContainer";
-            scene.add(window.parkGroup);
-
-            // ★★★ 道路 (Roads) の生成 [追加] ★★★
-            // 地面(Y=0)よりわずかに浮かせて配置 (Z-fighting防止)
-            const roadMat = new THREE.MeshLambertMaterial({ color: 0x808080 }); // グレー
-
-            // 南北の道 (Z軸) 幅10m -> 6m
-            // 変更点: (10, 100) を (6, 100) にする
-            const roadNS = new THREE.Mesh(new THREE.PlaneGeometry(6, 100), roadMat);
-            roadNS.rotation.x = -Math.PI / 2;
-            roadNS.position.set(0, 0.02, 0);
-            roadNS.receiveShadow = true;
-            window.parkGroup.add(roadNS);
-
-            // 東西の道 (X軸) 幅10m -> 6m
-            // 変更点: (100, 10) を (100, 6) にする
-            const roadEW = new THREE.Mesh(new THREE.PlaneGeometry(100, 6), roadMat);
-            roadEW.rotation.x = -Math.PI / 2;
-            roadEW.position.set(0, 0.025, 0);
-            roadEW.receiveShadow = true;
-            window.parkGroup.add(roadEW);
-
-            // ★コインテクスチャ生成
-            const createCoinTextures = () => {
-                const size = 128;
-                const cFace = '#ffae00'; const cBorder = '#f05e1c'; const cEye = '#ffffff';
-                const cPupil = '#000000'; const cMouth = '#e83015'; const cPText = '#86c166';
-                const borderThickness = 14;
-                const canvasFace = document.createElement('canvas'); canvasFace.width = size; canvasFace.height = size;
-                const ctx1 = canvasFace.getContext('2d');
-                ctx1.translate(64, 64); ctx1.rotate(-Math.PI / 2); ctx1.translate(-64, -64);
-                ctx1.fillStyle = cBorder; ctx1.fillRect(0, 0, size, size);
-                ctx1.beginPath(); ctx1.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx1.fillStyle = cFace; ctx1.fill();
-                ctx1.fillStyle = cEye; ctx1.fillRect(35, 32, 20, 45); ctx1.fillRect(73, 32, 20, 45);
-                ctx1.fillStyle = cPupil; ctx1.fillRect(40, 44, 10, 22); ctx1.fillRect(78, 44, 10, 22);
-                ctx1.fillStyle = cMouth; ctx1.fillRect(42, 92, 44, 10);
-                const texFace = new THREE.CanvasTexture(canvasFace);
-                texFace.minFilter = THREE.NearestFilter; texFace.magFilter = THREE.NearestFilter;
-                const canvasBack = document.createElement('canvas'); canvasBack.width = size; canvasBack.height = size;
-                const ctx2 = canvasBack.getContext('2d');
-                ctx2.translate(64, 64); ctx2.rotate(-Math.PI / 2); ctx2.translate(-64, -64);
-                ctx2.fillStyle = cBorder; ctx2.fillRect(0, 0, size, size);
-                ctx2.beginPath(); ctx2.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx2.fillStyle = cFace; ctx2.fill();
-                ctx2.fillStyle = cPText; ctx2.font = 'bold 80px sans-serif';
-                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68);
