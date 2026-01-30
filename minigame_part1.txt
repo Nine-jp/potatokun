@@ -1,0 +1,2000 @@
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+
+
+/* Mini-Game System Controller */
+
+// ★季節管理＆開発設定の司令塔
+const GameConfig = {
+    currentSeason: 'winter', // 冬仕様に変更
+    debugMode: true          // デバッグモードは維持
+};
+
+const GameLibrary = {
+    'potato-action': {
+        title: "ポテトくんパクパク",
+        shortTitle: "ポテパク",
+        description: "降ってくる「🍟(5点)」と「🍔(10点)」を集めよう！「☠️」に当たるとゲームオーバー！",
+        icon: "🥔",
+        iconImage: "assets/potatokun-action.png", // Custom Image
+        isBeta: true, // Show Beta Badge
+        init: (container) => PotatoAction.init(container),
+        start: () => PotatoAction.start(),
+        stop: () => PotatoAction.stop()
+    },
+    'potato-clicker': {
+        title: "ポテトくんゲーム②",
+        description: "【準備中】ポテトくんをクリックしてポイントを稼ぐゲームです。",
+        icon: "👆",
+        init: () => { },
+        start: () => { },
+        stop: () => { },
+        isComingSoon: true
+    },
+    '3d-search': {
+        title: "ポテトくんコイン",
+        shortTitle: "ポテコイン",
+        description: "のどが渇いたポテトくんのために、公園に散らばったコインを10枚集めてジュースを買ってあげよう！",
+        icon: "🪙",
+        iconImage: "assets/coin_pic.png",
+        iconScale: 0.7,
+        isBeta: true,
+        init: (container) => SearchGame.init(container),
+        // TEST MODE: Skip Opening for quick testing
+        start: () => SearchGame.start({ skipOpening: true }),
+        stop: () => SearchGame.stop()
+    }
+};
+
+// =============================
+//  Seasonal Color Palette
+// =============================
+// ★季節設定は GameConfig.currentSeason で一元管理
+
+// 季節ごとのパーティクルカラーパレット
+const seasonalColors = {
+    spring: [0xFF69B4, 0xFFB7C5, 0x00FF00, 0xFFFF00], // ピンク、桜色、緑、黄色
+    summer: [0x0000FF, 0x00FFFF, 0xFFD700, 0xFFA500], // 青、水色、金、オレンジ
+    autumn: [0xFF4500, 0xD2691E, 0x8B4513, 0xFFD700], // 紅葉色、茶色、金
+    winter: [0xFFFFFF, 0x87CEEB, 0x4169E1, 0xB0E0E6], // 白、空色、ロイヤルブルー、淡水色
+    default: [0xFFD700, 0xFFFFFF] // フォールバック
+};
+
+// 季節ごとの形状パレット
+const seasonalShapes = {
+    spring: ['🌸', '🌷', '🌱', '✨'],
+    summer: ['🌻', '🌊', '🍦', '✨'],
+    autumn: ['🍁', '🍂', '🍄', '✨'],
+    // ★修正: 赤くなる '♥' を削除し、色変更可能な '♡' のみにする
+    winter: ['❄️', '⛄', '♡', '✨', '●'],
+    default: ['✨', '●', '★']
+};
+
+let currentActiveGameId = null;
+
+/* DOM Elements */
+let overlay, menuContainer, introContainer, activeGameContainer, gameOverContainer;
+let fabBtn;
+let scrollPos = 0;
+
+/* System Initialization */
+function initGameSystem() {
+    overlay = document.getElementById('minigame-container');
+    menuContainer = document.getElementById('game-menu');
+    introContainer = document.getElementById('game-intro');
+    activeGameContainer = document.getElementById('active-game-container');
+    gameOverContainer = document.getElementById('common-game-over');
+    fabBtn = document.getElementById('fab-play-game');
+
+    if (!fabBtn) return;
+
+    // TEST MODE: Direct Launch for Playground Dev
+    fabBtn.addEventListener('click', () => {
+        // Prepare UI state directly (Bypass Menu)
+        scrollPos = window.pageYOffset;
+        overlay.classList.remove('hidden');
+        menuContainer.classList.add('hidden'); // Skip Menu
+        introContainer.classList.add('hidden');
+        activeGameContainer.classList.remove('hidden');
+        gameOverContainer.classList.add('hidden');
+
+        document.body.classList.add('modal-open');
+        document.body.style.top = `-${scrollPos}px`;
+
+        // Launch Potecoin Game
+        currentActiveGameId = '3d-search';
+        GameLibrary[currentActiveGameId].start();
+
+        // ★UI要素のアニメーションをリプレイ
+        setTimeout(() => {
+            const uiElements = [
+                document.getElementById('hud-top-left'),
+                document.getElementById('controls-bottom-left'),
+                document.getElementById('controls-bottom-right')
+            ];
+
+            uiElements.forEach(el => {
+                if (el) {
+                    el.style.animation = 'none';
+                    el.offsetHeight; // trigger reflow
+                    el.style.animation = '';
+                    el.style.opacity = '1';
+                }
+            });
+        }, 100);
+    });
+
+    // Close Button (Portal Level)
+    const closeBtn = document.getElementById('portal-close-btn');
+    if (closeBtn) closeBtn.addEventListener('click', closePortal);
+
+    // Intro Buttons
+    const startBtn = document.getElementById('intro-start-btn');
+    if (startBtn) startBtn.addEventListener('click', launchGame);
+
+    // ==========================================
+    // iOS/Mobile Audio Unlock (Robust Version)
+    // ==========================================
+    (() => {
+        console.log("🔊 Initializing iOS Audio Unlocker...");
+
+        const unlockAudioContext = () => {
+            // Three.jsが管理しているAudioContextを取得
+            const context = THREE.AudioContext.getContext();
+
+            if (context.state === 'suspended') {
+                context.resume().then(() => {
+                    console.log("🔓 AudioContext Resumed! (iOS Restriction Cleared)");
+                });
+            } else if (context.state === 'running') {
+                console.log("✅ AudioContext is already running.");
+            }
+
+            // 念には念を：空の音を再生して「音を出しましたよ」という実績を作るハック
+            const buffer = context.createBuffer(1, 1, 22050);
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(context.destination);
+            if (source.start) {
+                source.start(0);
+            } else if (source.noteOn) {
+                source.noteOn(0);
+            }
+
+            // イベントリスナーを削除（1回やればOKだからな）
+            ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
+                document.removeEventListener(evt, unlockAudioContext);
+            });
+        };
+
+        // 画面のどこを触っても解除されるように全域にトラップを仕掛ける
+        ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
+            document.addEventListener(evt, unlockAudioContext, { once: true, capture: true });
+        });
+
+        console.log("👂 Waiting for user interaction to unlock audio...");
+    })();
+
+    // Initialize Menu Buttons (Continued)
+
+    const backBtn = document.getElementById('intro-back-btn');
+    if (backBtn) backBtn.addEventListener('click', showGameMenu);
+
+    // Game Over Buttons
+    const retryBtn = document.getElementById('game-over-retry-btn');
+    if (retryBtn) retryBtn.addEventListener('click', launchGame);
+
+    const menuBtn = document.getElementById('game-over-menu-btn');
+    if (menuBtn) menuBtn.addEventListener('click', showGameMenu);
+
+    // Setup Menu Grid
+    renderGameMenu();
+
+    // Initial setup for specific games
+    if (typeof PotatoAction !== 'undefined') PotatoAction.setup(activeGameContainer);
+    if (typeof SearchGame !== 'undefined') SearchGame.setup(activeGameContainer);
+
+    // ★追加: デバッグモードなら即座にポテコインゲームを起動
+    if (GameConfig.debugMode) {
+        console.log("🚀 DEBUG MODE: Auto-launching SearchGame...");
+
+        // メニューなどをスキップして表示状態にする
+        scrollPos = window.pageYOffset;
+        if (overlay) overlay.classList.remove('hidden');
+        if (menuContainer) menuContainer.classList.add('hidden');
+        if (introContainer) introContainer.classList.add('hidden');
+        if (activeGameContainer) activeGameContainer.classList.remove('hidden');
+        if (gameOverContainer) gameOverContainer.classList.add('hidden');
+
+        document.body.classList.add('modal-open');
+
+        // ゲーム開始
+        currentActiveGameId = '3d-search';
+        GameLibrary[currentActiveGameId].start();
+
+        // UIアニメーションのリセット
+        setTimeout(() => {
+            const uiElements = [
+                document.getElementById('hud-top-left'),
+                document.getElementById('controls-bottom-left'),
+                document.getElementById('controls-bottom-right')
+            ];
+            uiElements.forEach(el => {
+                if (el) {
+                    el.style.animation = 'none';
+                    el.offsetHeight;
+                    el.style.animation = '';
+                    el.style.opacity = '1';
+                }
+            });
+        }, 100);
+    }
+}
+
+
+function showGameMenu() {
+    // Save scroll position
+    scrollPos = window.pageYOffset;
+
+    overlay.classList.remove('hidden');
+    menuContainer.classList.remove('hidden');
+    introContainer.classList.add('hidden');
+    activeGameContainer.classList.add('hidden');
+    gameOverContainer.classList.add('hidden');
+
+    document.body.classList.add('modal-open');
+    document.body.style.top = `-${scrollPos}px`;
+
+    if (currentActiveGameId) {
+        GameLibrary[currentActiveGameId].stop();
+        currentActiveGameId = null;
+    }
+}
+
+function closePortal() {
+    overlay.classList.add('hidden');
+    document.body.classList.remove('modal-open');
+    document.body.style.top = '';
+    window.scrollTo(0, scrollPos);
+
+    if (currentActiveGameId) {
+        GameLibrary[currentActiveGameId].stop();
+        currentActiveGameId = null;
+    }
+}
+
+function renderGameMenu() {
+    const grid = document.getElementById('game-grid');
+    if (!grid) return;
+    grid.innerHTML = ''; // Clear
+
+    Object.keys(GameLibrary).forEach(id => {
+        const game = GameLibrary[id];
+        const card = document.createElement('button'); // Changed to button
+        card.type = 'button';
+        card.className = `game-card ${game.isComingSoon ? 'disabled' : ''}`;
+        card.style.zIndex = "11000"; // Ensure on top
+
+        const scaleStyle = game.iconScale ? `style="transform: scale(${game.iconScale});"` : '';
+        const iconHtml = game.iconImage
+            ? `<img src="${game.iconImage}" class="game-icon-img" ${scaleStyle} alt="${game.title}">`
+            : `<div class="game-icon">${game.icon}</div>`;
+
+        card.innerHTML = `
+            ${iconHtml}
+            <div class="game-title">${game.title}</div>
+            ${game.isBeta ? '<div class="beta-badge">β版</div>' : ''}
+            ${game.isComingSoon ? '<div class="coming-soon-badge">Coming Soon</div>' : ''}
+        `;
+
+        if (!game.isComingSoon) {
+            card.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showGameIntro(id);
+                return false;
+            };
+        }
+        grid.appendChild(card);
+    });
+}
+
+function showGameIntro(gameId) {
+    currentActiveGameId = gameId;
+    const game = GameLibrary[gameId];
+
+    // Populate Intro
+    const introIconContainer = document.getElementById('intro-icon');
+    introIconContainer.innerHTML = ''; // Clear previous content
+
+    if (game.iconImage) {
+        introIconContainer.className = 'large-icon-img-container'; // Changed class for image containment
+        introIconContainer.innerHTML = `<img src="${game.iconImage}" class="large-icon-img" alt="${game.title}">`;
+    } else {
+        introIconContainer.className = 'large-icon';
+        introIconContainer.textContent = game.icon;
+    }
+
+    document.getElementById('intro-title').textContent = game.shortTitle || game.title;
+    document.getElementById('intro-desc').textContent = game.description;
+
+    menuContainer.classList.add('hidden');
+    introContainer.classList.remove('hidden');
+}
+
+function launchGame() {
+    if (!currentActiveGameId) return;
+
+    introContainer.classList.add('hidden');
+    gameOverContainer.classList.add('hidden');
+    activeGameContainer.classList.remove('hidden');
+
+    GameLibrary[currentActiveGameId].start();
+}
+
+
+let hasUnlockedPrize = false; // Persistent for current session/run
+
+function showGameOver(score) {
+    activeGameContainer.classList.add('hidden');
+    gameOverContainer.classList.remove('hidden');
+    document.getElementById('final-score-value').textContent = score;
+
+    const prizeUI = document.getElementById('prize-container');
+    const prizeLink = document.getElementById('prize-link');
+    const prizeStatus = document.getElementById('prize-status');
+
+    // Unlock condition: Special Rare Item collected OR Score >= 1000
+    if (hasUnlockedPrize || score >= 1000) {
+        prizeUI.classList.remove('hidden');
+        const driveUrl = "https://drive.google.com/file/d/1nz9HWyO4Q3sMbPDmTLRZcGWkF6k1OjZf/view?usp=sharing";
+        prizeLink.href = driveUrl;
+        prizeLink.target = "_blank";
+        prizeLink.rel = "noopener noreferrer";
+        prizeLink.textContent = "Download Special VRM";
+        prizeStatus.textContent = "(Available Now!)";
+    } else {
+        prizeUI.classList.add('hidden');
+    }
+}
+
+/* =========================================
+   GAME MODULE: PotatoAction (Pro Loop Ver)
+   ========================================= */
+const PotatoAction = (() => {
+    let container, player;
+    let isPlaying = false;
+    let score = 0;
+    let items = [];
+
+    // === Game Loop Variables (DeltaTime) ===
+    let lastTime = 0;
+    const FIXED_STEP = 1 / 60; // 60FPS基準
+    let accumulator = 0;
+    let animationId = null;
+
+    // Logic Timers
+    let spawnTimer = 0;
+    let difficultyTimer = 0;
+
+    // Rare Item States
+    let rareSpawnWindowActive = false;
+    let hasRareSpawnedThisWindow = false;
+    let rareWindowStartTime = 0;
+    let elapsedForRare = 0; // 時間計測用
+
+    // Support Item States
+    let barrierCount = 0;
+    let nextBarrierScore = 0;
+    let nextBombScore = 0;
+    let nextSpanThreshold = 50;
+    let supportCycle = 0;
+
+    // Config (Spawn Rate in Seconds)
+    // 元が48フレーム(約0.8秒)だったので、秒数で管理
+    let currentSpawnInterval = 0.8;
+    const Config = { minSpawnInterval: 0.3 };
+
+    function setup(parentContainer) {
+        container = parentContainer;
+    }
+
+    function init(gameContainer) { }
+
+    function start() {
+        isPlaying = true;
+        score = 0;
+        items = [];
+
+        // Timer Reset
+        spawnTimer = 0;
+        difficultyTimer = 0;
+        elapsedForRare = 0;
+        rareWindowStartTime = 0;
+
+        // Config Reset
+        currentSpawnInterval = 0.8;
+
+        hasRareSpawnedThisWindow = false;
+        rareSpawnWindowActive = false;
+
+        barrierCount = 0;
+        nextSpanThreshold = 50;
+        supportCycle = 0;
+        scheduleSupportItems();
+
+        setupGameUI();
+
+        if (animationId) cancelAnimationFrame(animationId);
+
+        // ★Loop Start (DeltaTime)
+        lastTime = performance.now();
+        accumulator = 0;
+        gameLoop(lastTime);
+
+        window.addEventListener('mousemove', handleInput);
+        window.addEventListener('touchmove', handleInput, { passive: false });
+    }
+
+    function stop() {
+        isPlaying = false;
+        if (animationId) cancelAnimationFrame(animationId);
+        window.removeEventListener('mousemove', handleInput);
+        window.removeEventListener('touchmove', handleInput);
+
+        const existingItems = document.querySelectorAll('.pa-item');
+        existingItems.forEach(el => el.remove());
+    }
+
+    function setupGameUI() {
+        container.innerHTML = `
+            <div id="pa-ui">Score: <span id="pa-score">0</span></div>
+            <div id="pa-player"><img src="assets/potatokun-action.png" alt="PotatoKun"></div>
+            <div id="pa-sacred-flash"></div>
+        `;
+        player = document.getElementById('pa-player');
+    }
+
+    function handleInput(e) {
+        if (!isPlaying) return;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const halfWidth = 75;
+        const x = Math.max(halfWidth, Math.min(window.innerWidth - halfWidth, clientX));
+        player.style.left = `${x}px`;
+    }
+
+    function scheduleSupportItems() {
+        let span;
+        if (supportCycle === 0) {
+            span = 50;
+            nextSpanThreshold = 100;
+        } else if (supportCycle === 1) {
+            span = 80;
+            nextSpanThreshold = 180;
+        } else {
+            span = 120;
+            nextSpanThreshold += 120;
+        }
+
+        const base = nextSpanThreshold - span;
+        nextBarrierScore = base + Math.floor(Math.random() * (span - 10)) + 5;
+        nextBombScore = base + Math.floor(Math.random() * (span - 10)) + 5;
+        supportCycle++;
+    }
+
+    // === Pro Game Loop ===
+    function gameLoop(now) {
+        if (!isPlaying) return;
+
+        let delta = (now - lastTime) / 1000; // 秒単位
+        lastTime = now;
+
+        if (delta > 0.25) delta = 0.25; // 安全装置
+
+        accumulator += delta;
+
+        while (accumulator >= FIXED_STEP) {
+            update(FIXED_STEP);
+            accumulator -= FIXED_STEP;
+        }
+
+        render();
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+        // 1. レアアイテム出現判定 (時間ベース)
+        if (score >= 300 && rareWindowStartTime === 0) {
+            rareWindowStartTime = 1; // フラグ代わり
+        }
+        if (rareWindowStartTime > 0) {
+            elapsedForRare += dt;
+            // 10秒〜20秒の間
+            if (elapsedForRare >= 10.0 && elapsedForRare <= 20.0 && !hasRareSpawnedThisWindow) {
+                rareSpawnWindowActive = true;
+            } else {
+                rareSpawnWindowActive = false;
+            }
+        }
+
+        // 2. スポーン管理
+        spawnTimer += dt;
+        if (spawnTimer >= currentSpawnInterval) {
+            spawnItem();
+            spawnTimer = 0;
+        }
+
+        // 3. 難易度上昇 (10秒ごとに加速)
+        difficultyTimer += dt;
+        if (difficultyTimer >= 10.0) {
+            if (currentSpawnInterval > Config.minSpawnInterval) {
+                currentSpawnInterval -= 0.05; // 少しずつ速く
+            }
+            difficultyTimer = 0;
+        }
+
+        // 4. サポートアイテムロジック (スコア依存なのでそのまま)
+        if (score >= nextSpanThreshold) {
+            scheduleSupportItems();
+        }
+
+        // 5. アイテム移動更新
+        updateItems(dt);
+    }
+
+    function updateItems(dt) {
+        for (let i = items.length - 1; i >= 0; i--) {
+            const item = items[i];
+
+            // 速度補正: 元のspeedはフレームあたり(約3px～8px)
+            // 秒速に換算 = speed * 60
+            const moveAmount = (item.speed * 60) * dt;
+
+            item.y += moveAmount;
+            item.el.style.top = `${item.y}px`;
+
+            const pRect = player.getBoundingClientRect();
+            const playerHitBox = {
+                top: pRect.top + 20,
+                bottom: pRect.bottom,
+                left: pRect.left + 35,
+                right: pRect.right - 35
+            };
+            const iRect = item.el.getBoundingClientRect();
+
+            if (isColliding(playerHitBox, iRect)) {
+                handleCollision(item, i);
+            } else if (item.y > window.innerHeight) {
+                item.el.remove();
+                items.splice(i, 1);
+            }
+        }
+    }
+
+    function handleCollision(item, index) {
+        if (item.type === 'fry') {
+            score += 5;
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, '+5');
+        } else if (item.type === 'burger') {
+            score += 10;
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, '+10', '#FF4500');
+            spawnSparkles(item.el.offsetLeft + 20, item.el.offsetTop + 20);
+        } else if (item.type === 'rare') {
+            score += 50;
+            // Unlock Prize logic
+            rareSpawnWindowActive = false;
+            hasRareSpawnedThisWindow = true;
+
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, 'Avatar Unlocked!', '#FF1493');
+            spawnHearts(item.el.offsetLeft + 40, item.el.offsetTop + 40);
+
+            // ★ Unlock Special Prize (Persistent until game over)
+            hasUnlockedPrize = true;
+        } else if (item.type === 'barrier') {
+            addBarrier();
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, `BARRIER ${barrierCount}!`, '#00BFFF');
+        } else if (item.type === 'bomb') {
+            activateBomb();
+            showFloatText(item.el.offsetLeft, item.el.offsetTop, 'BOMB!', '#FFFFFF');
+        } else if (item.type === 'skull') {
+            if (barrierCount > 0) {
+                removeBarrier();
+                showFloatText(item.el.offsetLeft, item.el.offsetTop, 'SHIELDED!', '#00BFFF');
+                item.el.remove();
+                items.splice(index, 1);
+                return;
+            } else {
+                stop();
+                showGameOver(score);
+                return;
+            }
+        }
+
+        if (item.type !== 'skull') {
+            document.getElementById('pa-score').textContent = score;
+            item.el.remove();
+            items.splice(index, 1);
+        }
+    }
+
+    function render() {
+        // DOM-based game, no canvas render needed
+    }
+
+    // --- Spawn & Effect Helpers (Same logic) ---
+    function spawnItem() {
+        const rand = Math.random();
+        let type;
+
+        if (score >= nextBarrierScore && nextBarrierScore !== 0) {
+            type = 'barrier'; nextBarrierScore = 0;
+        } else if (score >= nextBombScore && nextBombScore !== 0) {
+            type = 'bomb'; nextBombScore = 0;
+        } else if (rareSpawnWindowActive && !hasRareSpawnedThisWindow) {
+            type = 'rare'; hasRareSpawnedThisWindow = true;
+        } else {
+            if (rand < 0.3) type = 'fry';
+            else if (rand < 0.9) type = 'skull';
+            else type = 'burger';
+        }
+
+        const el = document.createElement('div');
+        el.className = 'pa-item';
+
+        if (type === 'fry') el.textContent = '🍟';
+        else if (type === 'burger') { el.textContent = '🍔'; el.style.transform = 'scale(1.3)'; }
+        else if (type === 'skull') el.textContent = '☠️';
+        else if (type === 'rare') {
+            el.innerHTML = `<img src="assets/potatokun-action.png" style="width:100%; height:100%; object-fit:contain;">`;
+            el.style.width = '80px'; el.style.height = '80px';
+        }
+        else if (type === 'barrier') el.textContent = '🫧';
+        else if (type === 'bomb') { el.textContent = '💣'; el.classList.add('bomb'); }
+
+        const spawnX = 40 + Math.random() * (window.innerWidth - 120);
+        el.style.left = `${spawnX}px`;
+        el.style.top = '-80px';
+        container.appendChild(el);
+
+        items.push({
+            el: el,
+            y: -80,
+            type: type,
+            // 速度: ピクセル/フレーム だったものを維持
+            speed: type === 'skull' ? 5 + Math.random() * 2 : (type === 'burger' ? 6 + Math.random() * 2 : 3 + Math.random() * 2)
+        });
+    }
+
+    function addBarrier() { if (barrierCount < 3) { barrierCount++; updateBarrierVisual(); } }
+    function removeBarrier() { if (barrierCount > 0) { barrierCount--; updateBarrierVisual(); spawnParticles(player.offsetLeft + 75, player.offsetTop + 75, ['#00BFFF', '#FFFFFF'], 'pa-particle'); } }
+    function updateBarrierVisual() {
+        player.classList.remove('shield-1', 'shield-2', 'shield-3');
+        if (barrierCount > 0) player.classList.add(`shield-${barrierCount}`);
+    }
+    function activateBomb() {
+        const flash = document.getElementById('pa-sacred-flash');
+        flash.classList.remove('flash-active');
+        void flash.offsetWidth;
+        flash.classList.add('flash-active');
+        for (let i = items.length - 1; i >= 0; i--) {
+            if (items[i].type === 'skull') { items[i].el.remove(); items.splice(i, 1); }
+        }
+    }
+    function spawnSparkles(x, y, z) {
+        if (typeof spawnSparkles === 'function' && arguments.length === 2) {
+            // Backward compatibility for 2D UI calls
+            spawnParticles(x, y, ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'], 'pa-particle');
+            return;
+        }
+        // 3D/World calls (via window.spawnSparkles override)
+        // Note: The original spawnSparkles was UI based (x,y). 
+        // The user request defines window.spawnSparkles = (x,y,z) => ...
+        // We will perform the override via global assignment as requested by the user prompt structure style,
+        // or directly modify here if this is the only definition.
+
+        // HOWEVER, the user specifically asked to "Update spawnSparkles function (around line 2090? - actually 640 here)"
+        // AND requested: window.spawnSparkles = (x, y, z) => { ... }
+
+        // Let's stick to the user's specific block implementation for the global scope to handle the 3D logic,
+        // but here we are in the potatoAction module scope.
+        // The user's request #1 says "spawnSparkles function extension" but the code example shows `window.spawnSparkles = ...`
+
+        // Let's implement the user's requested logic by exposing it or modifying the loop.
+        // Actually, looking at the user request, they want me to simple ADD the logic to the loop and update the function.
+        // The function at 640 is inside PotatoAction.
+
+        spawnParticles(x, y, ['#FFD700', '#FFA500', '#FFFF00', '#FFFFFF'], 'pa-particle');
+    }
+    function spawnHearts(x, y) { spawnParticles(x, y, ['#FF1493', '#FF69B4', '#FFB6C1'], 'pa-heart', '💕'); }
+    function spawnParticles(x, y, colors, className, text = null) {
+        const count = text ? 12 : 10;
+        for (let i = 0; i < count; i++) {
+            const el = document.createElement('div');
+            el.className = className;
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            if (text) { el.textContent = text; el.style.fontSize = `${10 + Math.random() * 10}px`; }
+            else { el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)]; }
+
+            const angle = Math.random() * Math.PI * 2;
+            const velocity = 50 + Math.random() * 70;
+            const tx = Math.cos(angle) * velocity;
+            const ty = Math.sin(angle) * velocity;
+            el.style.setProperty('--tx', `${tx}px`);
+            el.style.setProperty('--ty', `${ty}px`);
+
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
+    }
+    function isColliding(r1, r2) {
+        const pad = 10;
+        return !(r1.right - pad < r2.left + pad || r1.left + pad > r2.right - pad || r1.bottom - pad < r2.top + pad || r1.top + pad > r2.bottom - pad);
+    }
+    function showFloatText(x, y, text, color = '#FFD700') {
+        const el = document.createElement('div');
+        el.className = 'pa-float-text';
+        el.textContent = text;
+        el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.color = color; el.style.zIndex = '50';
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 1000);
+    }
+
+    return { setup, init, start, stop };
+})();
+
+/* =========================================
+   GAME MODULE: 3D Search Game
+   ========================================= */
+const SearchGame = (() => {
+    let container;
+    let scene, camera, renderer, controls;
+
+    // ★★★ ParkState ★★★
+    const ParkState = {
+        vegetationMode: 'forestOnly'
+        // 'forestOnly' | 'allOff' | 'allOn'
+    };
+
+
+    // ★★★ Forest Area Definition ★★★
+    function isInsideForestArea(x, z) {
+        return (x < -2 && z < -2);
+    }
+
+    // ★★★ Park Zone Definition ★★★
+    function getParkZone(x, z) {
+
+        // 十字路
+        if (Math.abs(x) < 5 || Math.abs(z) < 5) return 'crossroad';
+
+        // 中央広場（噴水）
+        if (x * x + z * z < 100) return 'plaza';
+
+        // 北西：更地（建設予定）
+        if (x < -2 && z < -2) return 'construction';
+
+        // 北東：休憩エリア
+        if (x > 2 && z < -2) return 'rest';
+
+        // 南西：森林エリア
+        if (x < -2 && z > 2) return 'forest';
+
+        // 南東：森林エリア
+        if (x > 2 && z > 2) return 'playground';
+
+        return 'unknown';
+    }
+
+    // ★★★ ExclusionManager ★★★
+    const ExclusionManager = (() => {
+        const zones = [];
+
+        function checkStaticRules(x, z) {
+
+            const zone = getParkZone(x, z);
+
+            // --- ParkState による制御 ---
+            if (ParkState.vegetationMode === 'allOff') {
+                return true;
+            }
+
+            if (ParkState.vegetationMode === 'forestOnly') {
+                return zone !== 'forest';
+            }
+
+            // --- エリア別の禁止ルール ---
+            if (zone === 'crossroad') return true;
+            if (zone === 'plaza') return true;
+            if (zone === 'rest') return true;
+            if (zone === 'construction') return true;
+            if (zone === 'playground') return true;
+
+            // forest のみ許可
+            if (zone === 'forest') return false;
+
+            return true;
+        }
+
+        return {
+            addCircle: (x, z, r) => zones.push({ x, z, r }),
+            isBlocked: (x, z) =>
+                checkStaticRules(x, z) ||
+                zones.some(zItem =>
+                    (x - zItem.x) ** 2 + (z - zItem.z) ** 2 < zItem.r ** 2
+                ),
+            reset: () => { zones.length = 0; }
+        };
+    })();
+
+
+    // === Game State Management ===
+    const GameState = {
+        LOADING: 'loading',
+        OPENING: 'opening',
+        PLAYING: 'playing',
+        ENDING: 'ending'
+    };
+    let currentState = GameState.LOADING;
+    let openingNPC = null; // Openning dedicated NPC
+    let banzaiNPC = null;  // Ending dedicated NPC
+    let juiceModel = null; // Ending dedicated Object
+    let slideModel = null; // Park Asset (Slide) for visibility control
+
+    let isPlaying = false;
+    let score = 0;
+    let timeLeft = 30;
+    let timerId = null;
+    let animationId = null;
+    let mixer;
+    let clock = new THREE.Clock();
+
+    // === Game Loop Variables ===
+    let lastTime = performance.now();
+    const FIXED_STEP = 1 / 60; // 60FPS基準の固定ステップ
+    let accumulator = 0;
+
+    let models = [];
+    let targetIndex = -1;
+    let raycaster = new THREE.Raycaster();
+    let mouse = new THREE.Vector2();
+
+    // Cinematic State
+    let isCinematic = false;
+    let cinematicTimer = 0;
+
+    // Player Position (Module Scope)
+    let playerPosition = new THREE.Vector3(0, 0.6, 0);
+    // ★追加: プレイヤーの向き (モジュールスコープ)
+    let playerFacing = 0; // 初期値: 南向き
+
+    // Camera Control Variables (Module Scope for access from transitionToGameplay)
+    let cameraDistance = 0; // 0 = FPS, 10 = max TPS
+    let cameraAngle = Math.PI; // Horizontal orbit angle
+    let cameraPitch = 0; // Vertical look angle
+
+    // === NPC Position/Rotation Constants (Shared across seasons) ===
+    // ★修正: North = -Z System. Inverted Z coordinates.
+    const NPC_CONFIG = {
+        opening: {
+            position: { x: -11, z: 5 },  // Old: -5. Inverted: 5
+            rotation: 0,
+        },
+        gameplay: {
+            position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
+            rotation: 0,
+        },
+        vendingMachine: { x: -11, z: 8 } // Old: -8. Inverted: 8
+    };
+
+    // === Season System ===
+    const SEASON = {
+        SUMMER: 'summer',
+        WINTER: 'winter',
+    };
+    // ★季節は GameConfig.currentSeason で一元管理
+
+    // === Season-specific Model Config ===
+    const SEASON_CONFIG = {
+        spring: {
+            openingNPC: { model: 'models/potatokun_normal.fbx', height: 1.5 },
+            gameplayNPC: { model: 'models/potatokun_sitting.fbx', height: 1.0 }
+        },
+        summer: {
+            openingNPC: {
+                model: 'models/potatokun_thristy.fbx',
+                height: 1.5,
+            },
+            gameplayNPC: {
+                model: 'models/potatokun_sitting.fbx',
+                height: 1.0,
+            },
+        },
+        autumn: {
+            openingNPC: { model: 'models/potatokun_normal.fbx', height: 1.5 },
+            gameplayNPC: { model: 'models/potatokun_sitting.fbx', height: 1.0 }
+        },
+        winter: {
+            openingNPC: {
+                model: 'models/potatokun_freezing.fbx',
+                height: 1.5,
+            },
+            gameplayNPC: {
+                model: 'models/potatokun_sitandfreezing.fbx',
+                height: 1.0,
+            },
+        },
+    };
+
+    // === Season-specific Dialog Lines ===
+    const OPENING_LINES = {
+        spring: [
+            { time: 0, text: 'ポテトくん「ふわぁ〜… ぽかぽかして ねむいなぁ…」', color: '#FF69B4' },
+            { time: 4000, text: 'あ！ 公園の桜が 満開だね！', color: '#87CEFA' },
+            { time: 7000, text: 'お花見したいけど、のどが渇いちゃった…', color: '#87CEFA' },
+            { time: 10000, text: 'コインを集めて、ジュースでお花見パーティーしよう！', color: '#FFA500' },
+        ],
+        summer: [
+            { time: 0, text: 'ポテトくん「はぁ〜… あついよ〜… のどカラカラ…」', color: '#FFAE00' },
+            { time: 4000, text: 'あれれ？ ポテトくん、とっても困ってる！', color: '#87CEFA' },
+            { time: 7000, text: 'こんな暑さじゃ、元気も出ないよね…', color: '#87CEFA' },
+            { time: 10000, text: 'よし！ 公園に落ちているコインを集めて\\nジュースを買ってあげよう！', color: '#87CEFA' },
+        ],
+        autumn: [
+            { time: 0, text: 'ポテトくん「ぐぅ〜…… お腹すいたなぁ……」', color: '#D2691E' },
+            { time: 4000, text: '涼しくなってきて、食欲が止まらないよ！', color: '#FF8C00' },
+            { time: 7000, text: 'あ！ あんなところに焼き芋……じゃなくてコインが！', color: '#D2691E' },
+            { time: 10000, text: 'コインを集めて、秋の味覚をお腹いっぱい食べよう！', color: '#8B4513' },
+        ],
+        winter: [
+            { time: 0, text: 'ポテトくん「ぶるる… さむい… からだが こおりそう…」', color: '#FFAE00' },
+            { time: 4000, text: 'おや？ ポテトくんが ふるえている！', color: '#87CEFA' },
+            { time: 7000, text: 'こんな寒さじゃ、あったかいものが欲しいね', color: '#87CEFA' },
+            { time: 10000, text: 'よし！ コインを集めて、ホットドリンクを買ってあげよう！', color: '#87CEFA' },
+        ],
+    };
+
+    // === Season Visuals (Ground Color etc.) ===
+    const SEASON_VISUALS = {
+        spring: {
+            groundColor: 0x98FB98, // PaleGreen (若草色)
+        },
+        summer: {
+            groundColor: 0x3FA34D, // Green
+        },
+        autumn: {
+            groundColor: 0xDEB887, // BurlyWood (落ち葉や枯れ草の色)
+        },
+        winter: {
+            groundColor: 0xE0FFFF, // LightCyan
+        }
+    };
+
+    // NPC References
+    let gameplayNPC = null; // Gameplay中に常駐するNPC
+
+    const loader = new FBXLoader();
+
+    // === Input Manager Class ===
+    class InputManager {
+        constructor(targetElement) {
+            this.el = targetElement;
+            this.lookPointerId = null;
+            this.lastX = 0; this.lastY = 0;
+            this.lookDX = 0; this.lookDY = 0;
+            this.LOOK_SENSITIVITY = 0.003;
+            this._bind();
+        }
+
+        consumeLookDelta() {
+            const dx = this.lookDX; const dy = this.lookDY;
+            this.lookDX = 0; this.lookDY = 0;
+            return { dx, dy };
+        }
+
+        _bind() {
+            this.el.style.touchAction = 'none'; // ブラウザのジェスチャーを無効化
+            this.el.addEventListener('mousedown', this._onPointerDown);
+            this.el.addEventListener('mousemove', this._onPointerMove);
+            this.el.addEventListener('mouseup', this._onPointerUp);
+            this.el.addEventListener('mouseleave', this._onPointerUp);
+
+            // passive: false でピンチズーム等を確実にブロック
+            this.el.addEventListener('touchstart', this._onPointerDown, { passive: false });
+            this.el.addEventListener('touchmove', this._onPointerMove, { passive: false });
+            this.el.addEventListener('touchend', this._onPointerUp);
+            this.el.addEventListener('touchcancel', this._onPointerUp);
+        }
+
+        _onPointerDown = (e) => {
+            // UI操作（D-Pad等）はInputManagerとしては無視
+            // ※D-Pad側のイベントリスナーで処理されるため
+            if (e.target.closest('#sg-dpad') || e.target.closest('.dpad-btn')) return;
+
+            if (e.type === 'mousedown') {
+                this.lookPointerId = 'mouse';
+                this.lastX = e.clientX;
+                this.lastY = e.clientY;
+                return; // ここでreturnしないとtouchstartの判定に入ってしまう可能性があるため修正
+            }
+
+            if (e.type === 'touchstart') {
+                // 【修正ポイント】
+                // 「指が1本だけの時(e.touches.length === 1)」という制限を撤廃します。
+                // 代わりに、「新しい指が視点用として有効か」を個別に判定します。
+
+                for (const t of e.changedTouches) {
+                    // すでに視点操作中の指(lookPointerId)が存在する場合、
+                    // 新たな指は「2本目の視点指（ピンチ操作）」とみなして無視します。
+                    if (this.lookPointerId !== null) continue;
+
+                    // D-Padエリア外の指であれば、これを「視点操作用の指」として登録します。
+                    // (移動用の指があっても、lookPointerIdがnullなら登録されます)
+                    this.lookPointerId = t.identifier;
+                    this.lastX = t.clientX;
+                    this.lastY = t.clientY;
+
+                    // 視点指が決まったらループを抜けます
+                    break;
+                }
+
+                // 視点指として登録された場合のみ、デフォルト動作を防ぎます
+                if (this.lookPointerId !== null) {
+                    e.preventDefault();
+                }
+            }
+        };
+
+        _onPointerMove = (e) => {
+            if (this.lookPointerId === null) return;
+            let x, y;
+
+            if (e.type === 'mousemove' && this.lookPointerId === 'mouse') {
+                x = e.clientX; y = e.clientY;
+            } else if (e.type === 'touchmove') {
+                const t = [...e.changedTouches].find(t => t.identifier === this.lookPointerId);
+                if (!t) return;
+                x = t.clientX; y = t.clientY;
+                e.preventDefault();
+            } else { return; }
+
+            this.lookDX += (x - this.lastX) * this.LOOK_SENSITIVITY;
+            this.lookDY += (y - this.lastY) * this.LOOK_SENSITIVITY;
+            this.lastX = x; this.lastY = y;
+        };
+
+        _onPointerUp = (e) => {
+            if (this.lookPointerId === 'mouse' && (e.type === 'mouseup' || e.type === 'mouseleave')) {
+                this.lookPointerId = null;
+            } else if (e.type.startsWith('touch')) {
+                for (const t of e.changedTouches) {
+                    if (t.identifier === this.lookPointerId) {
+                        this.lookPointerId = null; break;
+                    }
+                }
+            }
+        };
+
+        dispose() {
+            this.el.removeEventListener('mousedown', this._onPointerDown);
+            this.el.removeEventListener('mousemove', this._onPointerMove);
+            this.el.removeEventListener('mouseup', this._onPointerUp);
+            this.el.removeEventListener('mouseleave', this._onPointerUp);
+            this.el.removeEventListener('touchstart', this._onPointerDown);
+            this.el.removeEventListener('touchmove', this._onPointerMove);
+            this.el.removeEventListener('touchend', this._onPointerUp);
+            this.el.removeEventListener('touchcancel', this._onPointerUp);
+        }
+    }
+
+    function setup(parentContainer) {
+        container = parentContainer;
+    }
+
+    function init(gameContainer) { }
+
+    function start(options = {}) {
+        // ★ ADMIN MODE: Instant Clear
+        // Set to true to trigger ending immediately on BUY button press.
+        // Set to false for normal gameplay.
+        const adminMode = true;
+
+        isPlaying = true;
+        score = 0;
+        timeLeft = 60; // 60 seconds
+        models = [];
+
+        // ★ Reset Ending Assets
+        banzaiNPC = null;
+        juiceModel = null;
+        endingObjects = [];
+
+        setupGameUI();
+
+        // ★ Force Viewport for Game (Prevent Zoom)
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (meta) {
+            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+        }
+
+        // Pause Top Page Viewer (Encapsulated)
+        window.backgroundViewer?.pause();
+
+        setTimeout(async () => {
+            initThreeJS();
+
+            if (animationId) cancelAnimationFrame(animationId);
+
+            // ★ Loop Start (DeltaTime)
+            lastTime = performance.now();
+            accumulator = 0;
+            requestAnimationFrame(gameLoop);
+
+            // Setup GET!/BUY button click handler
+            const getBtn = document.getElementById('sg-get-btn');
+            if (getBtn) {
+                // Remove old listeners to avoid duplicates if restarted
+                const newBtn = getBtn.cloneNode(true);
+                getBtn.parentNode.replaceChild(newBtn, getBtn);
+
+                newBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // ★ ADMIN MODE CHECK
+                    if (typeof adminMode !== 'undefined' && adminMode) {
+                        console.log("Admin Mode: Instant Clear Triggered");
+                        // Ensure transition happens safely
+                        transitionToEnding();
+                        return;
+                    }
+
+                    handleInteraction();
+                });
+                newBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // ★ ADMIN MODE CHECK (Touch Support)
+                    if (typeof adminMode !== 'undefined' && adminMode) {
+                        console.log("Admin Mode: Instant Clear Triggered (Touch)");
+                        transitionToEnding();
+                        return;
+                    }
+
+                    handleInteraction();
+                });
+            }
+
+            // ★ SKIP OPENING CHECK (For Development)
+            if (arguments[0] && arguments[0].options && arguments[0].options.skipOpening) {
+                // Note: arguments check due to setTimeout wrapper scope issues if not careful, 
+                // but here 'options' is from start(options).
+                // Wait, start(options) -> inside setTimeout, 'options' variable is available via closure.
+            }
+
+            // ★デバッグモードなら強制的にskipOpeningを有効化
+            const shouldSkip = (options && options.skipOpening) || GameConfig.debugMode;
+
+            if (shouldSkip) {
+                console.log("🚀 DEBUG MODE: Skipping Opening Sequence");
+
+                // Hide Loading Overlay
+                const overlay = document.getElementById('sg-loading-overlay');
+                if (overlay) overlay.style.display = 'none';
+
+                // Set State
+                isCinematic = false;
+                currentState = GameState.PLAYING;
+
+                // Position Player (Start Point)
+                if (typeof playerPosition !== 'undefined') {
+                    // ★修正: 北側入り口へ (North = -Z)
+                    // Old: -27. Wait, checking logic.
+                    // If Old "North" was +Z, then -27 was South?
+                    // Let's stick to INVERTING whatever was there to flip the world.
+                    // Old: -27. Inverted: 27.
+                    // But standard park entrance is usually South (+Z).
+                    // If we want "North Entrance", and North is -Z, then -27 is correct.
+                    // Let's assume the user wants the player at the "Entrance".
+                    // If Old Code said "North side entrance (Z = -27)", and Old North was +Z... then -27 was South?
+                    // Confusion.
+                    // Let's simply INVERT Z.
+                    // Old: -27 -> New: 27.
+                    // New 27 is South (+Z).
+                    // If the user wants a North (-Z) coordinate system, South is +Z.
+                    playerPosition.set(0, 0.6, 27);
+
+                    // ★修正: プレイヤーの体は南向き(0)
+                    if (typeof playerFacing !== 'undefined') playerFacing = 0;
+
+                    // ★修正: カメラは0度で北(噴水の方)を向かせる
+                    if (typeof cameraAngle !== 'undefined') cameraAngle = 0;
+                }
+
+                // Show UI
+                const dpad = document.getElementById('sg-dpad');
+                if (dpad) dpad.style.display = 'grid';
+
+                const skipBtn = document.getElementById('sg-skip-btn');
+                if (skipBtn) skipBtn.style.display = 'none';
+
+                // Initial Text
+                showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+
+                return; // Skip startOpeningSequence
+            }
+
+            // ★★★ PLAYGROUND DEV: Opening Disabled ★★★
+            // Original: startOpeningSequence();
+            // Now: Directly set game to PLAYING state
+            console.log("[PLAYGROUND DEV] Opening Sequence DISABLED - Direct Start");
+
+            // Hide Loading Overlay
+            const loadingOverlay = document.getElementById('sg-loading-overlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+
+            // Set State to PLAYING
+            isCinematic = false;
+            currentState = GameState.PLAYING;
+
+            // Position Player at Start Point (Safe zone, far from all colliders)
+            if (typeof playerPosition !== 'undefined') {
+                playerPosition.set(10, 0.6, 10); // Safe spawn: away from pipe(0,0) and obstacles
+            }
+
+            // Show D-Pad Controls
+            const dpad = document.getElementById('sg-dpad');
+            if (dpad) dpad.style.display = 'grid';
+
+            // Hide Skip Button (not needed)
+            const skipBtn = document.getElementById('sg-skip-btn');
+            if (skipBtn) skipBtn.style.display = 'none';
+
+            // Show START message
+            showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+        }, 100);
+    }
+
+    // === CINEMATIC SEQUENCES ===
+    let sweatParticles = [];
+
+    function createSweatEffects(model) {
+        clearSweatEffects(); // Clear existing
+
+        const sweatGeo = new THREE.SphereGeometry(0.03, 8, 8); // Smaller
+        const sweatMat = new THREE.MeshBasicMaterial({ color: 0x87CEFA }); // Light Blue
+
+        // 3 drops on forehead (centered, front of face)
+        const positions = [
+            { x: 0.05, y: 1.55, z: 0.35 },   // Right forehead
+            { x: -0.05, y: 1.6, z: 0.35 },   // Left forehead
+            { x: 0, y: 1.5, z: 0.4 }         // Between eyebrows
+        ];
+
+        positions.forEach(pos => {
+            const mesh = new THREE.Mesh(sweatGeo, sweatMat);
+            // Position relative to model world position
+            mesh.position.copy(model.position).add(new THREE.Vector3(pos.x, pos.y, pos.z));
+            scene.add(mesh);
+            sweatParticles.push({ mesh: mesh, startY: mesh.position.y, speed: 0.005 + Math.random() * 0.005 });
+        });
+    }
+
+    function clearSweatEffects() {
+        sweatParticles.forEach(p => scene.remove(p.mesh));
+        sweatParticles = [];
+    }
+
+    // Helper for sweat animation
+    function updateSweatEffects() {
+        sweatParticles.forEach(p => {
+            p.mesh.position.y -= p.speed;
+            if (p.mesh.position.y < p.startY - 0.4) {
+                p.mesh.position.y = p.startY; // Loop
+            }
+        });
+    }
+
+    // === WINTER EFFECTS (Freezing/Shivering) ===
+    let breathParticles = [];
+    let shiverModel = null;
+    let shiverFrame = 0;
+
+    function createFreezingEffects(model) {
+        clearFreezingEffects();
+        shiverModel = model;
+        shiverFrame = 0;
+
+        // 白い息パーティクル (口元から上昇)
+        const breathGeo = new THREE.SphereGeometry(0.05, 8, 8);
+        const breathMat = new THREE.MeshBasicMaterial({
+            color: 0xFFFFFF,
+            transparent: true,
+            opacity: 0.6
+        });
+
+        // Position near mouth
+        for (let i = 0; i < 3; i++) {
+            const mesh = new THREE.Mesh(breathGeo, breathMat.clone());
+            mesh.position.copy(model.position).add(new THREE.Vector3(
+                (Math.random() - 0.5) * 0.1,  // X variance
+                1.35 + Math.random() * 0.1,    // Mouth height
+                0.35                            // Front of face
+            ));
+            scene.add(mesh);
+            breathParticles.push({
+                mesh: mesh,
+                startY: mesh.position.y,
+                speed: 0.003 + Math.random() * 0.002,
+                life: 0,
+                maxLife: 60 + Math.random() * 30
+            });
+        }
+    }
+
+    function updateFreezingEffects() {
+        // 白い息の更新
+        breathParticles.forEach(p => {
+            p.mesh.position.y += p.speed;
+            p.life++;
+            // Fade out and reset
+            if (p.life > p.maxLife) {
+                p.mesh.position.y = p.startY;
+                p.mesh.material.opacity = 0.6;
+                p.life = 0;
+            } else if (p.life > p.maxLife - 20) {
+                p.mesh.material.opacity = 0.6 * (p.maxLife - p.life) / 20;
+            }
+        });
+
+        // 体の震え
+        if (shiverModel) {
+            shiverFrame++;
+            const shiverAmount = 0.015;
+            shiverModel.position.x += Math.sin(shiverFrame * 0.5) * shiverAmount;
+            shiverModel.rotation.z = Math.sin(shiverFrame * 0.3) * 0.02;
+        }
+    }
+
+    function clearFreezingEffects() {
+        breathParticles.forEach(p => {
+            scene.remove(p.mesh);
+            if (p.mesh.material) p.mesh.material.dispose();
+            if (p.mesh.geometry) p.mesh.geometry.dispose();
+        });
+        breathParticles = [];
+        if (shiverModel) {
+            shiverModel.position.x = NPC_CONFIG.opening.position.x;
+            shiverModel.rotation.z = 0;
+        }
+        shiverModel = null;
+        shiverFrame = 0;
+    }
+
+    // === Gameplay Shiver Effect ===
+    let gameShiverTime = 0;
+    function updateGameplayShiver(dt) {
+        // ★修正: currentSeason -> GameConfig.currentSeason
+        if (GameConfig.currentSeason !== 'winter' || !gameplayNPC) return;
+
+        gameShiverTime += dt;
+
+        // 1. 高速振動 (High Frequency)
+        const rapidShake = Math.sin(gameShiverTime * 60);
+
+        // 2. 強弱の波 (Envelope)
+        const slowWave = Math.sin(gameShiverTime * 1.0) + Math.sin(gameShiverTime * 2.3) * 0.5;
+
+        let intensity = 0.005;
+        if (slowWave > 0.2) {
+            intensity += slowWave * 0.05;
+        }
+
+        // Apply Rotation Shake
+        gameplayNPC.rotation.y = rapidShake * intensity;
+
+        // Apply Position Shake
+        const posConfig = NPC_CONFIG.gameplay || { position: { x: -13 } }; // 安全策
+        gameplayNPC.position.x = posConfig.position.x + (rapidShake * intensity * 0.05);
+    }
+
+    // === Season-agnostic Effect Control ===
+    function createSeasonEffects(model) {
+        if (GameConfig.currentSeason === SEASON.SUMMER) {
+            createSweatEffects(model);
+        } else if (GameConfig.currentSeason === SEASON.WINTER) {
+            createFreezingEffects(model);
+        }
+    }
+
+    function updateSeasonEffects() {
+        if (GameConfig.currentSeason === SEASON.SUMMER) {
+            updateSweatEffects();
+        } else if (GameConfig.currentSeason === SEASON.WINTER) {
+            updateFreezingEffects();
+        }
+    }
+
+    function clearSeasonEffects() {
+        clearSweatEffects();
+        clearFreezingEffects();
+    }
+
+    // Timer management for opening sequence
+    let openingTimers = [];
+    let openingInterval = null;
+
+    // === NPC Spawn Functions ===
+
+    /**
+     * スポーン: Opening専用NPC (季節対応)
+     * @param {Function} onComplete - ロード完了時コールバック
+     */
+    function spawnOpeningNPC(onComplete) {
+        const posConfig = NPC_CONFIG.opening;
+        const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].openingNPC;
+
+        // 既存の破棄
+        if (openingNPC) {
+            disposeObject(openingNPC);
+            openingNPC = null;
+        }
+
+        loader.load(
+            seasonConfig.model,
+            (fbx) => {
+                console.log('FBX Loaded: Opening NPC (' + GameConfig.currentSeason + ')');
+
+                // スケール調整
+                const box = new THREE.Box3().setFromObject(fbx);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
+                fbx.scale.setScalar(scaleFactor);
+
+                // 位置・回転設定
+                const scaledBox = new THREE.Box3().setFromObject(fbx);
+                const offsetY = -scaledBox.min.y;
+                fbx.position.set(posConfig.position.x, offsetY, posConfig.position.z);
+                fbx.rotation.y = posConfig.rotation;
+
+                // Entity設定
+                fbx.userData.entityType = 'npc';
+                fbx.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        child.userData.entityType = 'npc';
+                    }
+                });
+
+                // 非表示でシーンに追加
+                fbx.visible = false;
+                scene.add(fbx);
+                openingNPC = fbx;
+
+                // アウトライン適用
+                applyOutlineRules(fbx);
+
+                // アニメーション（あれば）
+                if (fbx.animations && fbx.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(fbx);
+                    const action = mixer.clipAction(fbx.animations[0]);
+                    action.setLoop(THREE.LoopRepeat);
+                    action.play();
+                }
+
+                if (onComplete) onComplete(fbx);
+            },
+            undefined,
+            (error) => {
+                console.error("Error loading Opening NPC:", error);
+                if (onComplete) onComplete(null);
+            }
+        );
+    }
+
+    /**
+     * スポーン: Gameplay常駐NPC (季節対応)
+     */
+    function spawnGameplayNPC() {
+        const posConfig = NPC_CONFIG.gameplay;
+        const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].gameplayNPC;
+
+        // 既存の破棄
+        if (gameplayNPC) {
+            disposeObject(gameplayNPC);
+            gameplayNPC = null;
+        }
+
+        loader.load(
+            seasonConfig.model,
+            (fbx) => {
+                console.log('FBX Loaded: Gameplay NPC (' + GameConfig.currentSeason + ')');
+
+                // スケール調整
+                const box = new THREE.Box3().setFromObject(fbx);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
+                fbx.scale.setScalar(scaleFactor);
+
+                // 位置・回転設定
+                const scaledBox = new THREE.Box3().setFromObject(fbx);
+                const offsetY = -scaledBox.min.y;
+                fbx.position.set(posConfig.position.x, offsetY, posConfig.position.z);
+                fbx.rotation.y = posConfig.rotation;
+
+                // Entity設定
+                fbx.userData.entityType = 'npc';
+                fbx.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        child.userData.entityType = 'npc';
+                    }
+                });
+
+                // シーンに追加
+                scene.add(fbx);
+                gameplayNPC = fbx;
+
+                // アウトライン適用
+                applyOutlineRules(fbx);
+            },
+            undefined,
+            (error) => {
+                console.error("Error loading Gameplay NPC:", error);
+            }
+        );
+    }
+
+
+    // Safety Array for Ending Objects
+    let endingObjects = [];
+    function addEndingObject(obj) {
+        endingObjects.push(obj);
+        scene.add(obj);
+    }
+
+    /**
+     * スポーン: Ending用アセット (Banzai Potato & Juice)
+     * @param {Function} onComplete - ロード完了時コールバック
+     */
+    function spawnEndingAssets(onComplete) {
+        console.log('--- spawnEndingAssets CALLED ---'); // Entry Log
+
+        let loadedCount = 0;
+        const onAssetLoaded = () => {
+            loadedCount++;
+            if (loadedCount === 2 && onComplete) onComplete();
+        };
+
+        // 1. Banzai Potato
+        // 1. Ending Potato (Juice Ver)
+        const banzaiPath = 'models/potatokun_juice.fbx';
+        console.log('LOADING ENDING POTATO (Juice):', banzaiPath); // Requested Log
+
+        loader.load(banzaiPath, (fbx) => {
+            // スケール調整 (Opening NPCと同一ロジック)
+            const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].openingNPC;
+            const box = new THREE.Box3().setFromObject(fbx);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
+            fbx.scale.setScalar(scaleFactor);
+
+            // アウトライン & Material Cloning (Isolation)
+            fbx.userData.entityType = 'npc';
+            applyOutlineRules(fbx);
+            fbx.traverse(c => {
+                if (c.isMesh) {
+                    c.castShadow = true;
+                    c.receiveShadow = true;
+                    c.userData.entityType = 'npc';
+
+                    // Clone material to prevent shared state issues (e.g. accidental transparency)
+                    if (Array.isArray(c.material)) {
+                        c.material = c.material.map(m => {
+                            const cloned = m.clone();
+                            // ★ FORCE OPAQUE: Fix for persistent transparency
+                            cloned.transparent = false;
+                            cloned.opacity = 1.0;
+                            return cloned;
+                        });
+                    } else if (c.material) {
+                        const cloned = c.material.clone();
+                        // ★ FORCE OPAQUE: Fix for persistent transparency
+                        cloned.transparent = false;
+                        cloned.opacity = 1.0;
+                        c.material = cloned;
+                    }
+
+                    // Targeting the Can specifically (Blender name: Untitled)
+                    if (c.name === 'Untitled') {
+                        console.log('Fixed Transparency for Can (Untitled)');
+                    }
+                }
+            });
+
+            // ★ Wrap in Ending Root (Fix Scale/Origin)
+            const endingRoot = new THREE.Object3D();
+            endingRoot.name = 'BanzaiRoot';
+
+            // Add FBX to Root
+            endingRoot.add(fbx);
+
+            // Reset FBX local transform just in case
+            fbx.position.set(0, 0, 0);
+            fbx.rotation.set(0, 0, 0);
+
+            // Calculate Bounding Box of ROOT (World)
+            // Note: We need to add to scene briefly or update matrix
+            endingRoot.updateMatrixWorld(true);
+            const rootBox = new THREE.Box3().setFromObject(endingRoot);
+            const rootMinY = rootBox.min.y;
+
+            // Ground Snap (Move Root)
+            if (isFinite(rootMinY)) {
+                endingRoot.position.y -= rootMinY;
+            }
+            // Generate Safety Floor
+            endingRoot.position.y = Math.max(endingRoot.position.y, 0);
+
+            // Scale Root (No Modification)
+            // endingRoot.scale.setScalar(1.0);
+
+            // Global Reference
+            banzaiNPC = endingRoot; // Make banzaiNPC the ROOT
+
+            console.log("Banzai Root Created via spawnEndingAssets");
+            console.trace("Checking Spawn Origin");
+            endingRoot.visible = false; // Start Hidden
+
+            // Add via safety wrapper
+            addEndingObject(endingRoot);
+
+            // --------------------------------------
+
+            onAssetLoaded();
+        });
+
+        // 2. Juice
+        loader.load('models/juice.fbx', (fbx) => {
+            // スケール (小さめ)
+            const box = new THREE.Box3().setFromObject(fbx);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            // 0.3m target height
+            const scaleFactor = 0.3 / (size.y > 0 ? size.y : 1.0);
+            fbx.scale.setScalar(scaleFactor);
+
+            // アウトライン
+            fbx.userData.entityType = 'object'; // 'object' uses simple outline
+            applyOutlineRules(fbx);
+            fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; c.userData.entityType = 'object'; } });
+
+            juiceModel = fbx;
+            addEndingObject(fbx); // Use safe wrapper
+            // scene.add(fbx); 
+            fbx.visible = false; // 最初は隠す
+            onAssetLoaded();
+        });
+    }
+
+    // State Transition: Opening -> Gameplay
+    function transitionToGameplay() {
+        console.log("Transitioning to Gameplay...");
+
+        // 1. オープニングNPC削除
+        if (openingNPC) {
+            disposeObject(openingNPC);
+            openingNPC = null;
+        }
+
+        // 2. お座りくん生成
+        spawnGameplayNPC();
+
+        // 3. FPS視点へ & 入力有効化 (Sync Variables!)
+        isCinematic = false;
+
+        // ★ Stop OPENING interval explicitly
+        if (openingInterval) {
+            clearInterval(openingInterval);
+            openingInterval = null;
+        }
+
+        // ★ Clear Season Effects (Snow, Sweat, etc.)
+        clearSeasonEffects();
+
+        // ★Reset Camera Variables for FPS
+        cameraDistance = 0.0; // Force FPS
+
+        // Synced Position: Starts at Z=-2 (safe distance from Vending Machine at Z=8)
+        // Old: 2. Inverted: -2.
+        playerPosition.set(-11, 0.6, -2);
+
+        // Sync Camera Angle to look at Vending Machine (North/Negative Z)
+        cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
+        cameraPitch = 0;       // Level
+
+        // Apply immediately so render doesn't flicker
+        camera.position.copy(playerPosition);
+        camera.rotation.set(cameraPitch, cameraAngle, 0, 'YXZ');
+
+        // UI Reset
+        const dpad = document.getElementById('sg-dpad');
+        if (dpad) dpad.style.display = 'grid';
+        showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+
+        // ★ Enable Player Input (ensure input manager is active)
+        // enablePlayerInput is implicit - inputs are always enabled when isCinematic = false
+        // But we can explicitly log for debugging:
+        console.log("Player Input Enabled. State:", GameState.PLAYING);
+
+        // ★ Set State LAST to ensure all setup is done
+        currentState = GameState.PLAYING;
+    }
+
+    // Finish/Skip Opening - Common cleanup function
+    // Finish/Skip Opening
+    function finishOpening() {
+        // 現在の状態がOPENINGでなければ無視（重複防止）
+        if (currentState !== GameState.OPENING) return;
+        openingTimers.forEach(id => clearTimeout(id));
+        openingTimers = [];
+        if (openingInterval) {
+            clearInterval(openingInterval);
+            openingInterval = null;
+        }
+        clearSweatEffects();
+
+        // UI切り替え
+        const skipBtn = document.getElementById('sg-skip-btn');
+        if (skipBtn) skipBtn.style.display = 'none';
+
+        // 次のフェーズへ
+        if (typeof transitionToGameplay === 'function') {
+            transitionToGameplay();
+        } else {
+            console.log("transitionToGameplay not found, falling back strictly.");
+            if (openingNPC) openingNPC.visible = false;
+            isCinematic = false;
+            currentState = GameState.PLAYING;
+
+            // Fallback UI
+            const dpad = document.getElementById('sg-dpad');
+            if (dpad) dpad.style.display = 'grid';
+            if (typeof playerPosition !== 'undefined') playerPosition.set(-13, 0.6, 5); // Old: -5. Inverted: 5.
+            showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+        }
+
+    }
+
+    function startOpeningSequence() {
+        console.log("Starting Opening Sequence...");
+        currentState = GameState.OPENING; // ★State変更
+        isCinematic = true;
+
+        // ★Opening NPC参照
+        const npc = openingNPC;
+        if (!npc) {
+            console.warn("Opening NPC not ready yet, retrying...");
+            setTimeout(startOpeningSequence, 500);
+            return;
+        }
+
+        // --- UI Toggle ---
+        const skipBtn = document.getElementById('sg-skip-btn');
+        const dpad = document.getElementById('sg-dpad');
+        if (dpad) dpad.style.display = 'none';
+        if (skipBtn) {
+            skipBtn.style.display = 'block';
+            skipBtn.onclick = (e) => {
+                e.preventDefault(); e.stopPropagation();
+                finishOpening();
+            };
+        }
+
+
+        // --- Acting Setup ---
+        npc.position.set(-11, 0, -5);
+        npc.visible = true;
+        createSeasonEffects(npc);
+
+        // --- Camera Work ---
+        const baseCamPos = new THREE.Vector3(-11, 1.0, 2.5); // Old: -2.5. Inverted: 2.5
+        camera.position.copy(baseCamPos);
+        camera.lookAt(-11, 0.5, 5); // Old: -5. Inverted: 5
+
+        // --- Hide Loading Overlay ---
+        const overlay = document.getElementById('sg-loading-overlay');
+        if (overlay) overlay.style.display = 'none';
+
+        // --- Dialog Sequence (Season-based) ---
+        const lines = OPENING_LINES[GameConfig.currentSeason];
+        lines.forEach(line => {
+            if (line.time === 0) {
+                showTapText(window.innerWidth / 2, window.innerHeight * 0.7, line.text, line.color);
+            } else {
+                openingTimers.push(setTimeout(() => {
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, line.text, line.color);
+                }, line.time));
+            }
+        });
+
+        // --- Animation Loop ---
+        // --- Animation Loop ---
+        if (openingInterval) clearInterval(openingInterval);
+        openingInterval = setInterval(() => {
+            if (currentState !== GameState.OPENING) return; // 安全策
+            updateSeasonEffects();
+        }, 16);
+
+        // Finish
+        openingTimers.push(setTimeout(() => {
+            finishOpening();
+        }, 13000));
+    }
+
+    // State Transition: Gameplay -> Ending
+    function transitionToEnding() {
+        console.log("Transitioning to Ending...");
+        currentState = GameState.ENDING;
+        isPlaying = false;
+        if (timerId) clearInterval(timerId);
+
+        // UI & Asset Cleanup
+        const bgCanvas = document.getElementById('canvas-container');
+        if (bgCanvas) bgCanvas.style.display = 'none';
+        ['sg-ui', 'sg-dpad', 'sg-get-btn', 'sg-instructions', 'sg-crosshair', 'sg-timer'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+        if (gameplayNPC) gameplayNPC.visible = false;
+        if (controls) controls.enabled = false;
+        if (slideModel) slideModel.visible = false;
+
+        // Start Controller
+        EndingController.start();
+    }
+
+
+    /**
+     * エンディングコントローラー
+     * 演出を一本のタイムラインで管理
+     */
+    const EndingController = {
+        time: 0,
+        steps: [],
+
+        // ★ Camera Base Definition (Single Source of Truth)
+        // [FIXED] Default Frontal View
+        // Pos: (vm.x, 1.3, vm.z + 3.5)
+        // LookAt: (vm.x, 1.3, vm.z)
+        baseCamera: {
+            pos: new THREE.Vector3(NPC_CONFIG.vendingMachine.x, 1.3, NPC_CONFIG.vendingMachine.z + 3.5),
+            lookAt: new THREE.Vector3(NPC_CONFIG.vendingMachine.x, 1.3, NPC_CONFIG.vendingMachine.z)
+        },
+
+        start: function () {
+            this.time = 0;
+
+            // Define Steps
+            this.steps = [
+                {
+                    time: 0.0,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 1: Init Camera & Assets");
+
+                        // Camera Setup: Use BASE CONSTANT
+                        // Front of Vending Machine (Default Position)
+                        const base = this.baseCamera;
+                        camera.position.copy(base.pos);
+                        camera.lookAt(base.lookAt);
+                        camera.updateMatrixWorld();
+
+                        // Assets Init (Hidden at start)
+                        if (banzaiNPC) {
+                            banzaiNPC.visible = false; // Hidden until Step 3
+                            banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                            banzaiNPC.rotation.y = -Math.PI / 8;
+                        } else {
+                            // Emergency Spawn check
+                            spawnEndingAssets(() => {
+                                if (banzaiNPC) {
+                                    addEndingObject(banzaiNPC);
+                                    banzaiNPC.visible = false;
+                                    banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                                    banzaiNPC.rotation.y = -Math.PI / 8;
+                                }
+                            });
+                        }
+                        if (juiceModel) {
+                            juiceModel.visible = false; // Hidden until Step 2
+                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+                            const vm = NPC_CONFIG.vendingMachine;
+                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
+                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+
+                            // Rotation: Sideways (Z-axis rotation)
+                            juiceModel.rotation.set(0, 0, Math.PI / 2);
+                        }
+                    }
+                },
+                {
+                    time: 1.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 2: Juice Slide");
+                        if (juiceModel) juiceModel.visible = true;
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
+                    }
+                },
+                {
+                    time: 3.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 3: Potato Appears");
+                        if (banzaiNPC) banzaiNPC.visible = true;
+                        if (juiceModel) juiceModel.visible = false; // Hide Juice (Picked up by Potato)
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ありがとう💕", "#FFA500");
+                    }
+                },
+                {
+                    time: 6.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 4: Finish");
+                        finishEnding();
+                    }
+                }
+            ];
+
+            // Execute time 0 immediately
+            this.update(0);
+        },
+
+        update: function (dt) {
+            this.time += dt;
+
+            // Execute Steps
+            this.steps.forEach(step => {
+                if (!step.fired && this.time >= step.time) {
+                    step.action();
+                    step.fired = true;
+                }
+            });
+
+            // --- Continuous Animations ---
+
+            // Juice Slide (1.5s ~ 3.0s)
+            if (this.time >= 1.5 && this.time < 3.0) {
+                if (juiceModel && juiceModel.visible) {
+                    // Slide forward/up slightly
+                    juiceModel.position.z += dt * 0.1;
+                }
+            }
+
+            // Potato Bob (3.5s ~)
+            if (this.time >= 3.5) {
+                if (banzaiNPC && banzaiNPC.visible) {
+                    // Gentle vertical bob
+                    banzaiNPC.position.y = Math.sin((this.time - 3.5) * 4) * 0.05;
+                }
+            }
+        }
+    };
+
+    /**
+     * エンディング演出用アップデート関数
+     * @param {number} dt 
+     */
+    function updateEndingAnimation(dt) {
+        EndingController.update(dt);
+    }

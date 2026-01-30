@@ -134,6 +134,51 @@ function initGameSystem() {
     const startBtn = document.getElementById('intro-start-btn');
     if (startBtn) startBtn.addEventListener('click', launchGame);
 
+    // ==========================================
+    // iOS/Mobile Audio Unlock (Robust Version)
+    // ==========================================
+    (() => {
+        console.log("🔊 Initializing iOS Audio Unlocker...");
+
+        const unlockAudioContext = () => {
+            // Three.jsが管理しているAudioContextを取得
+            const context = THREE.AudioContext.getContext();
+
+            if (context.state === 'suspended') {
+                context.resume().then(() => {
+                    console.log("🔓 AudioContext Resumed! (iOS Restriction Cleared)");
+                });
+            } else if (context.state === 'running') {
+                console.log("✅ AudioContext is already running.");
+            }
+
+            // 念には念を：空の音を再生して「音を出しましたよ」という実績を作るハック
+            const buffer = context.createBuffer(1, 1, 22050);
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(context.destination);
+            if (source.start) {
+                source.start(0);
+            } else if (source.noteOn) {
+                source.noteOn(0);
+            }
+
+            // イベントリスナーを削除（1回やればOKだからな）
+            ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
+                document.removeEventListener(evt, unlockAudioContext);
+            });
+        };
+
+        // 画面のどこを触っても解除されるように全域にトラップを仕掛ける
+        ['touchstart', 'touchend', 'click', 'keydown'].forEach(evt => {
+            document.addEventListener(evt, unlockAudioContext, { once: true, capture: true });
+        });
+
+        console.log("👂 Waiting for user interaction to unlock audio...");
+    })();
+
+    // Initialize Menu Buttons (Continued)
+
     const backBtn = document.getElementById('intro-back-btn');
     if (backBtn) backBtn.addEventListener('click', showGameMenu);
 
@@ -3000,6 +3045,11 @@ const SearchGame = (() => {
                     nekoTriggered = true;
                     nekoEarAnim.active = true;
                     nekoEarAnim.startTime = performance.now();
+
+                    // ★追加: 接近時に鳴き声を再生
+                    const audio = new Audio('assets/cat_voice.mp3');
+                    audio.volume = 0.5; // 音量調整
+                    audio.play().catch(e => console.log('Audio play blocked:', e));
                 }
 
                 // ② リセット (3.5m以上離れたらスイッチOFF)
