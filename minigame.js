@@ -2877,9 +2877,86 @@ const SearchGame = (() => {
         };
 
         // イベント登録
-        renderer.domElement.addEventListener('click', handleInputInteraction);
-        // タッチ環境での反応を良くするため touchstart も追加
-        renderer.domElement.addEventListener('touchstart', handleInputInteraction, { passive: false });
+        // renderer.domElement.addEventListener('click', handleInputInteraction);
+        // // タッチ環境での反応を良くするため touchstart も追加
+        // renderer.domElement.addEventListener('touchstart', handleInputInteraction, { passive: false });
+
+        /**
+         * 【Phase 2 施工完了】スワイプとタップの完全分離 (Smart Tap System)
+         * 既存の addEventListener('touchstart', ...) を無効化し、賢い判定に入れ替える
+         */
+        (() => {
+            const canvas = renderer.domElement;
+
+            // 2. スマートタップ判定用の変数
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let isSwiping = false;
+            const TAP_THRESHOLD = 10; // 10px以上動いたら「スワイプ（視点移動）」とみなす
+
+            // ■ タッチ開始：位置を記憶（まだGETしない！）
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    isSwiping = false; // フラグリセット
+                }
+            }, { passive: false });
+
+            // ■ タッチ移動：もし大きく動いたら「スワイプ中」と認定
+            canvas.addEventListener('touchmove', (e) => {
+                // 既にスワイプ判定済みなら計算不要
+                if (isSwiping) return;
+
+                if (e.touches.length > 0) {
+                    const x = e.touches[0].clientX;
+                    const y = e.touches[0].clientY;
+                    // 移動距離を三平方の定理で計算
+                    const dist = Math.sqrt(Math.pow(x - touchStartX, 2) + Math.pow(y - touchStartY, 2));
+
+                    // 閾値を超えたら「これはカメラ操作だ！」と判定
+                    if (dist > TAP_THRESHOLD) {
+                        isSwiping = true;
+                    }
+                }
+            }, { passive: false });
+
+            // ■ タッチ終了：スワイプしてなければ「タップ」として処理実行！
+            canvas.addEventListener('touchend', (e) => {
+                // スワイプ判定されていたら、コイン判定はキャンセル（視点操作のみ）
+                if (isSwiping) {
+                    // console.log("👆 Swiped (Camera Move) - Interaction Ignored");
+                    return;
+                }
+
+                console.log("👆 Tap Detected! Executing Interaction...");
+
+                // 既存の handleInputInteraction を呼び出す
+                // (touchend には touches がないので、changedTouches から座標を拾って偽装する)
+                if (typeof handleInputInteraction === 'function' && e.changedTouches.length > 0) {
+                    const t = e.changedTouches[0];
+
+                    // 擬似イベントオブジェクトを作成
+                    const fakeEvent = {
+                        preventDefault: () => { },
+                        clientX: t.clientX,
+                        clientY: t.clientY,
+                        // 既存関数が touches[0] を参照していても大丈夫なように配列化
+                        touches: [{ clientX: t.clientX, clientY: t.clientY }],
+                        type: 'touchstart', // 既存ロジックを騙すためにtouchstartとして送り込む
+                        changedTouches: [{ clientX: t.clientX, clientY: t.clientY }]
+                    };
+
+                    // 実行！
+                    handleInputInteraction(fakeEvent);
+                }
+            }, { passive: false });
+
+            // マウスのクリックもサポート（PC用）
+            canvas.addEventListener('click', handleInputInteraction);
+
+            console.log("✅ Smart Tap System Installed: Swipes are no longer Taps!");
+        })();
 
         // ★旧UIの非表示化 (十字キーとGETボタン)
         const crosshair = document.getElementById('sg-crosshair');
