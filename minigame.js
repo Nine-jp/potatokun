@@ -3618,7 +3618,7 @@ const SearchGame = (() => {
         spawnClouds();
         // === 草 (Grass) の生成 ===
         spawnGrass();
-        // === LOAD FBX MODEL: Tree_test (Forest of trees around park edges) ===
+
 
         const TREE_TARGET_HEIGHT = 5.0; // Base target height for trees: 5 meters
         const NUM_TREES = 22; // Increased to replace old box-based trees
