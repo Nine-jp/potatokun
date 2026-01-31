@@ -4409,17 +4409,27 @@ const SearchGame = (() => {
                             c.castShadow = true;
                         });
 
-                        // ★相対座標による分別ロジック
-                        streams.sort((a, b) => b.position.z - a.position.z);
-
+                        // ★名前による分別ロジック (より確実)
                         obj.userData.noseStreams = [];
                         obj.userData.backStreams = [];
 
-                        if (streams.length > 0) {
-                            obj.userData.noseStreams.push(streams[0]);
-                            for (let i = 1; i < streams.length; i++) {
-                                obj.userData.backStreams.push(streams[i]);
+                        streams.forEach(s => {
+                            if (s.name.toLowerCase().includes('nose')) {
+                                obj.userData.noseStreams.push(s);
+                            } else {
+                                obj.userData.backStreams.push(s);
                             }
+                        });
+
+                        // フォールバック: 名前でnoseが見つからなかった場合のみZソート
+                        if (obj.userData.noseStreams.length === 0 && streams.length > 0) {
+                            console.warn("Elephant: No 'nose' stream found by name. Falling back to Z-sort.");
+                            streams.sort((a, b) => b.position.z - a.position.z);
+                            obj.userData.noseStreams.push(streams[0]);
+
+                            // backStreamsから重複削除
+                            const idx = obj.userData.backStreams.indexOf(streams[0]);
+                            if (idx > -1) obj.userData.backStreams.splice(idx, 1);
                         }
 
                         console.log(`Elephant Streams Sorted: Nose=${obj.userData.noseStreams.length}, Back=${obj.userData.backStreams.length}`);
@@ -5084,7 +5094,7 @@ const SearchGame = (() => {
                     const pPos = playerPosition;
 
                     // 鼻先
-                    const noseOffset = new THREE.Vector3(0, 0, 1.8).applyQuaternion(elephant.quaternion);
+                    const noseOffset = new THREE.Vector3(0, 0, 0.8).applyQuaternion(elephant.quaternion);
                     const noseWorldPos = elephant.position.clone().add(noseOffset);
 
                     const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.4;
