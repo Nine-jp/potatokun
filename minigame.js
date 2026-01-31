@@ -385,8 +385,11 @@ function showGameIntro(gameId) {
         introIconContainer.textContent = game.icon;
     }
 
-    document.getElementById('intro-title').textContent = game.shortTitle || game.title;
-    document.getElementById('intro-desc').textContent = game.description;
+    const titleEl = document.getElementById('intro-title');
+    if (titleEl) titleEl.textContent = game.shortTitle || game.title;
+
+    const descEl = document.getElementById('intro-desc');
+    if (descEl) descEl.textContent = game.description;
 
     menuContainer.classList.add('hidden');
     introContainer.classList.remove('hidden');
@@ -408,7 +411,8 @@ let hasUnlockedPrize = false; // Persistent for current session/run
 function showGameOver(score) {
     activeGameContainer.classList.add('hidden');
     gameOverContainer.classList.remove('hidden');
-    document.getElementById('final-score-value').textContent = score;
+    const scoreEl = document.getElementById('final-score-value');
+    if (scoreEl) scoreEl.textContent = score;
 
     const prizeUI = document.getElementById('prize-container');
     const prizeLink = document.getElementById('prize-link');
@@ -526,7 +530,7 @@ const PotatoAction = (() => {
     }
 
     function handleInput(e) {
-        if (!isPlaying) return;
+        if (!isPlaying || !player) return; // Guard player
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const halfWidth = 75;
         const x = Math.max(halfWidth, Math.min(window.innerWidth - halfWidth, clientX));
@@ -681,7 +685,8 @@ const PotatoAction = (() => {
         }
 
         if (item.type !== 'skull') {
-            document.getElementById('pa-score').textContent = score;
+            const scoreEl = document.getElementById('pa-score');
+            if (scoreEl) scoreEl.textContent = score;
             item.el.remove();
             items.splice(index, 1);
         }
@@ -5266,8 +5271,11 @@ const SearchGame = (() => {
                             coin.userData.isFalling = true;
                             scene.attach(coin);
 
-                            const box = new THREE.Box3().setFromObject(coin);
-                            coin.userData.groundY = (box.max.y - box.min.y) / 2;
+                            // ★最適化: Box3.setFromObject を初回のみ実行し、結果をキャッシュ
+                            if (typeof coin.userData.groundY === 'undefined') {
+                                const box = new THREE.Box3().setFromObject(coin);
+                                coin.userData.groundY = (box.max.y - box.min.y) / 2;
+                            }
 
                             // プレイヤー方向へ弾く計算
                             tempVec.subVectors(playerPosition, coin.position).normalize();
