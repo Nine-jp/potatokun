@@ -40,8 +40,8 @@ const init3DViewer = () => {
 
     // Camera setup
     let camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 1.5, 4);
-    camera.lookAt(0, 1, 0);
+    camera.position.set(0, 2.3, 4); // Y: 1.5 -> 2.3 (Shift Up to lower model)
+    camera.lookAt(0, 0.8, 0); // Y: 0 -> 0.8
 
     // Renderer setup
     let renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -59,6 +59,8 @@ const init3DViewer = () => {
     controls.maxDistance = 6;
     controls.enablePan = false;
     controls.maxPolarAngle = Math.PI / 1.5;
+    controls.target.set(0, 0.8, 0); // Shift target UP
+    controls.update();
 
     // Theme detection
     const isNewYear = document.body.classList.contains('theme-newyear');
@@ -124,8 +126,8 @@ const init3DViewer = () => {
 
     // Model Configuration
     const models = [
-        { file: "ポテトくん(通常).fbx" },
-        { file: "ポテトくん(2026年午年).fbx" }
+        { name: "ノーマルポテトくん", file: "potatokun_normal.fbx" },
+        { name: "午年ポテトくん", file: "potatokun_newyear2026.fbx" }
     ];
 
     // Populate dropdown
@@ -134,9 +136,8 @@ const init3DViewer = () => {
         models.forEach((m, index) => {
             const opt = document.createElement('option');
             opt.value = index;
-            const displayName = m.file.split('.')[0];
-            opt.textContent = displayName;
-            if (m.file === (isNewYear ? 'ポテトくん(2026年午年).fbx' : 'ポテトくん(通常).fbx')) opt.selected = true;
+            opt.textContent = m.name;
+            if (m.file === (isNewYear ? 'potatokun_newyear2026.fbx' : 'potatokun_normal.fbx')) opt.selected = true;
             modelSelect.appendChild(opt);
         });
 
@@ -212,7 +213,7 @@ const init3DViewer = () => {
     };
 
     // Initial load based on theme
-    const defaultModelName = isNewYear ? 'ポテトくん(2026年午年).fbx' : 'ポテトくん(通常).fbx';
+    const defaultModelName = isNewYear ? 'potatokun_newyear2026.fbx' : 'potatokun_normal.fbx';
     loadModel(`models/${encodeURIComponent(defaultModelName)}`);
 
     // Handle window resize
@@ -255,11 +256,12 @@ const init3DViewer = () => {
                     camera.updateProjectionMatrix();
                     renderer.setSize(width, height);
 
-                    // Re-center Camera & Controls
+                    // Re-center Camera & Controls (with Offset)
                     if (currentObject) {
-                        camera.lookAt(currentObject.position);
+                        const targetPos = currentObject.position.clone().add(new THREE.Vector3(0, 0.8, 0));
+                        camera.lookAt(targetPos);
                         if (controls) {
-                            controls.target.copy(currentObject.position);
+                            controls.target.copy(targetPos);
                             controls.update();
                         }
                     }

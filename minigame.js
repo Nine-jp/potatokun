@@ -3,6 +3,9 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
+// Global Cache for Tree Optimization
+let masterTreeModel = null;
+
 
 
 /**
@@ -3752,40 +3755,42 @@ const SearchGame = (() => {
                 }
             });
 
-            // ===================================
+            // ==========================================
             // 2. 木の配置 (Trees)
-            // ===================================
-            const treeLoader = new FBXLoader();
-            treeLoader.load('models/tree.fbx', (masterTree) => {
-                console.log('FBX Loaded: tree.fbx');
+            // ==========================================
+            const executeTreePlacement = (masterTree) => {
+                console.log('Using Master Tree Model for Placement');
 
-                // 階層構造と名前の確認ログ
-                masterTree.traverse((c) => {
-                    if (c.isMesh) console.log(`[Tree Mesh Found] Name: ${c.name}`);
-                });
+                // 階層構造と名前の確認ログ (初回のみでよいが、配置時ログとして残す)
+                // masterTree.traverse((c) => {
+                //     if (c.isMesh) console.log(`[Tree Mesh Found] Name: ${c.name}`);
+                // });
 
                 window.sgMasterTree = masterTree;
 
                 // マテリアル設定 (クローン必須)
-                masterTree.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
+                // NOTE: masterTreeModel自体は既に持っているが、配置ごとにMaterial Cloneが必要なロジックになっているか？
+                // 元のロジックでは "masterTree.traverse... child.material = child.material.clone()" していた。
+                // masterTreeModelを汚染しないよう、配置用ロジック内で処理する形にするのが安全だが、
+                // ユーザー指示「masterTreeModel.clone()を使用」に従い、
+                // ここでは "masterTree" (引数) は既に Clone されたものが渡されてくる前提、
+                // またはここで Clone してから処理するか？
+                // -> 指示「2本目以降... masterTreeModel.clone() を使用」
+                // つまり、 placementLogic の中で masterTree.clone() して配置するループが回っている。
+                // なので、ここの引数 `masterTree` は "オリジナル(Master)" であるべき。
 
-                        if (child.material) {
-                            if (Array.isArray(child.material)) {
-                                child.material = child.material.map(m => m.clone());
-                            } else {
-                                child.material = child.material.clone();
-                            }
-                            // 自己発光リセット
-                            if (child.material.emissive) {
-                                child.material.emissive.setHex(0x000000);
-                            }
-                        }
-                        child.userData.isTree = true;
-                    }
-                });
+                // しかし、元のコード（3760行目以降）を見ると...
+                // loader.load(..., (masterTree) => { 
+                //    masterTree.traverse(...) // ここでMasterのマテリアルをCloneして置換してしまっている！
+                //    ... (中略) ...
+                //    treePositions.forEach(...) { const tree = masterTree.clone(); ... }
+                // })
+
+                // つまり、Master自体を一度セットアップ（マテリアル複製など）してから、
+                // それを更にCloneして配置している。
+                // したがって、Masterのセットアップは「初回ロード時」に1回だけやるべき機能。
+
+                // ここでは「配置ロジック」として、ループ処理以降を定義する。
 
                 const treePositions = [];
                 const placedTrees = [];
@@ -3845,7 +3850,7 @@ const SearchGame = (() => {
                 console.log(`Forest Generation: ${attempts} attempts made.`);
 
                 treePositions.forEach((pos, index) => {
-                    const tree = masterTree.clone();
+                    const tree = masterTree.clone(); // ★ここがClone
                     tree.userData.isTree = true; // Mark root
                     tree.name = `Tree_${index}`;
                     const scale = 0.8 + Math.random() * 0.4;
@@ -3977,11 +3982,55 @@ const SearchGame = (() => {
                 }
 
                 if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
+            };
 
-            },
-                undefined,
-                (error) => console.error('Error loading tree.fbx:', error)
-            );
+            // ★★★ ローディング & キャッシュロジック ★★★
+            if (masterTreeModel) {
+                executeTreePlacement(masterTreeModel);
+            } else {
+                // 読み込み中フラグチェック (簡易Promise代用)
+                if (window._isTreeLoading && window._treeLoadPromise) {
+                    window._treeLoadPromise.then(model => executeTreePlacement(model));
+                } else {
+                    window._isTreeLoading = true;
+                    window._treeLoadPromise = new Promise((resolve, reject) => {
+                        const treeLoader = new FBXLoader();
+                        treeLoader.load('models/tree.fbx', (masterTree) => {
+                            console.log('FBX Loaded: tree.fbx (Caching to masterTreeModel)');
+
+                            // Masterの初期セットアップ（マテリアルClone等）はここで一度だけ行う
+                            masterTree.traverse((child) => {
+                                if (child.isMesh) {
+                                    child.castShadow = true;
+                                    child.receiveShadow = true;
+
+                                    if (child.material) {
+                                        if (Array.isArray(child.material)) {
+                                            child.material = child.material.map(m => m.clone());
+                                        } else {
+                                            child.material = child.material.clone();
+                                        }
+                                        // 自己発光リセット
+                                        if (child.material.emissive) {
+                                            child.material.emissive.setHex(0x000000);
+                                        }
+                                    }
+                                    child.userData.isTree = true;
+                                }
+                            });
+
+                            masterTreeModel = masterTree;
+                            window._isTreeLoading = false;
+                            resolve(masterTree);
+                        }, undefined, (error) => {
+                            console.error('Error loading tree.fbx:', error);
+                            reject(error);
+                        });
+                    });
+
+                    window._treeLoadPromise.then(model => executeTreePlacement(model));
+                }
+            }
         }
 
         // ★ GLOBAL SEASON MANAGER (Comms Tower)
