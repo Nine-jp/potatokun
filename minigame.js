@@ -4386,7 +4386,7 @@ const SearchGame = (() => {
                     path: 'models/elephant_sprayer.fbx',
                     pos: { x: -9, y: 0, z: -8.5 },
                     rot: { y: 0 }, // ★向きを0度に完全固定
-                    scale: 1.0, // 必要に応じて微調整
+                    scale: 0.8, // 必要に応じて微調整
                     collision: true,
                     collisionType: 'cylinder',
                     collisionSize: { radius: 1.35, height: 3 },
@@ -5097,7 +5097,7 @@ const SearchGame = (() => {
                     const noseOffset = new THREE.Vector3(0, 0, 0.8).applyQuaternion(elephant.quaternion);
                     const noseWorldPos = elephant.position.clone().add(noseOffset);
 
-                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.4;
+                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.6;
                     if (elephant.userData.noseStreams) {
                         elephant.userData.noseStreams.forEach(s => s.visible = isNoseActive);
                     }
@@ -5107,12 +5107,12 @@ const SearchGame = (() => {
                     }
 
                     // 背中
-                    const backSensorOffset = new THREE.Vector3(0, 0.6, -0.5).applyQuaternion(elephant.quaternion);
+                    const backSensorOffset = new THREE.Vector3(0, 0.6, -0.8).applyQuaternion(elephant.quaternion);
                     const backSensorPos = elephant.position.clone().add(backSensorOffset);
-                    const backFaucetOffset = new THREE.Vector3(0, 1.2, 0).applyQuaternion(elephant.quaternion);
+                    const backFaucetOffset = new THREE.Vector3(0, 1.0, -0.65).applyQuaternion(elephant.quaternion);
                     const backFaucetPos = elephant.position.clone().add(backFaucetOffset);
 
-                    const isBackActive = pPos.distanceTo(backSensorPos) < 1.6;
+                    const isBackActive = pPos.distanceTo(backSensorPos) < 1.4;
                     if (elephant.userData.backStreams) {
                         elephant.userData.backStreams.forEach(s => s.visible = isBackActive);
                     }
