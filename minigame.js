@@ -4584,7 +4584,7 @@ const SearchGame = (() => {
                 },
                 {
                     name: 'Barricade_NorthEast',
-                    path: 'models/Barricade.fbx',
+                    path: 'models/barricade.fbx',
                     pos: { x: 0, y: 0, z: 0 },
                     scale: 1.0,
                     onLoad: (master) => {
@@ -4624,7 +4624,7 @@ const SearchGame = (() => {
                 },
                 {
                     name: 'BenchCat',
-                    path: 'models/Cat.fbx',
+                    path: 'models/cat.fbx',
                     pos: { x: selectedBench.x, y: 0.45, z: selectedBench.z },
                     rot: { y: selectedBench.r },
                     scale: 1.0,
