@@ -1,289 +1,3 @@
-                    const radius = 45 + Math.random() * 35; // 45m - 80m radius
-
-                    const x = Math.cos(angle) * radius;
-                    const z = Math.sin(angle) * radius;
-
-                    const extTree = masterTree.clone();
-                    extTree.userData.isTree = true;
-                    extTree.name = `ExteriorTree_${i}`;
-
-                    // 外周の木は少し大きめに
-                    const scale = 1.2 + Math.random() * 0.8;
-                    extTree.scale.setScalar(scale);
-
-                    const box = new THREE.Box3().setFromObject(extTree);
-                    const offsetY = -box.min.y;
-                    extTree.position.set(x, offsetY, z);
-
-                    extTree.rotation.y = Math.random() * Math.PI * 2;
-                    scene.add(extTree);
-                    window.sgTreeObjects.push(extTree);
-
-                    if (window.addEdgesOutline) window.addEdgesOutline(extTree, 15, 0x000000);
-                }
-
-                if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
-            };
-
-            // ★★★ ローディング & キャッシュロジック ★★★
-            if (masterTreeModel) {
-                executeTreePlacement(masterTreeModel);
-            } else {
-                // 読み込み中フラグチェック (簡易Promise代用)
-                if (window._isTreeLoading && window._treeLoadPromise) {
-                    window._treeLoadPromise.then(model => executeTreePlacement(model));
-                } else {
-                    window._isTreeLoading = true;
-                    window._treeLoadPromise = new Promise((resolve, reject) => {
-                        const treeLoader = new FBXLoader();
-                        treeLoader.load('models/tree.fbx', (masterTree) => {
-                            console.log('FBX Loaded: tree.fbx (Caching to masterTreeModel)');
-
-                            // Masterの初期セットアップ（マテリアルClone等）はここで一度だけ行う
-                            masterTree.traverse((child) => {
-                                if (child.isMesh) {
-                                    child.castShadow = true;
-                                    child.receiveShadow = true;
-
-                                    if (child.material) {
-                                        if (Array.isArray(child.material)) {
-                                            child.material = child.material.map(m => m.clone());
-                                        } else {
-                                            child.material = child.material.clone();
-                                        }
-                                        // 自己発光リセット
-                                        if (child.material.emissive) {
-                                            child.material.emissive.setHex(0x000000);
-                                        }
-                                    }
-                                    child.userData.isTree = true;
-                                }
-                            });
-
-                            masterTreeModel = masterTree;
-                            window._isTreeLoading = false;
-                            resolve(masterTree);
-                        }, undefined, (error) => {
-                            console.error('Error loading tree.fbx:', error);
-                            reject(error);
-                        });
-                    });
-
-                    window._treeLoadPromise.then(model => executeTreePlacement(model));
-                }
-            }
-        }
-
-        // ★ GLOBAL SEASON MANAGER (Comms Tower)
-        window.setGameSeason = (seasonName) => {
-            console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
-
-            // 1. Grass
-            if (window.setGrassSeason) window.setGrassSeason(seasonName);
-
-            // 2. Trees
-            if (window.setTreeSeason) window.setTreeSeason(seasonName);
-
-            // 3. Environment (Sky, Fog, Sun)
-            if (window.setEnvironmentSeason) window.setEnvironmentSeason(seasonName);
-
-            // 4. Clouds ★追加
-            if (window.setCloudSeason) window.setCloudSeason(seasonName);
-
-            // 5. Parasols ★追加
-            if (window.setParasolSeason) window.setParasolSeason(seasonName);
-        };
-
-        // ★ Parasol Season Manager
-        window.sgParasolCanopies = [];
-        window.setParasolSeason = (seasonName) => {
-            const seasonColors = {
-                spring: 0xFFC0CB, // Pink
-                summer: 0x00BFFF, // Blue
-                autumn: 0xD2691E, // Orange/Brown
-                winter: 0xE0FFFF  // White/Cyan
-            };
-            const color = seasonColors[seasonName] || seasonColors.summer;
-
-            if (window.sgParasolCanopies) {
-                window.sgParasolCanopies.forEach(mesh => {
-                    if (mesh.material) {
-                        // MeshLambertMaterial or MeshBasicMaterial depending on loaded asset
-                        // Ensure we clone if needed or just set color if unique
-                        mesh.material.color.setHex(color);
-                    }
-                });
-            }
-        };
-
-        // 1. Place Park Assets (Registers Exclusion Zones)
-        createParkAssets();
-
-        // 2. Place Trees (Registers Exclusion Zones & Respects them)
-        spawnTrees();
-
-        // 3. Place Grass (Respects all Exclusion Zones)
-        spawnGrass();
-
-        // Initialize Game Season (sets grass and trees)
-        window.setGameSeason(GameConfig.currentSeason);
-
-        // DEBUG: 座標表示パネル
-        if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
-            const existingPanel = document.getElementById('debug-pos-panel');
-            if (existingPanel) existingPanel.remove();
-
-            const debugPanel = document.createElement('div');
-            debugPanel.id = 'debug-pos-panel';
-            debugPanel.style.position = 'absolute';
-            debugPanel.style.top = '10px';
-            debugPanel.style.left = '50%';
-            debugPanel.style.transform = 'translateX(-50%)';
-            debugPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-            debugPanel.style.color = '#00FF00';
-            debugPanel.style.padding = '8px 16px';
-            debugPanel.style.fontFamily = 'monospace';
-            debugPanel.style.fontSize = '16px';
-            debugPanel.style.fontWeight = 'bold';
-            debugPanel.style.borderRadius = '4px';
-            debugPanel.style.zIndex = '10000';
-            debugPanel.style.pointerEvents = 'none';
-            debugPanel.innerText = 'POS X:0.00 Z:0.00 H:0.00';
-            document.body.appendChild(debugPanel);
-        }
-
-
-        /* REMOVED OLD TREE LOADING LOGIC */
-
-
-
-
-
-        // === GRASS MAZE GENERATION REMOVED ===
-        // (Field cleared for better visibility)
-
-        // (Ketchup items REMOVED - now using Coins via FBX loader)
-    }
-
-
-
-    // ==========================================
-    // 公園遊具・設備 (Park Assets) の一括配置
-    // ==========================================
-    function createParkAssets() {
-        // ★追加: ガード処理
-        if (window.hasParkAssetsCreated) {
-            console.log("createParkAssets already called. Skipping.");
-            return;
-        }
-        window.hasParkAssetsCreated = true;
-
-        console.log("--- createParkAssets (Cleaned) CALLED ---");
-
-        try {
-            if (!window.sgExtraObstacles) window.sgExtraObstacles = [];
-            if (!window.sgFountainCollision) window.sgFountainCollision = [];
-
-            if (window.sgSnowmen) {
-                window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
-            }
-            window.sgSnowmen = [];
-
-            if (window.parkGroup) {
-                scene.remove(window.parkGroup);
-                window.parkGroup = null;
-            }
-            window.parkGroup = new THREE.Group();
-            window.parkGroup.name = "ParkAssetsContainer";
-            scene.add(window.parkGroup);
-
-            // ★★★ 道路 (Roads) の生成 [追加] ★★★
-            // 地面(Y=0)よりわずかに浮かせて配置 (Z-fighting防止)
-            const roadMat = new THREE.MeshLambertMaterial({ color: 0x808080 }); // グレー
-
-            // 南北の道 (Z軸) 幅10m -> 6m
-            // 変更点: (10, 100) を (6, 100) にする
-            const roadNS = new THREE.Mesh(new THREE.PlaneGeometry(6, 100), roadMat);
-            roadNS.rotation.x = -Math.PI / 2;
-            roadNS.position.set(0, 0.02, 0);
-            roadNS.receiveShadow = true;
-            window.parkGroup.add(roadNS);
-
-            // 東西の道 (X軸) 幅10m -> 6m
-            // 変更点: (100, 10) を (100, 6) にする
-            const roadEW = new THREE.Mesh(new THREE.PlaneGeometry(100, 6), roadMat);
-            roadEW.rotation.x = -Math.PI / 2;
-            roadEW.position.set(0, 0.025, 0);
-            roadEW.receiveShadow = true;
-            window.parkGroup.add(roadEW);
-
-            // ★コインテクスチャ生成
-            const createCoinTextures = () => {
-                const size = 128;
-                const cFace = '#ffae00'; const cBorder = '#f05e1c'; const cEye = '#ffffff';
-                const cPupil = '#000000'; const cMouth = '#e83015'; const cPText = '#86c166';
-                const borderThickness = 14;
-                const canvasFace = document.createElement('canvas'); canvasFace.width = size; canvasFace.height = size;
-                const ctx1 = canvasFace.getContext('2d');
-                ctx1.translate(64, 64); ctx1.rotate(-Math.PI / 2); ctx1.translate(-64, -64);
-                ctx1.fillStyle = cBorder; ctx1.fillRect(0, 0, size, size);
-                ctx1.beginPath(); ctx1.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx1.fillStyle = cFace; ctx1.fill();
-                ctx1.fillStyle = cEye; ctx1.fillRect(35, 32, 20, 45); ctx1.fillRect(73, 32, 20, 45);
-                ctx1.fillStyle = cPupil; ctx1.fillRect(40, 44, 10, 22); ctx1.fillRect(78, 44, 10, 22);
-                ctx1.fillStyle = cMouth; ctx1.fillRect(42, 92, 44, 10);
-                const texFace = new THREE.CanvasTexture(canvasFace);
-                texFace.minFilter = THREE.NearestFilter; texFace.magFilter = THREE.NearestFilter;
-                const canvasBack = document.createElement('canvas'); canvasBack.width = size; canvasBack.height = size;
-                const ctx2 = canvasBack.getContext('2d');
-                ctx2.translate(64, 64); ctx2.rotate(-Math.PI / 2); ctx2.translate(-64, -64);
-                ctx2.fillStyle = cBorder; ctx2.fillRect(0, 0, size, size);
-                ctx2.beginPath(); ctx2.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx2.fillStyle = cFace; ctx2.fill();
-                ctx2.fillStyle = cPText; ctx2.font = 'bold 80px sans-serif';
-                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68);
-                const texBack = new THREE.CanvasTexture(canvasBack);
-                texBack.minFilter = THREE.NearestFilter; texBack.magFilter = THREE.NearestFilter;
-                const canvasSide = document.createElement('canvas'); canvasSide.width = 2; canvasSide.height = 2;
-                const ctxSide = canvasSide.getContext('2d'); ctxSide.fillStyle = cBorder; ctxSide.fillRect(0, 0, 2, 2);
-                const texSide = new THREE.CanvasTexture(canvasSide);
-                texSide.minFilter = THREE.NearestFilter; texSide.magFilter = THREE.NearestFilter;
-                return { face: texFace, back: texBack, side: texSide };
-            };
-            const coinTex = createCoinTextures();
-
-            // --- 共通テクスチャ生成ロジック (Shared) ---
-            const getOrCreateCircleTexture = () => {
-                if (window.particleCircleTexture) return window.particleCircleTexture;
-
-                const size = 64;
-                const canvas = document.createElement('canvas');
-                canvas.width = size;
-                canvas.height = size;
-                const ctx = canvas.getContext('2d');
-
-                // 円形の描画
-                ctx.beginPath();
-                ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-                ctx.fillStyle = '#ffffff';
-                ctx.fill();
-
-                const texture = new THREE.CanvasTexture(canvas);
-                window.particleCircleTexture = texture;
-                // console.log("⚪ Created Shared Circle Texture Asset.");
-                return texture;
-            };
-
-            const spawnSnowExplosion = (pos) => {
-                // 関数が呼ばれる直前にテクスチャを確保
-                getOrCreateCircleTexture();
-
-                const particleCount = 15;
-                // MeshではなくSpriteを使用（コインと同じ仕様にする）
-                const material = new THREE.SpriteMaterial({
-                    map: window.particleCircleTexture,
-                    color: 0xffffff,
-                    transparent: true,
-                    opacity: 0.8,
-                    depthWrite: false
                 });
 
                 for (let i = 0; i < particleCount; i++) {
@@ -1998,3 +1712,163 @@
             } else {
                 window.setCloudSeason('summer');
             }
+
+        }, undefined, (error) => {
+            console.error("Error loading cloud.fbx:", error);
+        });
+    }
+
+    // ==========================================
+    // 草 (Grass) の配置と季節カラー管理
+    // ==========================================
+    // ==========================================
+    // 草 (Grass) の配置と季節カラー管理 - InstancedMesh Edition
+    // ==========================================
+    /**
+     * 🛠️ PROJECT POTATO: ULTRA LIGHTWEIGHT GRASS (InstancedMesh Edition)
+     * [GOAL] 800個の草をInstancedMeshに統合し、ドローコールを1/800に削減。
+     * [FIX] 既存の setGrassSeason との互換性を維持。
+     */
+
+    // ★ 季節ごとのカラーパレット定義
+    const GRASS_PALETTES = {
+        spring: [0x90EE90, 0x98FB98, 0xADFF2F],
+        summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+        autumn: [0xCD853F, 0xDAA520, 0x8B4513],
+        winter: [0xDDDDDD]
+    };
+
+    // ★ 季節切り替え関数 (InstancedMesh対応版)
+    window.setGrassSeason = (seasonName) => {
+        if (!window.sgGrassInstancedMesh) return;
+
+        const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
+        const mesh = window.sgGrassInstancedMesh;
+        const color = new THREE.Color();
+
+        for (let i = 0; i < mesh.count; i++) {
+            const hex = palette[i % palette.length];
+            color.setHex(hex);
+            mesh.setColorAt(i, color);
+        }
+        mesh.instanceColor.needsUpdate = true;
+        console.log(`❄️ Instanced Grass: Color updated to ${seasonName}.`);
+    };
+
+    // ==========================================
+    // 草 (Grass) の配置 - 密度改善版 (直立維持 & 800本保証)
+    // ==========================================
+    function spawnGrass() {
+        // 二重生成ガード
+        if (window.hasSpawnedGrass) return;
+        window.hasSpawnedGrass = true;
+
+        console.log("--- spawnGrass CALLED (Density Fix Mode) ---");
+
+        // クリーンアップ
+        if (window.sgGrassObjects) {
+            window.sgGrassObjects.forEach(g => {
+                if (g.parent) g.parent.remove(g);
+            });
+        }
+        window.sgGrassObjects = [];
+
+        // 不要なオブジェクト削除
+        const existingInstanced = scene.getObjectByName('InstancedGrassField');
+        if (existingInstanced) {
+            if (existingInstanced.geometry) existingInstanced.geometry.dispose();
+            scene.remove(existingInstanced);
+        }
+
+        const loader = new FBXLoader();
+        loader.load('models/grass.fbx', (masterGrass) => {
+            console.log('FBX Loaded: grass.fbx');
+
+            // 1. マテリアル設定 (直立を保証する clone 方式用)
+            masterGrass.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = false;
+                    child.receiveShadow = false;
+                    child.userData.ignoreGround = true;
+
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(m => m.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
+
+                        const setMat = (m) => {
+                            m.transparent = true;
+                            m.alphaTest = 0.5;
+                            m.side = THREE.DoubleSide;
+                            if (m.emissive) m.emissive.setHex(0x000000);
+                        };
+
+                        if (Array.isArray(child.material)) child.material.forEach(setMat);
+                        else setMat(child.material);
+                    }
+                }
+            });
+
+            if (typeof window.addEdgesOutline === 'function') {
+                window.addEdgesOutline(masterGrass, 15, 0x000000);
+            }
+
+            // 2. 配置ループ (whileループに変更して確実に数を確保)
+            const grassTargetCount = 200;
+            const range = 62;
+            let placedCount = 0;
+            let attempts = 0;
+            const MAX_ATTEMPTS = 3000; // 諦めずに試行する回数
+
+            while (placedCount < grassTargetCount && attempts < MAX_ATTEMPTS) {
+                attempts++;
+
+                const x = (Math.random() - 0.5) * range;
+                const z = (Math.random() - 0.5) * range;
+
+                // 除外エリアならスキップして再挑戦
+                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) {
+                    continue;
+                }
+
+                // ★直立維持のため masterGrass.clone() を使用
+                const grass = masterGrass.clone();
+                grass.position.set(x, 0, z);
+
+                // Y軸(横回転)のみランダム
+                grass.rotation.y = Math.random() * Math.PI * 2;
+
+                // スケール
+                const scale = 2.5 + Math.random() * 1.5;
+                grass.scale.setScalar(scale);
+
+                scene.add(grass);
+                window.sgGrassObjects.push(grass);
+
+                placedCount++;
+            }
+
+            console.log(`✅ Success: ${placedCount} grass patches placed (Attempts: ${attempts}).`);
+
+            // 季節反映
+            if (typeof window.setGrassSeason === 'function' && typeof GameConfig !== 'undefined') {
+                window.setGrassSeason(GameConfig.currentSeason);
+            }
+
+        }, undefined, (err) => console.error(err));
+    }
+
+    return { setup, init, start, stop };
+})();
+
+
+// ★季節の初期化（草・木・空の色を適用）
+if (typeof window.setGameSeason === 'function') {
+    window.setGameSeason(GameConfig.currentSeason);
+}
+
+// Init
+initGameSystem();
+// document.addEventListener('DOMContentLoaded', initGameSystem);
