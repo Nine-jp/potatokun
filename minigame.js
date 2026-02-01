@@ -6042,14 +6042,14 @@ const SearchGame = (() => {
     };
 
     // ==========================================
-    // 草 (Grass) の配置 - 完全復旧版 (標準clone使用)
+    // 草 (Grass) の配置 - 密度改善版 (直立維持 & 800本保証)
     // ==========================================
     function spawnGrass() {
-        // ★二重生成防止ガード
+        // 二重生成ガード
         if (window.hasSpawnedGrass) return;
         window.hasSpawnedGrass = true;
 
-        console.log("--- spawnGrass CALLED (Restored to Standard Clone Mode) ---");
+        console.log("--- spawnGrass CALLED (Density Fix Mode) ---");
 
         // クリーンアップ
         if (window.sgGrassObjects) {
@@ -6059,7 +6059,7 @@ const SearchGame = (() => {
         }
         window.sgGrassObjects = [];
 
-        // 不具合の原因となったInstancedMeshがあれば削除
+        // 不要なオブジェクト削除
         const existingInstanced = scene.getObjectByName('InstancedGrassField');
         if (existingInstanced) {
             if (existingInstanced.geometry) existingInstanced.geometry.dispose();
@@ -6070,7 +6070,7 @@ const SearchGame = (() => {
         loader.load('models/grass.fbx', (masterGrass) => {
             console.log('FBX Loaded: grass.fbx');
 
-            // 1. マテリアルと影の設定 (正常動作時の設定を適用)
+            // 1. マテリアル設定 (直立を保証する clone 方式用)
             masterGrass.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = false;
@@ -6084,7 +6084,6 @@ const SearchGame = (() => {
                             child.material = child.material.clone();
                         }
 
-                        // 透過設定
                         const setMat = (m) => {
                             m.transparent = true;
                             m.alphaTest = 0.5;
@@ -6098,44 +6097,48 @@ const SearchGame = (() => {
                 }
             });
 
-            // 2. アウトライン追加
             if (typeof window.addEdgesOutline === 'function') {
                 window.addEdgesOutline(masterGrass, 15, 0x000000);
             }
 
-            // 3. 配置ループ (シンプルに clone する)
-            const grassCount = 800;
-            const range = 62; // 柵ギリギリまで
+            // 2. 配置ループ (whileループに変更して確実に数を確保)
+            const grassTargetCount = 200;
+            const range = 62;
+            let placedCount = 0;
+            let attempts = 0;
+            const MAX_ATTEMPTS = 3000; // 諦めずに試行する回数
 
-            for (let i = 0; i < grassCount; i++) {
+            while (placedCount < grassTargetCount && attempts < MAX_ATTEMPTS) {
+                attempts++;
+
                 const x = (Math.random() - 0.5) * range;
                 const z = (Math.random() - 0.5) * range;
 
-                // 除外エリア判定
+                // 除外エリアならスキップして再挑戦
                 if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) {
                     continue;
                 }
 
-                // ★正常動作していた clone() メソッドを使用
-                // これならFBXの持っている正しい回転軸(直立)が確実に維持されます
+                // ★直立維持のため masterGrass.clone() を使用
                 const grass = masterGrass.clone();
-
                 grass.position.set(x, 0, z);
 
-                // ★回転: Y軸(横回転)のみランダム
+                // Y軸(横回転)のみランダム
                 grass.rotation.y = Math.random() * Math.PI * 2;
 
-                // ★スケール: ランダム
+                // スケール
                 const scale = 2.5 + Math.random() * 1.5;
                 grass.scale.setScalar(scale);
 
                 scene.add(grass);
                 window.sgGrassObjects.push(grass);
+
+                placedCount++;
             }
 
-            console.log(`${window.sgGrassObjects.length} grass patches placed (Standard Clone).`);
+            console.log(`✅ Success: ${placedCount} grass patches placed (Attempts: ${attempts}).`);
 
-            // 4. 季節反映
+            // 季節反映
             if (typeof window.setGrassSeason === 'function' && typeof GameConfig !== 'undefined') {
                 window.setGrassSeason(GameConfig.currentSeason);
             }
