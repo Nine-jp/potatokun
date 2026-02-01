@@ -15,6 +15,7 @@ let masterTreeModel = null;
 const AudioManager = {
     context: null,
     buffers: {},    // 音声データの保管庫
+    activeSources: {}, // ループ再生中のソース管理
     isUnlocked: false,
 
     // ■ 1. 初期化 (カメラ不要)
@@ -74,6 +75,40 @@ const AudioManager = {
 
         // iOS対策: currentTime 指定
         source.start(this.context.currentTime);
+    },
+
+    // ■ 3-B. ループ再生（新規追加）
+    playLoop: function (key, volume = 1.0) {
+        if (!this.buffers[key]) return;
+        if (this.activeSources[key]) return; // 既に再生中なら何もしない
+
+        if (this.context.state === 'suspended') {
+            this.context.resume().catch(e => console.error(e));
+        }
+
+        const source = this.context.createBufferSource();
+        source.buffer = this.buffers[key];
+        source.loop = true; // ループ有効化
+
+        const gainNode = this.context.createGain();
+        gainNode.gain.value = volume;
+
+        source.connect(gainNode);
+        gainNode.connect(this.context.destination);
+
+        source.start(this.context.currentTime);
+        this.activeSources[key] = source; // 管理リストに追加
+    },
+
+    // ■ 3-C. ループ停止（新規追加）
+    stopLoop: function (key) {
+        const source = this.activeSources[key];
+        if (source) {
+            try {
+                source.stop();
+            } catch (e) { console.error(e); }
+            delete this.activeSources[key];
+        }
     },
 
     // (以前ここにあった play3D 関数は削除されました)
@@ -2589,6 +2624,12 @@ const SearchGame = (() => {
         window.AudioManager.load('coin', 'assets/coin_se.mp3');
         window.AudioManager.load('cat', 'assets/cat_voice.mp3');
         window.AudioManager.load('thud', 'assets/thud.mp3');
+
+        // ▼▼▼ 今回の追加箇所 (ここだけ追加) ▼▼▼
+        window.AudioManager.load('boing', 'assets/boing.mp3');
+        window.AudioManager.load('splash', 'assets/splash.mp3');
+        window.AudioManager.load('psshhh', 'assets/psshhh.mp3');
+        // ▲▲▲ 追加ここまで ▲▲▲
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
@@ -5152,6 +5193,11 @@ const SearchGame = (() => {
 
                         // 距離チェック
                         if (playerPosition.distanceTo(worldPos) < 2.0) {
+
+                            // ▼▼▼ 今回の追加箇所 (boing) ▼▼▼
+                            window.AudioManager.play('boing', 1.0);
+                            // ▲▲▲ 追加ここまで ▲▲▲
+
                             snowman.visible = false;
                             snowman.userData.isDead = true;
 
@@ -5226,6 +5272,12 @@ const SearchGame = (() => {
                     if (isNoseActive) {
                         if (typeof window.spawnFountainSparkles === 'function')
                             window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
+
+                        // ▼▼▼ LOOP ON ▼▼▼
+                        window.AudioManager.playLoop('splash', 0.8);
+                    } else {
+                        // ▲▲▲ LOOP OFF ▲▲▲
+                        window.AudioManager.stopLoop('splash');
                     }
 
                     // 背中
@@ -5241,6 +5293,12 @@ const SearchGame = (() => {
                     if (isBackActive) {
                         if (typeof window.spawnFountainSparkles === 'function')
                             window.spawnFountainSparkles(backFaucetPos.x, backFaucetPos.y, backFaucetPos.z, false, true);
+
+                        // ▼▼▼ LOOP ON ▼▼▼
+                        window.AudioManager.playLoop('psshhh', 0.8);
+                    } else {
+                        // ▲▲▲ LOOP OFF ▲▲▲
+                        window.AudioManager.stopLoop('psshhh');
                     }
                 }
 
