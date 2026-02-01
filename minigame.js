@@ -2629,6 +2629,9 @@ const SearchGame = (() => {
         window.AudioManager.load('boing', 'assets/boing.mp3');
         window.AudioManager.load('splash', 'assets/splash.mp3');
         window.AudioManager.load('psshhh', 'assets/psshhh.mp3');
+
+        // ▼ 追加 ▼
+        window.AudioManager.load('wheeee', 'assets/wheeee.mp3');
         // ▲▲▲ 追加ここまで ▲▲▲
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -3143,10 +3146,9 @@ const SearchGame = (() => {
                     direction.x += (dx / dist) * pushOut;
                     direction.z += (dz / dist) * pushOut;
 
-                    // ★追加: 衝突音 (0.5秒のクールダウン) - コインの木のみ
+                    // ★追加: 衝突音 (1.5秒のクールダウン) - コインの木のみ
                     const now = Date.now();
-                    if (!window.lastThudTime) window.lastThudTime = 0;
-                    if (now - window.lastThudTime > 500) {
+                    if (!window.lastThudTime || now - window.lastThudTime > 1500) {
                         window.AudioManager.play('thud', 0.5);
                         window.lastThudTime = now;
                     }
@@ -5206,6 +5208,9 @@ const SearchGame = (() => {
                             if (snowman.userData.isWinner && !snowman.userData.hasPaid) {
                                 snowman.userData.hasPaid = true;
                                 if (typeof spawnDropCoin === 'function') spawnDropCoin(worldPos);
+
+                                // ▼ 追加：コイン出現音 ▼
+                                window.AudioManager.play('wheeee', 1.0);
 
                                 const div = document.createElement('div');
                                 div.textContent = "🎉POP!";
