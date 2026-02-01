@@ -15,7 +15,6 @@ let masterTreeModel = null;
 const AudioManager = {
     context: null,
     buffers: {},    // 音声データの保管庫
-    activeSources: {}, // ループ再生中のソース管理
     isUnlocked: false,
 
     // ■ 1. 初期化 (カメラ不要)
@@ -75,40 +74,6 @@ const AudioManager = {
 
         // iOS対策: currentTime 指定
         source.start(this.context.currentTime);
-    },
-
-    // ■ 3-B. ループ再生（新規追加）
-    playLoop: function (key, volume = 1.0) {
-        if (!this.buffers[key]) return;
-        if (this.activeSources[key]) return; // 既に再生中なら何もしない
-
-        if (this.context.state === 'suspended') {
-            this.context.resume().catch(e => console.error(e));
-        }
-
-        const source = this.context.createBufferSource();
-        source.buffer = this.buffers[key];
-        source.loop = true; // ループ有効化
-
-        const gainNode = this.context.createGain();
-        gainNode.gain.value = volume;
-
-        source.connect(gainNode);
-        gainNode.connect(this.context.destination);
-
-        source.start(this.context.currentTime);
-        this.activeSources[key] = source; // 管理リストに追加
-    },
-
-    // ■ 3-C. ループ停止（新規追加）
-    stopLoop: function (key) {
-        const source = this.activeSources[key];
-        if (source) {
-            try {
-                source.stop();
-            } catch (e) { console.error(e); }
-            delete this.activeSources[key];
-        }
     },
 
     // (以前ここにあった play3D 関数は削除されました)
@@ -2625,15 +2590,6 @@ const SearchGame = (() => {
         window.AudioManager.load('cat', 'assets/cat_voice.mp3');
         window.AudioManager.load('thud', 'assets/thud.mp3');
 
-        // ▼▼▼ 今回の追加箇所 (ここだけ追加) ▼▼▼
-        window.AudioManager.load('boing', 'assets/boing.mp3');
-        window.AudioManager.load('splash', 'assets/splash.mp3');
-        window.AudioManager.load('psshhh', 'assets/psshhh.mp3');
-
-        // ▼ 追加 ▼
-        window.AudioManager.load('wheeee', 'assets/wheeee.mp3');
-        // ▲▲▲ 追加ここまで ▲▲▲
-
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -3146,9 +3102,10 @@ const SearchGame = (() => {
                     direction.x += (dx / dist) * pushOut;
                     direction.z += (dz / dist) * pushOut;
 
-                    // ★追加: 衝突音 (1.5秒のクールダウン) - コインの木のみ
+                    // ★追加: 衝突音 (0.5秒のクールダウン) - コインの木のみ
                     const now = Date.now();
-                    if (!window.lastThudTime || now - window.lastThudTime > 1500) {
+                    if (!window.lastThudTime) window.lastThudTime = 0;
+                    if (now - window.lastThudTime > 500) {
                         window.AudioManager.play('thud', 0.5);
                         window.lastThudTime = now;
                     }
@@ -3662,6 +3619,8 @@ const SearchGame = (() => {
 
         // === 雲 (Clouds) の生成 ===
         spawnClouds();
+        // === 草 (Grass) の生成 ===
+        spawnGrass();
 
 
         const TREE_TARGET_HEIGHT = 5.0; // Base target height for trees: 5 meters
@@ -5193,11 +5152,6 @@ const SearchGame = (() => {
 
                         // 距離チェック
                         if (playerPosition.distanceTo(worldPos) < 2.0) {
-
-                            // ▼▼▼ 今回の追加箇所 (boing) ▼▼▼
-                            window.AudioManager.play('boing', 1.0);
-                            // ▲▲▲ 追加ここまで ▲▲▲
-
                             snowman.visible = false;
                             snowman.userData.isDead = true;
 
@@ -5206,9 +5160,6 @@ const SearchGame = (() => {
                             if (snowman.userData.isWinner && !snowman.userData.hasPaid) {
                                 snowman.userData.hasPaid = true;
                                 if (typeof spawnDropCoin === 'function') spawnDropCoin(worldPos);
-
-                                // ▼ 追加：コイン出現音 ▼
-                                window.AudioManager.play('wheeee', 1.0);
 
                                 const div = document.createElement('div');
                                 div.textContent = "🎉POP!";
@@ -5275,12 +5226,6 @@ const SearchGame = (() => {
                     if (isNoseActive) {
                         if (typeof window.spawnFountainSparkles === 'function')
                             window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
-
-                        // ▼▼▼ LOOP ON ▼▼▼
-                        window.AudioManager.playLoop('splash', 0.8);
-                    } else {
-                        // ▲▲▲ LOOP OFF ▲▲▲
-                        window.AudioManager.stopLoop('splash');
                     }
 
                     // 背中
@@ -5296,12 +5241,6 @@ const SearchGame = (() => {
                     if (isBackActive) {
                         if (typeof window.spawnFountainSparkles === 'function')
                             window.spawnFountainSparkles(backFaucetPos.x, backFaucetPos.y, backFaucetPos.z, false, true);
-
-                        // ▼▼▼ LOOP ON ▼▼▼
-                        window.AudioManager.playLoop('psshhh', 0.8);
-                    } else {
-                        // ▲▲▲ LOOP OFF ▲▲▲
-                        window.AudioManager.stopLoop('psshhh');
                     }
                 }
 
@@ -6008,75 +5947,78 @@ const SearchGame = (() => {
     // 草 (Grass) の配置と季節カラー管理
     // ==========================================
     // ==========================================
-    // 草 (Grass) の配置と季節カラー管理 - InstancedMesh Edition
-    // ==========================================
-    /**
-     * 🛠️ PROJECT POTATO: ULTRA LIGHTWEIGHT GRASS (InstancedMesh Edition)
-     * [GOAL] 800個の草をInstancedMeshに統合し、ドローコールを1/800に削減。
-     * [FIX] 既存の setGrassSeason との互換性を維持。
-     */
-
-    // ★ 季節ごとのカラーパレット定義
-    const GRASS_PALETTES = {
-        spring: [0x90EE90, 0x98FB98, 0xADFF2F],
-        summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
-        autumn: [0xCD853F, 0xDAA520, 0x8B4513],
-        winter: [0xDDDDDD]
-    };
-
-    // ★ 季節切り替え関数 (InstancedMesh対応版)
-    window.setGrassSeason = (seasonName) => {
-        if (!window.sgGrassInstancedMesh) return;
-
-        const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
-        const mesh = window.sgGrassInstancedMesh;
-        const color = new THREE.Color();
-
-        for (let i = 0; i < mesh.count; i++) {
-            const hex = palette[i % palette.length];
-            color.setHex(hex);
-            mesh.setColorAt(i, color);
-        }
-        mesh.instanceColor.needsUpdate = true;
-        console.log(`❄️ Instanced Grass: Color updated to ${seasonName}.`);
-    };
-
-    // ==========================================
-    // 草 (Grass) の配置 - 完全復旧版 (標準clone使用)
+    // 草 (Grass) の配置と季節カラー管理
     // ==========================================
     function spawnGrass() {
-        // ★二重生成防止ガード
-        if (window.hasSpawnedGrass) return;
-        window.hasSpawnedGrass = true;
+        console.log("--- spawnGrass CALLED ---");
 
-        console.log("--- spawnGrass CALLED (Restored to Standard Clone Mode) ---");
+        // ★ 季節ごとのカラーパレット定義 (ここをいじれば色が変えられます)
+        const GRASS_PALETTES = {
+            spring: [
+                0x90EE90, // LightGreen
+                0x98FB98, // PaleGreen
+                0xADFF2F  // GreenYellow (新芽の色)
+            ],
+            summer: [
+                0x66BB6A, // 鮮やかな緑
+                0x43A047, // 少し濃い緑
+                0x81C784, // 淡い緑
+                0x9CCC65  // 黄緑っぽい緑
+            ],
+            autumn: [
+                0xCD853F, // ペルー (乾いた土色)
+                0xDAA520, // ゴールデンロッド (枯れ草色)
+                0x8B4513  // サドルブラウン
+            ],
+            winter: [
+                0xDDDDDD, // 冬の色
+            ]
+        };
 
-        // クリーンアップ
-        if (window.sgGrassObjects) {
-            window.sgGrassObjects.forEach(g => {
-                if (g.parent) g.parent.remove(g);
+        window.sgGrassObjects = []; // 草オブジェクト管理用
+
+        // ★ 季節切り替え関数のアップデート
+        window.setGrassSeason = (seasonName) => {
+            console.log(`Setting Grass Season to: ${seasonName}`);
+
+            // パレットを取得 (未定義なら夏をデフォルトに)
+            const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
+            const isMultiColor = palette.length > 1;
+
+            window.sgGrassObjects.forEach((grass, index) => {
+                // ランダムに色を選ぶ (indexを使ってバラけさせる)
+                const colorHex = isMultiColor
+                    ? palette[index % palette.length]
+                    : palette[0];
+
+                const colorObj = new THREE.Color(colorHex);
+
+                grass.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // 色を乗算 (白～グレーのモデルに色が乗る)
+                        if (child.material.color) {
+                            child.material.color.copy(colorObj);
+                        }
+                    }
+                });
             });
-        }
-        window.sgGrassObjects = [];
+            console.log(`Updated ${window.sgGrassObjects.length} grass patches to ${seasonName}.`);
+        };
 
-        // 不具合の原因となったInstancedMeshがあれば削除
-        const existingInstanced = scene.getObjectByName('InstancedGrassField');
-        if (existingInstanced) {
-            if (existingInstanced.geometry) existingInstanced.geometry.dispose();
-            scene.remove(existingInstanced);
-        }
 
         const loader = new FBXLoader();
         loader.load('models/grass.fbx', (masterGrass) => {
-            console.log('FBX Loaded: grass.fbx');
+            console.log("Grass Loaded: grass.fbx");
 
-            // 1. マテリアルと影の設定 (正常動作時の設定を適用)
             masterGrass.traverse((child) => {
                 if (child.isMesh) {
+                    // 修正: 軽量化のため、草の影（CastShadow）をオフにする魔法
                     child.castShadow = false;
-                    child.receiveShadow = false;
+                    child.receiveShadow = false; // 軽量化：影を受けない
+                    // 地面判定無視
                     child.userData.ignoreGround = true;
 
+                    // ★重要: マテリアルをクローンして、個別に色を変えられるようにする
                     if (child.material) {
                         if (Array.isArray(child.material)) {
                             child.material = child.material.map(m => m.clone());
@@ -6084,48 +6026,43 @@ const SearchGame = (() => {
                             child.material = child.material.clone();
                         }
 
-                        // 透過設定
-                        const setMat = (m) => {
-                            m.transparent = true;
-                            m.alphaTest = 0.5;
-                            m.side = THREE.DoubleSide;
-                            if (m.emissive) m.emissive.setHex(0x000000);
-                        };
-
-                        if (Array.isArray(child.material)) child.material.forEach(setMat);
-                        else setMat(child.material);
+                        // 自己発光を少し抑えめにセット (影をきれいに出すため)
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(0x000000);
+                        }
                     }
                 }
             });
 
-            // 2. アウトライン追加
+            // アウトライン追加
             if (typeof window.addEdgesOutline === 'function') {
                 window.addEdgesOutline(masterGrass, 15, 0x000000);
             }
 
-            // 3. 配置ループ (シンプルに clone する)
-            const grassCount = 800;
-            const range = 62; // 柵ギリギリまで
+            // 草の配置数（軽量化）
+            const grassCount = 800; // 軽量化：2000 -> 800
 
             for (let i = 0; i < grassCount; i++) {
+                const grass = masterGrass.clone();
+
+                // ランダム配置
+                // 修正: 範囲を50m(±25) -> 62m(±31)に広げて柵ギリギリまで生やす
+                const range = 62;
                 const x = (Math.random() - 0.5) * range;
                 const z = (Math.random() - 0.5) * range;
 
-                // 除外エリア判定
-                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) {
+                // ★ ここに1行足すだけ
+                if (ExclusionManager.isBlocked(x, z)) {
                     continue;
                 }
 
-                // ★正常動作していた clone() メソッドを使用
-                // これならFBXの持っている正しい回転軸(直立)が確実に維持されます
-                const grass = masterGrass.clone();
-
                 grass.position.set(x, 0, z);
 
-                // ★回転: Y軸(横回転)のみランダム
+                // ランダム回転
                 grass.rotation.y = Math.random() * Math.PI * 2;
 
-                // ★スケール: ランダム
+                // ランダムスケール
+                // 修正: サイズを一律半分にする (2.5〜4.0)
                 const scale = 2.5 + Math.random() * 1.5;
                 grass.scale.setScalar(scale);
 
@@ -6133,14 +6070,14 @@ const SearchGame = (() => {
                 window.sgGrassObjects.push(grass);
             }
 
-            console.log(`${window.sgGrassObjects.length} grass patches placed (Standard Clone).`);
+            console.log(`${grassCount} grass patches placed.`);
 
-            // 4. 季節反映
-            if (typeof window.setGrassSeason === 'function' && typeof GameConfig !== 'undefined') {
-                window.setGrassSeason(GameConfig.currentSeason);
-            }
+            // ★修正: GameConfig.currentSeason を使用
+            window.setGrassSeason(GameConfig.currentSeason);
 
-        }, undefined, (err) => console.error(err));
+        }, undefined, (error) => {
+            console.error("Error loading grass.fbx:", error);
+        });
     }
 
     return { setup, init, start, stop };

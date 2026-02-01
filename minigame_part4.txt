@@ -1,0 +1,208 @@
+                cloud.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // エミッシブカラー（発光色）を変更して色味を変える
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(colorHex);
+                        }
+                    }
+                });
+            });
+        };
+
+        const loader = new FBXLoader();
+        loader.load('models/cloud.fbx', (masterCloud) => {
+            console.log("Cloud Loaded: cloud.fbx");
+
+            masterCloud.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = false;
+
+                    if (child.material) {
+                        child.material.fog = false; // フォグの影響を受けない
+                        // 初期色設定
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(CLOUD_COLORS.summer);
+                        }
+                    }
+                }
+            });
+
+            const cloudCount = 15;
+            for (let i = 0; i < cloudCount; i++) {
+                const cloud = masterCloud.clone();
+                const x = (Math.random() - 0.5) * 100;
+                const z = (Math.random() - 0.5) * 100;
+                const y = 15 + Math.random() * 10;
+
+                cloud.position.set(x, y, z);
+                cloud.rotation.y = Math.random() * Math.PI * 2;
+                cloud.scale.setScalar(0.8 + Math.random() * 0.7);
+
+                scene.add(cloud);
+                window.sgCloudObjects.push(cloud);
+            }
+
+            console.log(`${cloudCount} clouds placed.`);
+
+            // ★現在の季節を適用
+            if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
+                window.setCloudSeason(GameConfig.currentSeason);
+            } else {
+                window.setCloudSeason('summer');
+            }
+
+        }, undefined, (error) => {
+            console.error("Error loading cloud.fbx:", error);
+        });
+    }
+
+    // ==========================================
+    // 草 (Grass) の配置と季節カラー管理
+    // ==========================================
+    // ==========================================
+    // 草 (Grass) の配置と季節カラー管理
+    // ==========================================
+    function spawnGrass() {
+        console.log("--- spawnGrass CALLED ---");
+
+        // ★ 季節ごとのカラーパレット定義 (ここをいじれば色が変えられます)
+        const GRASS_PALETTES = {
+            spring: [
+                0x90EE90, // LightGreen
+                0x98FB98, // PaleGreen
+                0xADFF2F  // GreenYellow (新芽の色)
+            ],
+            summer: [
+                0x66BB6A, // 鮮やかな緑
+                0x43A047, // 少し濃い緑
+                0x81C784, // 淡い緑
+                0x9CCC65  // 黄緑っぽい緑
+            ],
+            autumn: [
+                0xCD853F, // ペルー (乾いた土色)
+                0xDAA520, // ゴールデンロッド (枯れ草色)
+                0x8B4513  // サドルブラウン
+            ],
+            winter: [
+                0xDDDDDD, // 冬の色
+            ]
+        };
+
+        window.sgGrassObjects = []; // 草オブジェクト管理用
+
+        // ★ 季節切り替え関数のアップデート
+        window.setGrassSeason = (seasonName) => {
+            console.log(`Setting Grass Season to: ${seasonName}`);
+
+            // パレットを取得 (未定義なら夏をデフォルトに)
+            const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
+            const isMultiColor = palette.length > 1;
+
+            window.sgGrassObjects.forEach((grass, index) => {
+                // ランダムに色を選ぶ (indexを使ってバラけさせる)
+                const colorHex = isMultiColor
+                    ? palette[index % palette.length]
+                    : palette[0];
+
+                const colorObj = new THREE.Color(colorHex);
+
+                grass.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // 色を乗算 (白～グレーのモデルに色が乗る)
+                        if (child.material.color) {
+                            child.material.color.copy(colorObj);
+                        }
+                    }
+                });
+            });
+            console.log(`Updated ${window.sgGrassObjects.length} grass patches to ${seasonName}.`);
+        };
+
+
+        const loader = new FBXLoader();
+        loader.load('models/grass.fbx', (masterGrass) => {
+            console.log("Grass Loaded: grass.fbx");
+
+            masterGrass.traverse((child) => {
+                if (child.isMesh) {
+                    // 修正: 軽量化のため、草の影（CastShadow）をオフにする魔法
+                    child.castShadow = false;
+                    child.receiveShadow = false; // 軽量化：影を受けない
+                    // 地面判定無視
+                    child.userData.ignoreGround = true;
+
+                    // ★重要: マテリアルをクローンして、個別に色を変えられるようにする
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(m => m.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
+
+                        // 自己発光を少し抑えめにセット (影をきれいに出すため)
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(0x000000);
+                        }
+                    }
+                }
+            });
+
+            // アウトライン追加
+            if (typeof window.addEdgesOutline === 'function') {
+                window.addEdgesOutline(masterGrass, 15, 0x000000);
+            }
+
+            // 草の配置数（軽量化）
+            const grassCount = 800; // 軽量化：2000 -> 800
+
+            for (let i = 0; i < grassCount; i++) {
+                const grass = masterGrass.clone();
+
+                // ランダム配置
+                // 修正: 範囲を50m(±25) -> 62m(±31)に広げて柵ギリギリまで生やす
+                const range = 62;
+                const x = (Math.random() - 0.5) * range;
+                const z = (Math.random() - 0.5) * range;
+
+                // ★ ここに1行足すだけ
+                if (ExclusionManager.isBlocked(x, z)) {
+                    continue;
+                }
+
+                grass.position.set(x, 0, z);
+
+                // ランダム回転
+                grass.rotation.y = Math.random() * Math.PI * 2;
+
+                // ランダムスケール
+                // 修正: サイズを一律半分にする (2.5〜4.0)
+                const scale = 2.5 + Math.random() * 1.5;
+                grass.scale.setScalar(scale);
+
+                scene.add(grass);
+                window.sgGrassObjects.push(grass);
+            }
+
+            console.log(`${grassCount} grass patches placed.`);
+
+            // ★修正: GameConfig.currentSeason を使用
+            window.setGrassSeason(GameConfig.currentSeason);
+
+        }, undefined, (error) => {
+            console.error("Error loading grass.fbx:", error);
+        });
+    }
+
+    return { setup, init, start, stop };
+})();
+
+
+// ★季節の初期化（草・木・空の色を適用）
+if (typeof window.setGameSeason === 'function') {
+    window.setGameSeason(GameConfig.currentSeason);
+}
+
+// Init
+initGameSystem();
+// document.addEventListener('DOMContentLoaded', initGameSystem);
