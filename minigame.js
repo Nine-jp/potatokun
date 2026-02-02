@@ -5052,9 +5052,9 @@ const SearchGame = (() => {
             // 既存の createSnowman を完全に置き換えます。
             // 呼び出し元のロジック(座標configなど)はそのまま利用されます。
 
-            const createSnowman = (config, isWinner) => {
+            const createSnowman = (config, isWinner, hasPaid = false) => {
                 // 実際にシーンに配置する内部関数
-                const placeDoll = (master, conf, winnerFlag) => {
+                const placeDoll = (master, conf, winnerFlag, paidFlag) => {
                     const doll = master.clone();
 
                     // 座標適用 (既存ロジック準拠)
@@ -5066,12 +5066,12 @@ const SearchGame = (() => {
                     // ★スケール設定 (標準化)
                     // ここを書き換えることで、後で「0.9 + Math.random() * 0.2」のように個体差を出せます。
                     // 現時点では指示通り「基準 1.0」とします。
-                    const baseScale = 0.8; 
+                    const baseScale = 0.8;
                     doll.scale.setScalar(baseScale);
 
                     // ギミック移植
                     doll.userData.isWinner = winnerFlag;
-                    doll.userData.hasPaid = false;
+                    doll.userData.hasPaid = paidFlag;
                     doll.userData.isDead = false;
 
                     // アニメーションミキサー初期化 (もし将来アニメさせるなら)
@@ -5106,10 +5106,10 @@ const SearchGame = (() => {
 
                 if (window.seasonDollMaster) {
                     // A. ロード済みなら即配置
-                    placeDoll(window.seasonDollMaster, config, isWinner);
+                    placeDoll(window.seasonDollMaster, config, isWinner, hasPaid);
                 } else {
                     // B. 未ロードならキューに追加してロード開始
-                    window.pendingDollRequests.push({ config, isWinner });
+                    window.pendingDollRequests.push({ config, isWinner, hasPaid });
 
                     // 初回のみローダー起動
                     if (window.pendingDollRequests.length === 1) {
@@ -5136,7 +5136,7 @@ const SearchGame = (() => {
 
                             // 待機していた配置リクエストを一気に処理
                             window.pendingDollRequests.forEach(req => {
-                                placeDoll(fbx, req.config, req.isWinner);
+                                placeDoll(fbx, req.config, req.isWinner, req.hasPaid);
                             });
                             window.pendingDollRequests = []; // キューを空に
 
@@ -5204,16 +5204,17 @@ const SearchGame = (() => {
                                 document.body.appendChild(div); setTimeout(() => div.remove(), 1000);
                             }
 
-                               setTimeout(() => {
+                            setTimeout(() => {
                                 // ★修正: 古いオブジェクトを完全削除
                                 const oldX = snowman.position.x;
                                 const oldZ = snowman.position.z;
                                 const wasWinner = snowman.userData.isWinner;
+                                const wasPaid = snowman.userData.hasPaid; // ★ 支払い履歴を継承
 
                                 if (snowman.parent) {
                                     snowman.parent.remove(snowman);
                                 }
-                                
+
                                 // 配列からも削除 (安全のため)
                                 const idx = window.sgSnowmen.indexOf(snowman);
                                 if (idx > -1) window.sgSnowmen.splice(idx, 1);
@@ -5221,7 +5222,7 @@ const SearchGame = (() => {
                                 // ★修正: 新しい関数経由で、新品をリスポーンさせる
                                 // これならスケールも季節カラーも最新ルールが適用される！
                                 if (typeof createSnowman === 'function') {
-                                    createSnowman({ x: oldX, z: oldZ }, wasWinner);
+                                    createSnowman({ x: oldX, z: oldZ }, wasWinner, wasPaid);
                                 }
                             }, 5000); // 復活時間 (3秒に変更指示があればここ)
                         }
