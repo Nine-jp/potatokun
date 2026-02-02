@@ -5004,17 +5004,145 @@ const SearchGame = (() => {
             // 雪だるま
             const snowmanPositions = [{ x: 11, z: 14 }, { x: 11, z: 16 }, { x: 11, z: 18 }]; // Old: -14, -16, -18. Inverted: 14, 16, 18
             const winnerIndex = Math.floor(Math.random() * snowmanPositions.length);
+            // ==========================================
+            // 1. マスターモデル管理 & 季節カラー定義
+            // ==========================================
+            window.seasonDollMaster = null; // キャッシュ用
+            window.pendingDollRequests = []; // ロード待ちキュー
+
+            const SEASON_DOLL_COLORS = {
+                spring: 0xFFB7C5, // 桜色
+                summer: 0x4FC3F7, // 水色
+                autumn: 0xFFAE00, // オレンジ
+                winter: 0xb8eef7  // 薄氷色
+            };
+
+            // ==========================================
+            // 2. 季節更新関数の定義
+            // ==========================================
+            window.updateSeasonDollColor = (seasonName) => {
+                const targetColor = new THREE.Color(SEASON_DOLL_COLORS[seasonName] || SEASON_DOLL_COLORS.winter);
+
+                if (window.sgSnowmen) {
+                    window.sgSnowmen.forEach(doll => {
+                        doll.traverse(child => {
+                            if (child.isMesh) {
+                                // ★bodyのみ色変更
+                                const name = child.name.toLowerCase();
+                                if (name.includes('body')) {
+                                    if (child.material) {
+                                        // 配列マテリアル対応
+                                        if (Array.isArray(child.material)) {
+                                            child.material.forEach(m => m.color.copy(targetColor));
+                                        } else {
+                                            child.material.color.copy(targetColor);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    });
+                }
+                console.log(`🎎 SeasonDolls body color updated to: ${seasonName}`);
+            };
+
+            // ==========================================
+            // 3. createSnowman 関数の上書き (FBX版)
+            // ==========================================
+            // 既存の createSnowman を完全に置き換えます。
+            // 呼び出し元のロジック(座標configなど)はそのまま利用されます。
+
             const createSnowman = (config, isWinner) => {
-                const snowman = new THREE.Group();
-                snowman.position.set(config.x, 0, config.z); snowman.rotation.y = -Math.PI / 2;
-                snowman.userData.isWinner = isWinner; snowman.userData.hasPaid = false; snowman.userData.isDead = false;
-                const snowMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-                const body = new THREE.Mesh(new THREE.SphereGeometry(0.4), snowMat); body.position.y = 0.4; body.castShadow = true; snowman.add(body);
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.25), snowMat); head.position.y = 0.9; head.castShadow = true; snowman.add(head);
-                const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.25), new THREE.MeshLambertMaterial({ color: 0xFF4444 })); bucket.position.y = 1.15; bucket.rotation.x = -0.2; bucket.castShadow = true; snowman.add(bucket);
-                window.parkGroup.add(snowman);
-                window.sgSnowmen.push(snowman);
-                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(config.x, config.z, 1.0);
+                // 実際にシーンに配置する内部関数
+                const placeDoll = (master, conf, winnerFlag) => {
+                    const doll = master.clone();
+
+                    // 座標適用 (既存ロジック準拠)
+                    doll.position.set(conf.x, 0, conf.z);
+
+                    // ランダム回転 (お好みで調整可能。今はランダム)
+                    doll.rotation.y = Math.random() * Math.PI * 2;
+
+                    // ★スケール設定 (標準化)
+                    // ここを書き換えることで、後で「0.9 + Math.random() * 0.2」のように個体差を出せます。
+                    // 現時点では指示通り「基準 1.0」とします。
+                    const baseScale = 0.8; 
+                    doll.scale.setScalar(baseScale);
+
+                    // ギミック移植
+                    doll.userData.isWinner = winnerFlag;
+                    doll.userData.hasPaid = false;
+                    doll.userData.isDead = false;
+
+                    // アニメーションミキサー初期化 (もし将来アニメさせるなら)
+                    // doll.mixer = new THREE.AnimationMixer(doll);
+
+                    // 管理リスト登録
+                    window.parkGroup.add(doll);
+                    window.sgSnowmen.push(doll);
+
+                    // 衝突判定 (既存維持)
+                    if (typeof ExclusionManager !== 'undefined') {
+                        ExclusionManager.addCircle(conf.x, conf.z, 1.0);
+                    }
+
+                    // 現在の季節色を適用
+                    if (typeof GameConfig !== 'undefined') {
+                        const currentSeason = GameConfig.currentSeason || 'winter';
+                        const color = new THREE.Color(SEASON_DOLL_COLORS[currentSeason]);
+
+                        doll.traverse(c => {
+                            if (c.isMesh && c.name.toLowerCase().includes('body')) {
+                                if (c.material) {
+                                    if (Array.isArray(c.material)) c.material.forEach(m => m.color.copy(color));
+                                    else c.material.color.copy(color);
+                                }
+                            }
+                        });
+                    }
+                };
+
+                // --- ロード制御ロジック ---
+
+                if (window.seasonDollMaster) {
+                    // A. ロード済みなら即配置
+                    placeDoll(window.seasonDollMaster, config, isWinner);
+                } else {
+                    // B. 未ロードならキューに追加してロード開始
+                    window.pendingDollRequests.push({ config, isWinner });
+
+                    // 初回のみローダー起動
+                    if (window.pendingDollRequests.length === 1) {
+                        const loader = new FBXLoader();
+                        loader.load('models/seasondoll.fbx', (fbx) => {
+                            console.log("📥 SeasonDoll Master Loaded.");
+
+                            // マスターモデルの初期設定
+                            fbx.traverse(c => {
+                                if (c.isMesh) {
+                                    c.castShadow = true;
+                                    c.receiveShadow = true;
+                                    // マテリアル独立化
+                                    if (c.material) {
+                                        c.material = Array.isArray(c.material)
+                                            ? c.material.map(m => m.clone())
+                                            : c.material.clone();
+                                    }
+                                }
+                            });
+                            fbx.animations = []; // 干渉防止
+
+                            window.seasonDollMaster = fbx;
+
+                            // 待機していた配置リクエストを一気に処理
+                            window.pendingDollRequests.forEach(req => {
+                                placeDoll(fbx, req.config, req.isWinner);
+                            });
+                            window.pendingDollRequests = []; // キューを空に
+
+                        }, undefined, (err) => console.error("❌ Failed to load seasondoll.fbx", err));
+                    }
+                }
             };
             snowmanPositions.forEach((config, index) => createSnowman(config, index === winnerIndex));
 
@@ -5076,20 +5204,26 @@ const SearchGame = (() => {
                                 document.body.appendChild(div); setTimeout(() => div.remove(), 1000);
                             }
 
-                            setTimeout(() => {
-                                if (snowman && snowman.parent) {
-                                    snowman.visible = true;
-                                    snowman.userData.isDead = false;
-                                    snowman.scale.set(0.1, 0.1, 0.1);
-                                    let s = 0.1;
-                                    const anim = setInterval(() => {
-                                        if (!snowman.parent) { clearInterval(anim); return; }
-                                        s += 0.1;
-                                        if (s >= 1.0) { s = 1.0; clearInterval(anim); }
-                                        snowman.scale.setScalar(s);
-                                    }, 30);
+                               setTimeout(() => {
+                                // ★修正: 古いオブジェクトを完全削除
+                                const oldX = snowman.position.x;
+                                const oldZ = snowman.position.z;
+                                const wasWinner = snowman.userData.isWinner;
+
+                                if (snowman.parent) {
+                                    snowman.parent.remove(snowman);
                                 }
-                            }, 5000);
+                                
+                                // 配列からも削除 (安全のため)
+                                const idx = window.sgSnowmen.indexOf(snowman);
+                                if (idx > -1) window.sgSnowmen.splice(idx, 1);
+
+                                // ★修正: 新しい関数経由で、新品をリスポーンさせる
+                                // これならスケールも季節カラーも最新ルールが適用される！
+                                if (typeof createSnowman === 'function') {
+                                    createSnowman({ x: oldX, z: oldZ }, wasWinner);
+                                }
+                            }, 5000); // 復活時間 (3秒に変更指示があればここ)
                         }
                     });
                 }
