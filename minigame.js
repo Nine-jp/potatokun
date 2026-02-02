@@ -149,7 +149,7 @@ window.AudioManager = AudioManager;
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'spring', // 春仕様に変更
+    currentSeason: 'winter', // 冬仕様に変更
     debugMode: true          // デバッグモードは維持
 };
 
