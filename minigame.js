@@ -149,7 +149,7 @@ window.AudioManager = AudioManager;
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'winter', // 冬仕様に変更
+    currentSeason: 'spring', // 春仕様に変更
     debugMode: true          // デバッグモードは維持
 };
 
@@ -3741,6 +3741,65 @@ const SearchGame = (() => {
         })();
         window.TreeInstanceManager = TreeInstanceManager;
 
+        // ★隠しコインを木にセットアップする関数
+        function setupHiddenCoin(targetTree) {
+            if (!targetTree) return;
+            if (!window.sgActiveCoins) window.sgActiveCoins = [];
+
+            const loader = new FBXLoader();
+            loader.load('models/coin.fbx', (object) => {
+                const coin = object;
+                const season = GameConfig.currentSeason || 'summer';
+                const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
+                const targetColor = seasonColors[season];
+
+                coin.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                        child.material = new THREE.MeshBasicMaterial({
+                            map: oldMat.map,
+                            color: targetColor,
+                            side: THREE.DoubleSide
+                        });
+                    }
+                });
+
+                // サイズ調整
+                const box = new THREE.Box3().setFromObject(coin);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
+
+                // 配置
+                coin.position.set(0, 2.2, 0); // 木のローカル座標
+                const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
+                coin.add(coinLight);
+
+                coin.userData = {
+                    isCoin: true,
+                    isFalling: false,
+                    hasFallen: false,
+                    pointLight: coinLight,
+                    parentTree: targetTree
+                };
+
+                targetTree.add(coin);
+                targetTree.userData.hasCoin = true;
+                window.sgActiveCoins.push(coin);
+
+                // 衝突判定データの更新
+                const col = window.sgTreeCollisions.find(c =>
+                    Math.abs(c.x - targetTree.position.x) < 0.1 && Math.abs(c.z - targetTree.position.z) < 0.1
+                );
+                if (col) {
+                    col.hasCoin = true;
+                    window.testTreeCollision = col;
+                }
+                console.log("✨ Hidden Coin ready in a tree at:", targetTree.position);
+            });
+        }
+
         function spawnTrees() {
             console.log("spawnTrees Phase 2");
             window.sgTreeObjects = [];
@@ -3773,11 +3832,10 @@ const SearchGame = (() => {
                 const iq = [];
                 all.forEach((d, i) => {
                     if (d.type !== 'exterior') window.sgTreeCollisions.push({ x: d.x, z: d.z, radius: 0.3 * d.scale });
-                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); if (window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); }
+                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); if (window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); setupHiddenCoin(t); }
                     else { iq.push({ x: d.x, z: d.z, scale: d.scale, rot: Math.random() * Math.PI * 2 }); }
                 });
                 if (window.TreeInstanceManager) { window.TreeInstanceManager.init(mt, iq.length); const dm = new THREE.Object3D(); iq.forEach((p, i) => { dm.position.set(p.x, 0, p.z); dm.rotation.y = p.rot; dm.scale.setScalar(p.scale); window.TreeInstanceManager.setTransform(i, dm); }); window.TreeInstanceManager.finalize(); console.log('Instanced ' + iq.length + ' trees.'); }
-                if (typeof setupHiddenCoin === 'function') setupHiddenCoin();
                 window.setTreeSeason(GameConfig.currentSeason);
             };
             if (window.sgMasterTree) exec(window.sgMasterTree); else new FBXLoader().load('models/tree.fbx', exec, undefined, console.error);
@@ -5666,59 +5724,59 @@ const SearchGame = (() => {
 
         }, undefined, (error) => console.error('Error loading tree.fbx:', error));
 
-        // --- 隠しコイン生成関数 (植樹完了後に呼ばれる) ---
-        function setupHiddenCoin() {
+        // --- 隠しコイン生成関数 (木を直接受け取る) ---
+        function setupHiddenCoin(targetTree) {
+            if (!targetTree) {
+                console.warn('setupHiddenCoin: No target tree provided!');
+                return;
+            }
             if (!window.sgActiveCoins) window.sgActiveCoins = [];
-            let coinCandidates = window.sgTreeObjects.filter(t => t.position.x < -10 && t.position.z > 10);
-            if (coinCandidates.length === 0) coinCandidates = window.sgTreeObjects;
+            window.testTree = targetTree;
+            console.log('setupHiddenCoin: Attaching coin to', targetTree.name, 'at', targetTree.position.x.toFixed(1), targetTree.position.z.toFixed(1));
 
-            if (coinCandidates.length > 0) {
-                const targetTree = coinCandidates[Math.floor(Math.random() * coinCandidates.length)];
-                window.testTree = targetTree;
+            const loader = new FBXLoader();
+            loader.load('models/coin.fbx', (object) => {
+                const coin = object;
+                const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
+                const currentSeason = (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) ? GameConfig.currentSeason : 'summer';
+                const targetColor = seasonColors[currentSeason] || 0xFFFFFF;
 
-                const loader = new FBXLoader();
-                loader.load('models/coin.fbx', (object) => {
-                    const coin = object;
-                    const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
-                    const currentSeason = (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) ? GameConfig.currentSeason : 'summer';
-                    const targetColor = seasonColors[currentSeason] || 0xFFFFFF;
-
-                    coin.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = false;
-                            if (child.material) {
-                                const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
-                                const newMat = new THREE.MeshBasicMaterial({
-                                    map: oldMat.map, color: targetColor, transparent: false, opacity: 1.0, side: THREE.DoubleSide
-                                });
-                                child.material = newMat;
-                            }
+                coin.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = false;
+                        if (child.material) {
+                            const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                            const newMat = new THREE.MeshBasicMaterial({
+                                map: oldMat.map, color: targetColor, transparent: false, opacity: 1.0, side: THREE.DoubleSide
+                            });
+                            child.material = newMat;
                         }
-                    });
-                    const box = new THREE.Box3().setFromObject(coin);
-                    const size = new THREE.Vector3(); box.getSize(size);
-                    coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
-                    const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
-                    coin.add(coinLight);
-                    coin.position.set(0, 2.2, 0);
-                    coin.userData = { isCoin: true, isFalling: false, hasFallen: false, pointLight: coinLight };
-
-                    targetTree.add(coin);
-                    targetTree.userData.hasCoin = true;
-                    targetTree.userData.targetCoin = coin;
-                    window.sgActiveCoins.push(coin);
-                    coin.userData.parentTree = targetTree;
-
-                    const collisionObj = window.sgTreeCollisions.find(c =>
-                        Math.abs(c.x - targetTree.position.x) < 0.1 && Math.abs(c.z - targetTree.position.z) < 0.1
-                    );
-                    if (collisionObj) {
-                        collisionObj.hasCoin = true;
-                        window.testTreeCollision = collisionObj;
                     }
                 });
-            }
+                const box = new THREE.Box3().setFromObject(coin);
+                const size = new THREE.Vector3(); box.getSize(size);
+                coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
+                const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
+                coin.add(coinLight);
+                coin.position.set(0, 2.2, 0);
+                coin.userData = { isCoin: true, isFalling: false, hasFallen: false, pointLight: coinLight };
+
+                targetTree.add(coin);
+                targetTree.userData.hasCoin = true;
+                targetTree.userData.targetCoin = coin;
+                window.sgActiveCoins.push(coin);
+                coin.userData.parentTree = targetTree;
+
+                const collisionObj = window.sgTreeCollisions.find(c =>
+                    Math.abs(c.x - targetTree.position.x) < 0.1 && Math.abs(c.z - targetTree.position.z) < 0.1
+                );
+                if (collisionObj) {
+                    collisionObj.hasCoin = true;
+                    window.testTreeCollision = collisionObj;
+                }
+            });
+            console.log('✨ Hidden Coin ready in tree:', targetTree.name);
         }
     }
 
@@ -5838,54 +5896,57 @@ const SearchGame = (() => {
     };
 
     // ==========================================
-    // 草 (Grass) の配置 - 密度改善版 (直立維持 & 800本保証)
+    // 1. 草 (Grass) の配置修正 (Final Fix)
     // ==========================================
     function spawnGrass() {
-        // 二重生成ガード
         if (window.hasSpawnedGrass) return;
         window.hasSpawnedGrass = true;
 
-        console.log("--- spawnGrass CALLED (Density Fix Mode) ---");
+        console.log("--- spawnGrass CALLED (Final Fix Mode) ---");
 
         // クリーンアップ
         if (window.sgGrassObjects) {
-            window.sgGrassObjects.forEach(g => {
-                if (g.parent) g.parent.remove(g);
-            });
+            window.sgGrassObjects.forEach(g => { if (g.parent) g.parent.remove(g); });
         }
         window.sgGrassObjects = [];
 
-        // 不要なオブジェクト削除
-        const existingInstanced = scene.getObjectByName('InstancedGrassField');
-        if (existingInstanced) {
-            if (existingInstanced.geometry) existingInstanced.geometry.dispose();
-            scene.remove(existingInstanced);
+        // 不要なInstancedMesh削除
+        const existing = scene.getObjectByName('InstancedGrassField');
+        if (existing) {
+            if (existing.geometry) existing.geometry.dispose();
+            scene.remove(existing);
         }
+        window.sgGrassInstancedMesh = null;
 
         const loader = new FBXLoader();
         loader.load('models/grass.fbx', (masterGrass) => {
-            console.log('FBX Loaded: grass.fbx');
 
-            // 1. マテリアル設定 (直立を保証する clone 方式用)
+            // ★対策: アニメーション干渉排除 & Pivot補正準備
+            masterGrass.animations = [];
+            const temp = masterGrass.clone();
+            temp.scale.setScalar(1);
+            temp.rotation.set(0, 0, 0);
+            temp.position.set(0, 0, 0);
+            const tempBox = new THREE.Box3().setFromObject(temp);
+            const baseOffset = -tempBox.min.y; // 底上げ量
+
+            // マテリアル設定
             masterGrass.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = false;
                     child.receiveShadow = false;
                     child.userData.ignoreGround = true;
+                    child.frustumCulled = false; // 視界外判定無効化
 
                     if (child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material = child.material.map(m => m.clone());
-                        } else {
-                            child.material = child.material.clone();
-                        }
-
                         const setMat = (m) => {
                             m.transparent = true;
                             m.alphaTest = 0.5;
                             m.side = THREE.DoubleSide;
                             if (m.emissive) m.emissive.setHex(0x000000);
                         };
+                        if (Array.isArray(child.material)) child.material = child.material.map(m => m.clone());
+                        else child.material = child.material.clone();
 
                         if (Array.isArray(child.material)) child.material.forEach(setMat);
                         else setMat(child.material);
@@ -5893,48 +5954,38 @@ const SearchGame = (() => {
                 }
             });
 
-            if (typeof window.addEdgesOutline === 'function') {
-                window.addEdgesOutline(masterGrass, 15, 0x000000);
-            }
-
-            // 2. 配置ループ (whileループに変更して確実に数を確保)
-            const grassTargetCount = 800;
+            // 配置ループ (while文で数を保証)
+            const targetCount = 200;
             const range = 62;
-            let placedCount = 0;
+            let count = 0;
             let attempts = 0;
-            const MAX_ATTEMPTS = 3000; // 諦めずに試行する回数
 
-            while (placedCount < grassTargetCount && attempts < MAX_ATTEMPTS) {
+            while (count < targetCount && attempts < 5000) {
                 attempts++;
-
                 const x = (Math.random() - 0.5) * range;
                 const z = (Math.random() - 0.5) * range;
 
-                // 除外エリアならスキップして再挑戦
-                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) {
-                    continue;
-                }
+                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
 
-                // ★直立維持のため masterGrass.clone() を使用
                 const grass = masterGrass.clone();
-                grass.position.set(x, 0, z);
 
-                // Y軸(横回転)のみランダム
+                // ★スケールと位置補正
+                const scale = 3.5 + Math.random() * 3.0;
+                grass.scale.setScalar(scale);
+
+                const y = baseOffset * scale;
+                grass.position.set(x, y, z);
                 grass.rotation.y = Math.random() * Math.PI * 2;
 
-                // スケール
-                const scale = 5.5 + Math.random() * 2.0;
-                grass.scale.setScalar(scale);
+                grass.updateMatrix();
+                grass.updateMatrixWorld(true);
 
                 scene.add(grass);
                 window.sgGrassObjects.push(grass);
-
-                placedCount++;
+                count++;
             }
+            console.log(`✅ Grass Placed: ${count} patches (Final Fix).`);
 
-            console.log(`✅ Success: ${placedCount} grass patches placed (Attempts: ${attempts}).`);
-
-            // 季節反映
             if (typeof window.setGrassSeason === 'function' && typeof GameConfig !== 'undefined') {
                 window.setGrassSeason(GameConfig.currentSeason);
             }
@@ -5942,15 +5993,16 @@ const SearchGame = (() => {
         }, undefined, (err) => console.error(err));
     }
 
+    // モジュールの戻り値
     return { setup, init, start, stop };
 })();
 
-
-// ★季節の初期化（草・木・空の色を適用）
-if (typeof window.setGameSeason === 'function') {
+// ★季節の初期化
+if (typeof window.setGameSeason === 'function' && typeof GameConfig !== 'undefined') {
     window.setGameSeason(GameConfig.currentSeason);
 }
 
-// Init
-initGameSystem();
-// document.addEventListener('DOMContentLoaded', initGameSystem);
+// ゲームシステムの起動
+if (typeof initGameSystem === 'function') {
+    initGameSystem();
+}

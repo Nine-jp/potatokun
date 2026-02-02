@@ -1665,7 +1665,8 @@
 
 
         /**
-         * PROJECT POTATO: PHASE 1 - TreeInstanceManager
+         * 🛠️ PROJECT POTATO: PHASE 3 - OUTLINE FIX (FINAL SOLUTION)
+         * All outlines disabled for cleaner look
          */
         const TreeInstanceManager = (() => {
             let components = [];
@@ -1683,8 +1684,9 @@
                 masterModel.traverse(child => {
                     if (child.isMesh) {
                         const baseMatrix = child.matrixWorld.clone().premultiply(rootInv);
-                        let mat = Array.isArray(child.material) ? child.material.map(m => m.clone()) : child.material.clone();
+                        const name = child.name.toLowerCase();
 
+                        let mat = Array.isArray(child.material) ? child.material.map(m => m.clone()) : child.material.clone();
                         const iMesh = new THREE.InstancedMesh(child.geometry, mat, count);
                         iMesh.name = `Instanced_${child.name}`;
                         iMesh.castShadow = true;
@@ -1693,18 +1695,11 @@
                         iMesh.userData.isTree = true;
                         scene.add(iMesh);
 
-                        const edgesGeo = new THREE.EdgesGeometry(child.geometry, 15);
-                        const edgesMat = new THREE.LineBasicMaterial({ color: 0x000000 });
-                        const eMesh = new THREE.InstancedMesh(edgesGeo, edgesMat, count);
-                        eMesh.name = `InstancedEdge_${child.name}`;
-                        eMesh.userData.ignoreGround = true;
-                        eMesh.raycast = () => {};
-                        scene.add(eMesh);
-
-                        components.push({ name: child.name.toLowerCase(), mesh: iMesh, edge: eMesh, baseMatrix });
+                        // アウトライン完全廃止
+                        components.push({ name, mesh: iMesh, edge: null, baseMatrix });
                     }
                 });
-                console.log(`TreeInstanceManager: ${components.length} parts.`);
+                console.log(`TreeInstanceManager: ${components.length} parts (No outlines).`);
             };
 
             const setTransform = (index, dummy) => {
@@ -1717,13 +1712,13 @@
             };
 
             const updateSeason = (seasonName) => {
-                const palettes = {
+                const TREE_PALETTES = {
                     spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
                     summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
                     autumn: [0xFF4500, 0xD2691E, 0xFF8C00, 0xFFD700],
                     winter: [0xE6E6FA, 0xF8F8FF, 0xD8BFD8]
                 };
-                const palette = palettes[seasonName] || palettes.summer;
+                const palette = TREE_PALETTES[seasonName] || TREE_PALETTES.summer;
                 const color = new THREE.Color();
                 components.forEach(comp => {
                     const isLeaves = comp.name.includes('leaves') || comp.name.includes('leaf') || comp.name.includes('canopy');
@@ -1736,9 +1731,9 @@
             };
 
             const finalize = () => {
-                components.forEach(comp => {
-                    comp.mesh.instanceMatrix.needsUpdate = true;
-                    if (comp.edge) comp.edge.instanceMatrix.needsUpdate = true;
+                components.forEach(c => {
+                    c.mesh.instanceMatrix.needsUpdate = true;
+                    if (c.edge) c.edge.instanceMatrix.needsUpdate = true;
                 });
             };
 
@@ -1760,32 +1755,122 @@
                 mb.scale.setScalar(1.0);
                 if (window.applyOutlineRules) window.applyOutlineRules(mb);
                 mb.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-                const addB = (x, z, r) => { if (Math.abs(x-4)<0.1&&Math.abs(z-16)<0.1) return; const b=mb.clone(); b.position.set(x,0,z); b.rotation.y=r*(Math.PI/180); scene.add(b); if(typeof ExclusionManager!=='undefined') ExclusionManager.addCircle(x,z,1.5); };
-                for (let d=10;d<=30;d+=4) { const b=d-2; addB(b,4,180);addB(-b,4,180);addB(b,-4,0);addB(-b,-4,0);addB(4,b,-90);addB(4,-b,-90);addB(-4,b,90);addB(-4,-b,90); }
+                const addB = (x, z, r) => { if (Math.abs(x - 4) < 0.1 && Math.abs(z - 16) < 0.1) return; const b = mb.clone(); b.position.set(x, 0, z); b.rotation.y = r * (Math.PI / 180); scene.add(b); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5); };
+                for (let d = 10; d <= 30; d += 4) { const b = d - 2; addB(b, 4, 180); addB(-b, 4, 180); addB(b, -4, 0); addB(-b, -4, 0); addB(4, b, -90); addB(4, -b, -90); addB(-4, b, 90); addB(-4, -b, 90); }
             });
 
             const exec = (mt) => {
                 window.sgMasterTree = mt;
                 const all = [];
-                const addA = (x,z) => { all.push({x,z,type:'avenue',scale:0.8+Math.random()*0.4}); if(typeof ExclusionManager!=='undefined') ExclusionManager.addCircle(x,z,2.0); };
-                for (let d=10;d<=30;d+=4) { addA(d,4);addA(d,-4);addA(-d,4);addA(-d,-4);addA(4,d);addA(-4,d);addA(4,-d);addA(-4,-d); }
+                const addA = (x, z) => { all.push({ x, z, type: 'avenue', scale: 0.8 + Math.random() * 0.4 }); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.0); };
+                for (let d = 10; d <= 30; d += 4) { addA(d, 4); addA(d, -4); addA(-d, 4); addA(-d, -4); addA(4, d); addA(-4, d); addA(4, -d); addA(-4, -d); }
                 const fq = []; let att = 0;
-                while (fq.length<184&&att<10000) { att++; const x=(Math.random()-0.5)*62, z=(Math.random()-0.5)*62; if([...all,...fq].some(p=>(p.x-x)**2+(p.z-z)**2<4)) continue; if(typeof ExclusionManager!=='undefined'&&ExclusionManager.isBlocked(x,z)) continue; fq.push({x,z,type:'forest',scale:0.8+Math.random()*0.4}); if(typeof ExclusionManager!=='undefined') ExclusionManager.addCircle(x,z,1.2); }
+                while (fq.length < 184 && att < 10000) { att++; const x = (Math.random() - 0.5) * 62, z = (Math.random() - 0.5) * 62; if ([...all, ...fq].some(p => (p.x - x) ** 2 + (p.z - z) ** 2 < 4)) continue; if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue; fq.push({ x, z, type: 'forest', scale: 0.8 + Math.random() * 0.4 }); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2); }
                 all.push(...fq);
-                for (let i=0;i<70;i++) { const a=Math.random()*Math.PI*2, r=45+Math.random()*35; all.push({x:Math.cos(a)*r,z:Math.sin(a)*r,type:'exterior',scale:1.2+Math.random()*0.8}); }
-                const cands = all.map((p,i)=>p.type==='forest'&&p.x<-10&&p.z>10?i:-1).filter(i=>i>=0);
-                const cti = cands.length>0 ? cands[Math.floor(Math.random()*cands.length)] : all.findIndex(p=>p.type==='forest');
+                for (let i = 0; i < 70; i++) { const a = Math.random() * Math.PI * 2, r = 45 + Math.random() * 35; all.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, type: 'exterior', scale: 1.2 + Math.random() * 0.8 }); }
+                const cands = all.map((p, i) => p.type === 'forest' && p.x < -10 && p.z > 10 ? i : -1).filter(i => i >= 0);
+                const cti = cands.length > 0 ? cands[Math.floor(Math.random() * cands.length)] : all.findIndex(p => p.type === 'forest');
                 const iq = [];
-                all.forEach((d,i) => {
-                    if(d.type!=='exterior') window.sgTreeCollisions.push({x:d.x,z:d.z,radius:0.3*d.scale});
-                    if(i===cti) { const t=mt.clone(); t.userData.isTree=true; t.name='Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x,0,d.z); t.rotation.y=Math.random()*Math.PI*2; t.traverse(c=>{if(c.isMesh){c.material=Array.isArray(c.material)?c.material.map(m=>m.clone()):c.material.clone();c.castShadow=true;c.receiveShadow=true;}}); if(window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at '+d.x.toFixed(1)+','+d.z.toFixed(1)); }
-                    else { iq.push({x:d.x,z:d.z,scale:d.scale,rot:Math.random()*Math.PI*2}); }
+                all.forEach((d, i) => {
+                    if (d.type !== 'exterior') window.sgTreeCollisions.push({ x: d.x, z: d.z, radius: 0.3 * d.scale });
+                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); if (window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); }
+                    else { iq.push({ x: d.x, z: d.z, scale: d.scale, rot: Math.random() * Math.PI * 2 }); }
                 });
-                if(window.TreeInstanceManager) { window.TreeInstanceManager.init(mt,iq.length); const dm=new THREE.Object3D(); iq.forEach((p,i)=>{dm.position.set(p.x,0,p.z);dm.rotation.y=p.rot;dm.scale.setScalar(p.scale);window.TreeInstanceManager.setTransform(i,dm);}); window.TreeInstanceManager.finalize(); console.log('Instanced '+iq.length+' trees.'); }
-                if(typeof setupHiddenCoin==='function') setupHiddenCoin();
+                if (window.TreeInstanceManager) { window.TreeInstanceManager.init(mt, iq.length); const dm = new THREE.Object3D(); iq.forEach((p, i) => { dm.position.set(p.x, 0, p.z); dm.rotation.y = p.rot; dm.scale.setScalar(p.scale); window.TreeInstanceManager.setTransform(i, dm); }); window.TreeInstanceManager.finalize(); console.log('Instanced ' + iq.length + ' trees.'); }
+                if (typeof setupHiddenCoin === 'function') setupHiddenCoin();
                 window.setTreeSeason(GameConfig.currentSeason);
             };
-            if(window.sgMasterTree) exec(window.sgMasterTree); else new FBXLoader().load('models/tree.fbx', exec, undefined, console.error);
+            if (window.sgMasterTree) exec(window.sgMasterTree); else new FBXLoader().load('models/tree.fbx', exec, undefined, console.error);
+        }
+
+        // =================================================================
+        // 🛠️ PROJECT POTATO: GRASS INSTANCED (InstancedMesh Mode)
+        // =================================================================
+        const GRASS_PALETTES = {
+            spring: [0x90EE90, 0x98FB98, 0xADFF2F],
+            summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+            autumn: [0xCD853F, 0xDAA520, 0x8B4513],
+            winter: [0xDDDDDD]
+        };
+
+        window.setGrassSeason = (seasonName) => {
+            const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
+            if (window.sgGrassInstancedMesh) {
+                const color = new THREE.Color();
+                for (let i = 0; i < window.sgGrassInstancedMesh.count; i++) {
+                    color.setHex(palette[i % palette.length]);
+                    window.sgGrassInstancedMesh.setColorAt(i, color);
+                }
+                if (window.sgGrassInstancedMesh.instanceColor) {
+                    window.sgGrassInstancedMesh.instanceColor.needsUpdate = true;
+                }
+            }
+        };
+
+        function spawnGrass() {
+            if (window.hasSpawnedGrass) return;
+            window.hasSpawnedGrass = true;
+            console.log("--- spawnGrass (InstancedMesh Mode) ---");
+
+            // クリーンアップ
+            const existing = scene.getObjectByName('InstancedGrassField');
+            if (existing) {
+                existing.geometry?.dispose();
+                scene.remove(existing);
+            }
+
+            new FBXLoader().load('models/grass.fbx', (masterGrass) => {
+                // 1. メッシュの抽出
+                let grassMesh = null;
+                masterGrass.traverse(c => { if (c.isMesh) grassMesh = c; });
+                if (!grassMesh) return;
+
+                // 2. 【形状補正】-90度で起こす
+                grassMesh.geometry.rotateX(-Math.PI / 2);
+
+                // 3. マテリアル準備
+                let mat = grassMesh.material;
+                mat = (Array.isArray(mat) ? mat[0] : mat).clone();
+                mat.transparent = true;
+                mat.alphaTest = 0.5;
+                mat.side = THREE.DoubleSide;
+
+                // 4. InstancedMesh 作成
+                const grassCount = 800;
+                const iMesh = new THREE.InstancedMesh(grassMesh.geometry, mat, grassCount);
+                iMesh.name = 'InstancedGrassField';
+                iMesh.castShadow = false;
+                iMesh.receiveShadow = true;
+                iMesh.userData.ignoreGround = true;
+
+                const dummy = new THREE.Object3D();
+                let placed = 0;
+                let attempts = 0;
+
+                // 5. 配置ループ
+                while (placed < grassCount && attempts < 5000) {
+                    attempts++;
+                    const x = (Math.random() - 0.5) * 62;
+                    const z = (Math.random() - 0.5) * 62;
+                    if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
+
+                    dummy.position.set(x, 0, z);
+                    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+                    const s = 3.5 + Math.random() * 2.0;
+                    dummy.scale.set(s, s, s);
+                    dummy.updateMatrix();
+
+                    iMesh.setMatrixAt(placed, dummy.matrix);
+                    placed++;
+                }
+
+                iMesh.instanceMatrix.needsUpdate = true;
+                scene.add(iMesh);
+                window.sgGrassInstancedMesh = iMesh;
+
+                console.log(`✅ ${placed} grass patches (InstancedMesh Fix Mode).`);
+                if (typeof GameConfig !== 'undefined') window.setGrassSeason(GameConfig.currentSeason);
+            }, undefined, console.error);
         }
 
         // ★ GLOBAL SEASON MANAGER (Comms Tower)
@@ -1913,88 +1998,3 @@
 
             // ★★★ 道路 (Roads) の生成 [追加] ★★★
             // 地面(Y=0)よりわずかに浮かせて配置 (Z-fighting防止)
-            const roadMat = new THREE.MeshLambertMaterial({ color: 0x808080 }); // グレー
-
-            // 南北の道 (Z軸) 幅10m -> 6m
-            // 変更点: (10, 100) を (6, 100) にする
-            const roadNS = new THREE.Mesh(new THREE.PlaneGeometry(6, 100), roadMat);
-            roadNS.rotation.x = -Math.PI / 2;
-            roadNS.position.set(0, 0.02, 0);
-            roadNS.receiveShadow = true;
-            window.parkGroup.add(roadNS);
-
-            // 東西の道 (X軸) 幅10m -> 6m
-            // 変更点: (100, 10) を (100, 6) にする
-            const roadEW = new THREE.Mesh(new THREE.PlaneGeometry(100, 6), roadMat);
-            roadEW.rotation.x = -Math.PI / 2;
-            roadEW.position.set(0, 0.025, 0);
-            roadEW.receiveShadow = true;
-            window.parkGroup.add(roadEW);
-
-            // ★コインテクスチャ生成
-            const createCoinTextures = () => {
-                const size = 128;
-                const cFace = '#ffae00'; const cBorder = '#f05e1c'; const cEye = '#ffffff';
-                const cPupil = '#000000'; const cMouth = '#e83015'; const cPText = '#86c166';
-                const borderThickness = 14;
-                const canvasFace = document.createElement('canvas'); canvasFace.width = size; canvasFace.height = size;
-                const ctx1 = canvasFace.getContext('2d');
-                ctx1.translate(64, 64); ctx1.rotate(-Math.PI / 2); ctx1.translate(-64, -64);
-                ctx1.fillStyle = cBorder; ctx1.fillRect(0, 0, size, size);
-                ctx1.beginPath(); ctx1.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx1.fillStyle = cFace; ctx1.fill();
-                ctx1.fillStyle = cEye; ctx1.fillRect(35, 32, 20, 45); ctx1.fillRect(73, 32, 20, 45);
-                ctx1.fillStyle = cPupil; ctx1.fillRect(40, 44, 10, 22); ctx1.fillRect(78, 44, 10, 22);
-                ctx1.fillStyle = cMouth; ctx1.fillRect(42, 92, 44, 10);
-                const texFace = new THREE.CanvasTexture(canvasFace);
-                texFace.minFilter = THREE.NearestFilter; texFace.magFilter = THREE.NearestFilter;
-                const canvasBack = document.createElement('canvas'); canvasBack.width = size; canvasBack.height = size;
-                const ctx2 = canvasBack.getContext('2d');
-                ctx2.translate(64, 64); ctx2.rotate(-Math.PI / 2); ctx2.translate(-64, -64);
-                ctx2.fillStyle = cBorder; ctx2.fillRect(0, 0, size, size);
-                ctx2.beginPath(); ctx2.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx2.fillStyle = cFace; ctx2.fill();
-                ctx2.fillStyle = cPText; ctx2.font = 'bold 80px sans-serif';
-                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68);
-                const texBack = new THREE.CanvasTexture(canvasBack);
-                texBack.minFilter = THREE.NearestFilter; texBack.magFilter = THREE.NearestFilter;
-                const canvasSide = document.createElement('canvas'); canvasSide.width = 2; canvasSide.height = 2;
-                const ctxSide = canvasSide.getContext('2d'); ctxSide.fillStyle = cBorder; ctxSide.fillRect(0, 0, 2, 2);
-                const texSide = new THREE.CanvasTexture(canvasSide);
-                texSide.minFilter = THREE.NearestFilter; texSide.magFilter = THREE.NearestFilter;
-                return { face: texFace, back: texBack, side: texSide };
-            };
-            const coinTex = createCoinTextures();
-
-            // --- 共通テクスチャ生成ロジック (Shared) ---
-            const getOrCreateCircleTexture = () => {
-                if (window.particleCircleTexture) return window.particleCircleTexture;
-
-                const size = 64;
-                const canvas = document.createElement('canvas');
-                canvas.width = size;
-                canvas.height = size;
-                const ctx = canvas.getContext('2d');
-
-                // 円形の描画
-                ctx.beginPath();
-                ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-                ctx.fillStyle = '#ffffff';
-                ctx.fill();
-
-                const texture = new THREE.CanvasTexture(canvas);
-                window.particleCircleTexture = texture;
-                // console.log("⚪ Created Shared Circle Texture Asset.");
-                return texture;
-            };
-
-            const spawnSnowExplosion = (pos) => {
-                // 関数が呼ばれる直前にテクスチャを確保
-                getOrCreateCircleTexture();
-
-                const particleCount = 15;
-                // MeshではなくSpriteを使用（コインと同じ仕様にする）
-                const material = new THREE.SpriteMaterial({
-                    map: window.particleCircleTexture,
-                    color: 0xffffff,
-                    transparent: true,
-                    opacity: 0.8,
-                    depthWrite: false

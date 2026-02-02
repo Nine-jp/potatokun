@@ -1,3 +1,88 @@
+            const roadMat = new THREE.MeshLambertMaterial({ color: 0x808080 }); // グレー
+
+            // 南北の道 (Z軸) 幅10m -> 6m
+            // 変更点: (10, 100) を (6, 100) にする
+            const roadNS = new THREE.Mesh(new THREE.PlaneGeometry(6, 100), roadMat);
+            roadNS.rotation.x = -Math.PI / 2;
+            roadNS.position.set(0, 0.02, 0);
+            roadNS.receiveShadow = true;
+            window.parkGroup.add(roadNS);
+
+            // 東西の道 (X軸) 幅10m -> 6m
+            // 変更点: (100, 10) を (100, 6) にする
+            const roadEW = new THREE.Mesh(new THREE.PlaneGeometry(100, 6), roadMat);
+            roadEW.rotation.x = -Math.PI / 2;
+            roadEW.position.set(0, 0.025, 0);
+            roadEW.receiveShadow = true;
+            window.parkGroup.add(roadEW);
+
+            // ★コインテクスチャ生成
+            const createCoinTextures = () => {
+                const size = 128;
+                const cFace = '#ffae00'; const cBorder = '#f05e1c'; const cEye = '#ffffff';
+                const cPupil = '#000000'; const cMouth = '#e83015'; const cPText = '#86c166';
+                const borderThickness = 14;
+                const canvasFace = document.createElement('canvas'); canvasFace.width = size; canvasFace.height = size;
+                const ctx1 = canvasFace.getContext('2d');
+                ctx1.translate(64, 64); ctx1.rotate(-Math.PI / 2); ctx1.translate(-64, -64);
+                ctx1.fillStyle = cBorder; ctx1.fillRect(0, 0, size, size);
+                ctx1.beginPath(); ctx1.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx1.fillStyle = cFace; ctx1.fill();
+                ctx1.fillStyle = cEye; ctx1.fillRect(35, 32, 20, 45); ctx1.fillRect(73, 32, 20, 45);
+                ctx1.fillStyle = cPupil; ctx1.fillRect(40, 44, 10, 22); ctx1.fillRect(78, 44, 10, 22);
+                ctx1.fillStyle = cMouth; ctx1.fillRect(42, 92, 44, 10);
+                const texFace = new THREE.CanvasTexture(canvasFace);
+                texFace.minFilter = THREE.NearestFilter; texFace.magFilter = THREE.NearestFilter;
+                const canvasBack = document.createElement('canvas'); canvasBack.width = size; canvasBack.height = size;
+                const ctx2 = canvasBack.getContext('2d');
+                ctx2.translate(64, 64); ctx2.rotate(-Math.PI / 2); ctx2.translate(-64, -64);
+                ctx2.fillStyle = cBorder; ctx2.fillRect(0, 0, size, size);
+                ctx2.beginPath(); ctx2.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx2.fillStyle = cFace; ctx2.fill();
+                ctx2.fillStyle = cPText; ctx2.font = 'bold 80px sans-serif';
+                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68);
+                const texBack = new THREE.CanvasTexture(canvasBack);
+                texBack.minFilter = THREE.NearestFilter; texBack.magFilter = THREE.NearestFilter;
+                const canvasSide = document.createElement('canvas'); canvasSide.width = 2; canvasSide.height = 2;
+                const ctxSide = canvasSide.getContext('2d'); ctxSide.fillStyle = cBorder; ctxSide.fillRect(0, 0, 2, 2);
+                const texSide = new THREE.CanvasTexture(canvasSide);
+                texSide.minFilter = THREE.NearestFilter; texSide.magFilter = THREE.NearestFilter;
+                return { face: texFace, back: texBack, side: texSide };
+            };
+            const coinTex = createCoinTextures();
+
+            // --- 共通テクスチャ生成ロジック (Shared) ---
+            const getOrCreateCircleTexture = () => {
+                if (window.particleCircleTexture) return window.particleCircleTexture;
+
+                const size = 64;
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+
+                // 円形の描画
+                ctx.beginPath();
+                ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+
+                const texture = new THREE.CanvasTexture(canvas);
+                window.particleCircleTexture = texture;
+                // console.log("⚪ Created Shared Circle Texture Asset.");
+                return texture;
+            };
+
+            const spawnSnowExplosion = (pos) => {
+                // 関数が呼ばれる直前にテクスチャを確保
+                getOrCreateCircleTexture();
+
+                const particleCount = 15;
+                // MeshではなくSpriteを使用（コインと同じ仕様にする）
+                const material = new THREE.SpriteMaterial({
+                    map: window.particleCircleTexture,
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.8,
+                    depthWrite: false
                 });
 
                 for (let i = 0; i < particleCount; i++) {
@@ -1719,9 +1804,6 @@
     }
 
     // ==========================================
-    // 草 (Grass) の配置と季節カラー管理
-    // ==========================================
-    // ==========================================
     // 草 (Grass) の配置と季節カラー管理 - InstancedMesh Edition
     // ==========================================
     /**
@@ -1816,7 +1898,7 @@
             }
 
             // 2. 配置ループ (whileループに変更して確実に数を確保)
-            const grassTargetCount = 200;
+            const grassTargetCount = 800;
             const range = 62;
             let placedCount = 0;
             let attempts = 0;
@@ -1841,7 +1923,7 @@
                 grass.rotation.y = Math.random() * Math.PI * 2;
 
                 // スケール
-                const scale = 2.5 + Math.random() * 1.5;
+                const scale = 5.5 + Math.random() * 2.0;
                 grass.scale.setScalar(scale);
 
                 scene.add(grass);
