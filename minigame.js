@@ -3784,7 +3784,7 @@ const SearchGame = (() => {
         }
 
         // =================================================================
-        // 🛠️ PROJECT POTATO: GRASS RESTORATION (Clone Mode)
+        // 🛠️ PROJECT POTATO: GRASS INSTANCED (InstancedMesh Mode)
         // =================================================================
         const GRASS_PALETTES = {
             spring: [0x90EE90, 0x98FB98, 0xADFF2F],
@@ -3795,66 +3795,80 @@ const SearchGame = (() => {
 
         window.setGrassSeason = (seasonName) => {
             const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
-            if (window.sgGrassObjects) {
-                window.sgGrassObjects.forEach((grass, i) => {
-                    const color = new THREE.Color(palette[i % palette.length]);
-                    grass.traverse(c => {
-                        if (c.isMesh && c.material?.color) c.material.color.copy(color);
-                    });
-                });
+            if (window.sgGrassInstancedMesh) {
+                const color = new THREE.Color();
+                for (let i = 0; i < window.sgGrassInstancedMesh.count; i++) {
+                    color.setHex(palette[i % palette.length]);
+                    window.sgGrassInstancedMesh.setColorAt(i, color);
+                }
+                if (window.sgGrassInstancedMesh.instanceColor) {
+                    window.sgGrassInstancedMesh.instanceColor.needsUpdate = true;
+                }
             }
         };
 
         function spawnGrass() {
             if (window.hasSpawnedGrass) return;
             window.hasSpawnedGrass = true;
-            console.log("--- spawnGrass (Clone Mode) ---");
+            console.log("--- spawnGrass (InstancedMesh Mode) ---");
 
             // クリーンアップ
-            if (window.sgGrassObjects) {
-                window.sgGrassObjects.forEach(g => { if (g.parent) g.parent.remove(g); });
+            const existing = scene.getObjectByName('InstancedGrassField');
+            if (existing) {
+                existing.geometry?.dispose();
+                scene.remove(existing);
             }
-            window.sgGrassObjects = [];
-
-            const existingInstanced = scene.getObjectByName('InstancedGrassField');
-            if (existingInstanced) {
-                existingInstanced.geometry?.dispose();
-                scene.remove(existingInstanced);
-            }
-            window.sgGrassInstancedMesh = null;
 
             new FBXLoader().load('models/grass.fbx', (masterGrass) => {
-                masterGrass.traverse(child => {
-                    if (child.isMesh) {
-                        child.castShadow = false;
-                        child.receiveShadow = false;
-                        child.userData.ignoreGround = true;
-                        if (child.material) {
-                            child.material = Array.isArray(child.material) ? child.material.map(m => m.clone()) : child.material.clone();
-                            const setMat = m => { m.transparent = true; m.alphaTest = 0.5; m.side = THREE.DoubleSide; if (m.emissive) m.emissive.setHex(0x000000); };
-                            if (Array.isArray(child.material)) child.material.forEach(setMat);
-                            else setMat(child.material);
-                        }
-                    }
-                });
+                // 1. メッシュの抽出
+                let grassMesh = null;
+                masterGrass.traverse(c => { if (c.isMesh) grassMesh = c; });
+                if (!grassMesh) return;
 
-                if (typeof window.addEdgesOutline === 'function') window.addEdgesOutline(masterGrass, 15, 0x000000);
+                // 2. 【形状補正】-90度で起こす
+                grassMesh.geometry.rotateX(-Math.PI / 2);
 
+                // 3. マテリアル準備
+                let mat = grassMesh.material;
+                mat = (Array.isArray(mat) ? mat[0] : mat).clone();
+                mat.transparent = true;
+                mat.alphaTest = 0.5;
+                mat.side = THREE.DoubleSide;
+
+                // 4. InstancedMesh 作成
                 const grassCount = 800;
-                for (let i = 0; i < grassCount; i++) {
+                const iMesh = new THREE.InstancedMesh(grassMesh.geometry, mat, grassCount);
+                iMesh.name = 'InstancedGrassField';
+                iMesh.castShadow = false;
+                iMesh.receiveShadow = true;
+                iMesh.userData.ignoreGround = true;
+
+                const dummy = new THREE.Object3D();
+                let placed = 0;
+                let attempts = 0;
+
+                // 5. 配置ループ
+                while (placed < grassCount && attempts < 5000) {
+                    attempts++;
                     const x = (Math.random() - 0.5) * 62;
                     const z = (Math.random() - 0.5) * 62;
                     if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
 
-                    const grass = masterGrass.clone();
-                    grass.position.set(x, 0, z);
-                    grass.rotation.y = Math.random() * Math.PI * 2;
-                    grass.scale.setScalar(3.5 + Math.random() * 2.0);
-                    scene.add(grass);
-                    window.sgGrassObjects.push(grass);
+                    dummy.position.set(x, 0, z);
+                    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+                    const s = 3.5 + Math.random() * 2.0;
+                    dummy.scale.set(s, s, s);
+                    dummy.updateMatrix();
+
+                    iMesh.setMatrixAt(placed, dummy.matrix);
+                    placed++;
                 }
 
-                console.log(`${window.sgGrassObjects.length} grass patches (Clone).`);
+                iMesh.instanceMatrix.needsUpdate = true;
+                scene.add(iMesh);
+                window.sgGrassInstancedMesh = iMesh;
+
+                console.log(`✅ ${placed} grass patches (InstancedMesh Fix Mode).`);
                 if (typeof GameConfig !== 'undefined') window.setGrassSeason(GameConfig.currentSeason);
             }, undefined, console.error);
         }
@@ -5789,7 +5803,7 @@ const SearchGame = (() => {
         });
     }
 
-     // ==========================================
+    // ==========================================
     // 草 (Grass) の配置と季節カラー管理 - InstancedMesh Edition
     // ==========================================
     /**
@@ -5884,7 +5898,7 @@ const SearchGame = (() => {
             }
 
             // 2. 配置ループ (whileループに変更して確実に数を確保)
-            const grassTargetCount = 400;
+            const grassTargetCount = 800;
             const range = 62;
             let placedCount = 0;
             let attempts = 0;
