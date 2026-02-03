@@ -4617,6 +4617,7 @@ const SearchGame = (() => {
                         } catch (e) { console.error("Error in Dokan onLoad:", e); }
                     }
                 },
+                /*
                 {
                     name: 'Barricade_NorthEast',
                     path: 'models/barricade.fbx',
@@ -4657,6 +4658,7 @@ const SearchGame = (() => {
                         window.sgExtraObstacles.push({ minX: 5.8, maxX: 32, minZ: -32, maxZ: -5.8 });
                     }
                 },
+                */
                 {
                     name: 'BenchCat',
                     path: 'models/cat.fbx',
