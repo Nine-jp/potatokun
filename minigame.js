@@ -4617,46 +4617,7 @@ const SearchGame = (() => {
                         } catch (e) { console.error("Error in Dokan onLoad:", e); }
                     }
                 },
-                {
-                    name: 'Barricade_NorthEast',
-                    path: 'models/barricade.fbx',
-                    pos: { x: 0, y: 0, z: 0 },
-                    scale: 1.0,
-                    onLoad: (master) => {
-                        // ベンチの背後（x=4, z=-4）に密着させる設定
-                        const startX = 6.0;  // ベンチからさらに後退
-                        const startZ = -6.0; // ベンチからさらに後退
-                        const count = 11;
-                        const spacing = 2.3; // 隙間を詰めた精密な間隔
 
-                        for (let i = 0; i < count; i++) {
-                            // 角の重なりを防ぐため、i=0（角の地点）は生成をスキップ
-                            if (i === 0) continue;
-                            // 横列（南側の封鎖）
-                            const bX = master.clone();
-                            bX.position.set(startX + i * spacing, 0, startZ);
-                            window.parkGroup.add(bX);
-
-                            // 縦列（西側の封鎖）
-                            const bZ = master.clone();
-                            bZ.position.set(startX, 0, startZ - i * spacing);
-                            bZ.rotation.y = Math.PI / 2;
-                            window.parkGroup.add(bZ);
-                        }
-
-                        // 全バリケードにアウトライン適用
-                        window.parkGroup.traverse(c => {
-                            if (c.name === 'Barricade_NorthEast_Clone' || (c.parent && c.parent.name === 'Barricade_NorthEast')) {
-                                if (window.applyOutlineRules) window.applyOutlineRules(c);
-                            }
-                        });
-                        master.visible = false;
-
-                        // 2. 物理封鎖の設定（createParkAssets 内）
-                        // 物理封鎖
-                        window.sgExtraObstacles.push({ minX: 5.8, maxX: 32, minZ: -32, maxZ: -5.8 });
-                    }
-                },
                 {
                     name: 'BenchCat',
                     path: 'models/cat.fbx',
