@@ -877,23 +877,22 @@ const SearchGame = (() => {
 
     // ★★★ Park Zone Definition ★★★
     function getParkZone(x, z) {
-
         // 十字路
         if (Math.abs(x) < 5 || Math.abs(z) < 5) return 'crossroad';
 
         // 中央広場（噴水）
         if (x * x + z * z < 100) return 'plaza';
 
-        // 北西：更地（建設予定）
-        if (x < -2 && z < -2) return 'construction';
+        // 北西：休憩エリア
+        if (x < -2 && z < -2) return 'rest';
 
-        // 北東：休憩エリア
-        if (x > 2 && z < -2) return 'rest';
+        // 北東：更地(池エリア建設予定)
+        if (x > 2 && z < -2) return 'vacant';
 
         // 南西：森林エリア
         if (x < -2 && z > 2) return 'forest';
 
-        // 南東：森林エリア
+        // 南東：遊具エリア
         if (x > 2 && z > 2) return 'playground';
 
         return 'unknown';
@@ -904,23 +903,19 @@ const SearchGame = (() => {
         const zones = [];
 
         function checkStaticRules(x, z) {
-
             const zone = getParkZone(x, z);
 
-            // --- ParkState による制御 ---
-            if (ParkState.vegetationMode === 'allOff') {
-                return true;
-            }
+            if (ParkState.vegetationMode === 'allOff') return true;
 
             if (ParkState.vegetationMode === 'forestOnly') {
                 return zone !== 'forest';
             }
 
-            // --- エリア別の禁止ルール ---
+            // 各エリア別の禁止ルール（名称をリライト後のものに同期）
             if (zone === 'crossroad') return true;
             if (zone === 'plaza') return true;
             if (zone === 'rest') return true;
-            if (zone === 'construction') return true;
+            if (zone === 'vacant') return true;
             if (zone === 'playground') return true;
 
             // forest のみ許可

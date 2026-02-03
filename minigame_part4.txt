@@ -1,8 +1,0 @@
-if (typeof window.setGameSeason === 'function' && typeof GameConfig !== 'undefined') {
-    window.setGameSeason(GameConfig.currentSeason);
-}
-
-// ゲームシステムの起動
-if (typeof initGameSystem === 'function') {
-    initGameSystem();
-}
