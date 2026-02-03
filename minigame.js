@@ -5161,6 +5161,10 @@ const SearchGame = (() => {
                 const dropAnim = setInterval(() => { if (!coin.parent) { clearInterval(dropAnim); return; } coin.position.add(velocity); velocity.y -= gravity; if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); } }, 16);
             };
 
+            // ==========================================
+            // 池エリア
+            // ==========================================
+
             // ★池の建設 (ユーザー追加)
             const spawnPond = () => {
                 const loader = new FBXLoader();
@@ -5172,7 +5176,7 @@ const SearchGame = (() => {
                     maxX: Math.ceil(28.0),
                     minZ: Math.floor(-28.0),
                     maxZ: Math.ceil(-10.0),
-                    y: -0.01 // ★水面の高さ (地面より少しだけ下げるのがコツ)
+                    y: 0 // ★水面の高さ
                 };
 
                 loader.load(modelPath, (fbx) => {
