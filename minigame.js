@@ -5165,84 +5165,76 @@ const SearchGame = (() => {
             // 池エリア
             // ==========================================
 
-            // ★池の建設 (ユーザー追加)
+            /**
+             * 🛠️ PROJECT POTATO: SEAMLESS ORGANIC POND
+             * [FIX] Eliminated holes and isolated blocks.
+             * [METHOD] Use smooth Sine/Cosine wave layering instead of raw random.
+             */
+
             const spawnPond = () => {
                 const loader = new FBXLoader();
-                const modelPath = 'models/water_block.fbx'; // ★ファイル名
+                const modelPath = 'models/water_block.fbx';
 
-                // 施工エリア設定 (1m単位のグリッド調整)
                 const bounds = {
-                    minX: Math.floor(10.0),
-                    maxX: Math.ceil(28.0),
-                    minZ: Math.floor(-28.0),
-                    maxZ: Math.ceil(-10.0),
-                    y: 0 // ★水面の高さ
+                    minX: 10, maxX: 28,
+                    minZ: -28, maxZ: -10,
+                    y: 0
                 };
 
                 loader.load(modelPath, (fbx) => {
-                    console.log("📥 WaterBlock Loaded. Starting Construction...");
-
-                    // 1. メッシュとマテリアルの抽出
                     let waterGeometry = null;
                     let waterMaterial = null;
+                    fbx.traverse((child) => { if (child.isMesh) { waterGeometry = child.geometry; waterMaterial = child.material; } });
 
-                    fbx.traverse((child) => {
-                        if (waterGeometry) return; // 最初に見つけたメッシュを採用
-                        if (child.isMesh) {
-                            waterGeometry = child.geometry;
-                            waterMaterial = child.material;
-                        }
-                    });
+                    const center = { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
+                    const radiusX = (bounds.maxX - bounds.minX) / 2 - 1.5; // 少しマージン
+                    const radiusZ = (bounds.maxZ - bounds.minZ) / 2 - 1.5;
 
-                    if (!waterGeometry) {
-                        console.error("❌ Water Mesh not found in FBX!");
-                        return;
-                    }
-
-                    // 2. 必要なブロック数を計算
-                    const xCount = bounds.maxX - bounds.minX;
-                    const zCount = bounds.maxZ - bounds.minZ;
-                    const totalCount = xCount * zCount;
-
-                    // 3. InstancedMeshの作成
-                    const instancedMesh = new THREE.InstancedMesh(waterGeometry, waterMaterial, totalCount);
-                    instancedMesh.name = "River_Pond_Water";
-                    instancedMesh.castShadow = false; // 水面は影を落とさない方が軽いし綺麗
-                    instancedMesh.receiveShadow = true;
-
-                    // 4. 配置ループ (行列計算)
-                    const dummy = new THREE.Object3D();
-                    let index = 0;
-
+                    const validPositions = [];
                     for (let x = bounds.minX; x < bounds.maxX; x++) {
                         for (let z = bounds.minZ; z < bounds.maxZ; z++) {
 
-                            // 座標セット (1m間隔)
-                            // ボクセルの中心が原点なら +0.5 してグリッドに合わせる
-                            dummy.position.set(x + 0.5, bounds.y, z + 0.5);
+                            // 角度を計算
+                            const angle = Math.atan2(z - center.z, x - center.x);
 
-                            // ランダム回転 (90度刻み) でパターンを目立たなくする
-                            const rot = Math.floor(Math.random() * 4) * (Math.PI / 2);
-                            dummy.rotation.set(-Math.PI / 2, 0, 0);
+                            // ★プロの工夫: 複数のサイン波を重ねて「ぐにゃぐにゃ」を作る (穴が開かない手法)
+                            const deform =
+                                Math.sin(angle * 3) * 0.15 +
+                                Math.cos(angle * 5) * 0.1 +
+                                Math.sin(angle * 2) * 0.05;
 
-                            dummy.scale.set(1, 1, 1); // マスタースケール
+                            const distortedRadius = 0.8 + deform;
 
-                            dummy.updateMatrix();
-                            instancedMesh.setMatrixAt(index++, dummy.matrix);
+                            // 楕円の式 + 歪み
+                            const dx = (x - center.x) / radiusX;
+                            const dz = (z - center.z) / radiusZ;
+                            const dist = Math.sqrt(dx * dx + dz * dz);
+
+                            if (dist < distortedRadius) {
+                                validPositions.push({ x, z });
+                            }
                         }
                     }
 
-                    // 5. 現場に投入
+                    const instancedMesh = new THREE.InstancedMesh(waterGeometry, waterMaterial, validPositions.length);
+                    instancedMesh.name = "River_Pond_Water";
+
+                    const dummy = new THREE.Object3D();
+                    validPositions.forEach((pos, i) => {
+                        dummy.position.set(pos.x + 0.5, bounds.y, pos.z + 0.5);
+                        dummy.rotation.set(-Math.PI / 2, 0, 0);
+                        dummy.updateMatrix();
+                        instancedMesh.setMatrixAt(i, dummy.matrix);
+                    });
+
+                    const oldPond = window.parkGroup.getObjectByName("River_Pond_Water");
+                    if (oldPond) window.parkGroup.remove(oldPond);
                     window.parkGroup.add(instancedMesh);
-                    console.log(`🌊 Pond Construction Complete! Placed ${index} water blocks.`);
 
-                    // (オプション) カクカクしたカーブを作りたい場合は、
-                    // 上記のループ内で if (特定の条件) continue; を入れれば削れます。
-
-                }, undefined, (err) => console.error("❌ Failed to load water block:", err));
+                    console.log("🌊 Solid Curved Pond Ready. No holes this time.");
+                });
             };
 
-            // 実行
             spawnPond();
 
             // アニメーション監視ループ (エラー修正・安全化版)
