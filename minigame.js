@@ -5159,6 +5159,86 @@ const SearchGame = (() => {
                 const dropAnim = setInterval(() => { if (!coin.parent) { clearInterval(dropAnim); return; } coin.position.add(velocity); velocity.y -= gravity; if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); } }, 16);
             };
 
+            // ★池の建設 (ユーザー追加)
+            const spawnPond = () => {
+                const loader = new FBXLoader();
+                const modelPath = 'models/water_block.fbx'; // ★ファイル名
+
+                // 施工エリア設定 (1m単位のグリッド調整)
+                const bounds = {
+                    minX: Math.floor(10.0),
+                    maxX: Math.ceil(28.0),
+                    minZ: Math.floor(-28.0),
+                    maxZ: Math.ceil(-10.0),
+                    y: -0.01 // ★水面の高さ (地面より少しだけ下げるのがコツ)
+                };
+
+                loader.load(modelPath, (fbx) => {
+                    console.log("📥 WaterBlock Loaded. Starting Construction...");
+
+                    // 1. メッシュとマテリアルの抽出
+                    let waterGeometry = null;
+                    let waterMaterial = null;
+
+                    fbx.traverse((child) => {
+                        if (waterGeometry) return; // 最初に見つけたメッシュを採用
+                        if (child.isMesh) {
+                            waterGeometry = child.geometry;
+                            waterMaterial = child.material;
+                        }
+                    });
+
+                    if (!waterGeometry) {
+                        console.error("❌ Water Mesh not found in FBX!");
+                        return;
+                    }
+
+                    // 2. 必要なブロック数を計算
+                    const xCount = bounds.maxX - bounds.minX;
+                    const zCount = bounds.maxZ - bounds.minZ;
+                    const totalCount = xCount * zCount;
+
+                    // 3. InstancedMeshの作成
+                    const instancedMesh = new THREE.InstancedMesh(waterGeometry, waterMaterial, totalCount);
+                    instancedMesh.name = "River_Pond_Water";
+                    instancedMesh.castShadow = false; // 水面は影を落とさない方が軽いし綺麗
+                    instancedMesh.receiveShadow = true;
+
+                    // 4. 配置ループ (行列計算)
+                    const dummy = new THREE.Object3D();
+                    let index = 0;
+
+                    for (let x = bounds.minX; x < bounds.maxX; x++) {
+                        for (let z = bounds.minZ; z < bounds.maxZ; z++) {
+
+                            // 座標セット (1m間隔)
+                            // ボクセルの中心が原点なら +0.5 してグリッドに合わせる
+                            dummy.position.set(x + 0.5, bounds.y, z + 0.5);
+
+                            // ランダム回転 (90度刻み) でパターンを目立たなくする
+                            const rot = Math.floor(Math.random() * 4) * (Math.PI / 2);
+                            dummy.rotation.set(-Math.PI / 2, 0, 0);
+
+                            dummy.scale.set(1, 1, 1); // マスタースケール
+
+                            dummy.updateMatrix();
+                            instancedMesh.setMatrixAt(index++, dummy.matrix);
+                        }
+                    }
+
+                    // 5. 現場に投入
+                    window.parkGroup.add(instancedMesh);
+                    console.log(`🌊 Pond Construction Complete! Placed ${index} water blocks.`);
+
+                    // (オプション) カクカクしたカーブを作りたい場合は、
+                    // 上記のループ内で if (特定の条件) continue; を入れれば削れます。
+
+                }, undefined, (err) => console.error("❌ Failed to load water block:", err));
+            };
+
+            // 実行
+            spawnPond();
+
             // アニメーション監視ループ (エラー修正・安全化版)
             if (window.sgSnowmanInterval) clearInterval(window.sgSnowmanInterval);
 
