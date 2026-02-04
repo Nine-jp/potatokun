@@ -6084,6 +6084,75 @@ const SearchGame = (() => {
         }, undefined, (err) => console.error(err));
     }
 
+    // ==========================================
+    // 🌊 POND SYSTEM: Single FBX Model Approach
+    // ==========================================
+    function spawnPond() {
+        if (window.hasSpawnedPond) return;
+        window.hasSpawnedPond = true;
+
+        // 池の中心座標
+        const POND_POSITION = { x: 22.7, y: 0, z: -18 };
+
+        console.log("🌊 [POND] Initializing spawn logic...");
+
+        const executePondSpawn = () => {
+            console.log("🌊 [POND] Scene Ready. Loading pond.fbx...");
+            const loader = new FBXLoader();
+            loader.load('models/pond.fbx', (pondModel) => {
+                pondModel.position.set(POND_POSITION.x, POND_POSITION.y, POND_POSITION.z);
+                pondModel.scale.setScalar(2.5); // Adjusted to 2.5
+
+                pondModel.traverse(child => {
+                    if (child.isMesh) {
+                        // マテリアル調整
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                mat.transparent = true;
+                                mat.opacity = 0.8;
+                                mat.depthWrite = false;
+                            });
+                        } else if (child.material) {
+                            child.material.transparent = true;
+                            child.material.opacity = 0.8;
+                            child.material.depthWrite = false;
+                        }
+                        child.castShadow = false;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                pondModel.name = 'PondMain';
+                scene.add(pondModel);
+
+                // 歩行可能エリア登録
+                if (typeof window.sgWalkableMeshes !== 'undefined' && Array.isArray(window.sgWalkableMeshes)) {
+                    pondModel.traverse(child => {
+                        if (child.isMesh) {
+                            window.sgWalkableMeshes.push(child);
+                        }
+                    });
+                }
+                console.log(`✅ [POND] pond.fbx placed at (${POND_POSITION.x}, ${POND_POSITION.z})`);
+
+            }, undefined, (err) => {
+                console.error("❌ [POND] Error loading pond.fbx:", err);
+            });
+        };
+
+        // スケジューラー: scene初期化待ち
+        const scheduler = setInterval(() => {
+            // IIFE内の scene 変数が初期化されるのを待つ
+            if (typeof scene !== 'undefined' && scene !== null) {
+                clearInterval(scheduler);
+                executePondSpawn();
+            }
+        }, 100);
+    }
+
+    // 池を生成
+    spawnPond();
+
     // モジュールの戻り値
     return { setup, init, start, stop };
 })();
