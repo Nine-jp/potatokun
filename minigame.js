@@ -6157,30 +6157,72 @@ const SearchGame = (() => {
                                 // console.log("🔧 [Gravel] Generated Planar UVs.");
                             }
 
+                            // ★ Fix: Vertex Colorによる擬似的深度表現 (Radial Gradient)
+                            geom.computeBoundingBox();
+                            const bbox = geom.boundingBox;
+                            const centerX = (bbox.max.x + bbox.min.x) / 2;
+                            const centerY = (bbox.max.y + bbox.min.y) / 2;
+                            const maxRadius = Math.max(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y) / 2;
+
+                            const count = geom.attributes.position.count;
+                            const colors = new Float32Array(count * 3);
+                            const colorCenter = new THREE.Color(0x001133); // Center: Deep Dark Navy
+                            const colorEdge = new THREE.Color(0x88aabb);   // Edge: Original tinted gravel
+
+                            for (let i = 0; i < count; i++) {
+                                const x = geom.attributes.position.getX(i);
+                                const y = geom.attributes.position.getY(i);
+
+                                // Calculate normalized distance from center (0.0 = Center, 1.0 = Edge)
+                                const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+                                let alpha = dist / maxRadius;
+                                alpha = Math.min(1.0, Math.max(0.0, alpha));
+                                // Non-linear curve for better depth feel (Stay dark longer)
+                                alpha = Math.pow(alpha, 0.6);
+
+                                const c = colorCenter.clone().lerp(colorEdge, alpha);
+                                colors[i * 3] = c.r;
+                                colors[i * 3 + 1] = c.g;
+                                colors[i * 3 + 2] = c.b;
+                            }
+                            geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+
                             // ★ Gravel Settings (Opaque Ground)
                             child.material = new THREE.MeshLambertMaterial({
                                 map: gravelTex,
-                                side: THREE.DoubleSide
+                                side: THREE.DoubleSide,
+                                vertexColors: true, // ★ Enable Vertex Colors
+                                // color: 0x88aabb // Removed (Baked into vertex colors)
                             });
                             child.receiveShadow = true;
                             child.castShadow = false;
 
+                            // ★ Debug: Restore bottom visibility after temporary check
+                            child.visible = true;
+
                         } else {
-                            // ★ Water Settings (Transparent Blue)
+                            // ★ Water Settings (Transparent Blue / Preserve Texture)
+                            const setupWaterMaterial = (mat) => {
+                                mat.transparent = true;
+                                mat.opacity = 0.75;
+                                mat.depthWrite = false;
+                                mat.side = THREE.DoubleSide;
+
+                                // If no map exists, apply the deep blue color.
+                                // If map exists (pond_block.png), use a lighter tint to not "blow out" the design.
+                                if (mat.map) {
+                                    mat.color.set(0xcccccc); // Light tint to preserve texture details
+                                    console.log(`🌊 [POND] Using existing map for water: ${child.name}`);
+                                } else {
+                                    mat.color.set(0x003366); // Default deep blue
+                                }
+                            };
+
                             if (Array.isArray(child.material)) {
-                                child.material.forEach(mat => {
-                                    mat.transparent = true;
-                                    mat.opacity = 0.6;
-                                    mat.depthWrite = false;
-                                    mat.side = THREE.DoubleSide;
-                                    mat.color.set(0x0088ff);
-                                });
+                                child.material.forEach(mat => setupWaterMaterial(mat));
                             } else if (child.material) {
-                                child.material.transparent = true;
-                                child.material.opacity = 0.6;
-                                child.material.depthWrite = false;
-                                child.material.side = THREE.DoubleSide;
-                                child.material.color.set(0x0088ff);
+                                setupWaterMaterial(child.material);
                             }
                             child.castShadow = false;
                             child.receiveShadow = true;
