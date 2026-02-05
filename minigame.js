@@ -6087,6 +6087,9 @@ const SearchGame = (() => {
     // ==========================================
     // 🌊 POND SYSTEM: Single FBX Model Approach
     // ==========================================
+    // ==========================================
+    // 🌊 POND SYSTEM: Single FBX Model Approach (+ Stone Wall)
+    // ==========================================
     function spawnPond() {
         if (window.hasSpawnedPond) return;
         window.hasSpawnedPond = true;
@@ -6097,52 +6100,136 @@ const SearchGame = (() => {
         console.log("🌊 [POND] Initializing spawn logic...");
 
         const executePondSpawn = () => {
-            console.log("🌊 [POND] Scene Ready. Loading pond.fbx...");
+            console.log("🌊 [POND] Scene Ready. Loading assets...");
             const loader = new FBXLoader();
-            loader.load('models/pond.fbx', (pondModel) => {
-                pondModel.position.set(POND_POSITION.x, POND_POSITION.y, POND_POSITION.z);
-                pondModel.scale.setScalar(2.5); // Adjusted to 2.5
+
+            // Load Pond and Stone in parallel
+            const loadPond = new Promise((resolve, reject) => {
+                loader.load('models/pond.fbx', resolve, undefined, reject);
+            });
+            const loadStone = new Promise((resolve, reject) => {
+                loader.load('models/stone.fbx', resolve, undefined, reject);
+            });
+
+            Promise.all([loadPond, loadStone]).then(([pondModel, stoneModel]) => {
+                // --- 1. Pond Setup ---
+                // Restore height (User requested Ground Level = 0)
+                // Fix: Z-fighting reported. Lifting slightly (1cm).
+                pondModel.position.set(POND_POSITION.x, 0.01, POND_POSITION.z);
+                pondModel.scale.setScalar(2.5);
 
                 pondModel.traverse(child => {
                     if (child.isMesh) {
-                        // マテリアル調整
                         if (Array.isArray(child.material)) {
                             child.material.forEach(mat => {
                                 mat.transparent = true;
                                 mat.opacity = 0.8;
                                 mat.depthWrite = false;
+                                mat.side = THREE.DoubleSide; // Keep DoubleSide
+                                if (mat.color) mat.color.set(0xffffff); // Reset color if needed, though usually texture handles it
                             });
                         } else if (child.material) {
                             child.material.transparent = true;
                             child.material.opacity = 0.8;
                             child.material.depthWrite = false;
+                            child.material.side = THREE.DoubleSide; // Keep DoubleSide
+                            if (child.material.color) child.material.color.set(0xffffff);
                         }
                         child.castShadow = false;
                         child.receiveShadow = true;
+
+                        // Prevent accidental culling
+                        child.frustumCulled = false;
                     }
                 });
 
                 pondModel.name = 'PondMain';
                 scene.add(pondModel);
 
-                // 歩行可能エリア登録
+                // Register walkable surface
                 if (typeof window.sgWalkableMeshes !== 'undefined' && Array.isArray(window.sgWalkableMeshes)) {
                     pondModel.traverse(child => {
-                        if (child.isMesh) {
-                            window.sgWalkableMeshes.push(child);
-                        }
+                        if (child.isMesh) window.sgWalkableMeshes.push(child);
                     });
                 }
                 console.log(`✅ [POND] pond.fbx placed at (${POND_POSITION.x}, ${POND_POSITION.z})`);
 
-            }, undefined, (err) => {
-                console.error("❌ [POND] Error loading pond.fbx:", err);
+
+                // --- 2. Stone Wall Setup (Marker Based) ---
+                console.log("🪨 [POND] Looking for 'StonePoint' markers in pond model...");
+
+                // Stone Settings
+                // Fix: Previous calculation resulted in tiny stones.
+                // stone.fbx is likely large, so let's try a fixed reasonable scale first.
+                // Assuming stone.fbx is roughly unit size or larger.
+                const stoneBaseScale = 0.01; // Try 0.01 (100x bigger than previous 0.0001??)
+
+                // Let's re-measure properly
+                stoneModel.scale.setScalar(1.0);
+                const rawBox = new THREE.Box3().setFromObject(stoneModel);
+                const rawSize = new THREE.Vector3();
+                rawBox.getSize(rawSize);
+                const maxDim = Math.max(rawSize.x, rawSize.z, rawSize.y);
+
+                // Target size: 0.8 meters (slightly larger for visibility)
+                const targetSize = 0.8;
+                let finalScale = targetSize / maxDim;
+
+                // Safety check
+                if (!isFinite(finalScale) || finalScale === 0) finalScale = 0.01;
+
+                // console.log(`🪨 [Stone] RawMax: ${maxDim}, FinalScale: ${finalScale}`);
+
+
+                const stoneGroup = new THREE.Group();
+                stoneGroup.name = 'PondStoneWall';
+                let stoneCount = 0;
+
+                pondModel.traverse((child) => {
+                    if (child.name.includes("StonePoint")) {
+                        const stone = stoneModel.clone();
+
+                        // Copy transform exactly from marker (Position & Rotation)
+                        const worldPos = new THREE.Vector3();
+                        const worldQuat = new THREE.Quaternion();
+
+                        child.getWorldPosition(worldPos);
+                        child.getWorldQuaternion(worldQuat);
+
+                        stone.position.copy(worldPos);
+                        stone.quaternion.copy(worldQuat);
+
+                        // Adjust Y slightly to prevent z-fighting with water if necessary
+                        // But keep user control. Setting to 0.05 just to be safe.
+                        stone.position.y = 0.05;
+
+                        // Variation in scale only
+                        // User requested specific range: Min 1.6, Max 1.8
+                        const scaleVar = 1.6 + Math.random() * 0.2;
+                        stone.scale.setScalar(finalScale * scaleVar);
+
+                        stone.castShadow = true;
+                        stone.receiveShadow = true;
+                        stoneGroup.add(stone);
+                        stoneCount++;
+                    }
+                });
+
+                if (stoneCount > 0) {
+                    scene.add(stoneGroup);
+                    console.log(`✅ [POND] Placed ${stoneCount} stones at markers.`);
+
+                } else {
+                    console.warn("⚠️ [POND] No 'StonePoint' markers found! Falling back to skipped.");
+                }
+
+            }).catch(err => {
+                console.error("❌ [POND] Error loading assets:", err);
             });
         };
 
         // スケジューラー: scene初期化待ち
         const scheduler = setInterval(() => {
-            // IIFE内の scene 変数が初期化されるのを待つ
             if (typeof scene !== 'undefined' && scene !== null) {
                 clearInterval(scheduler);
                 executePondSpawn();
