@@ -6118,28 +6118,74 @@ const SearchGame = (() => {
                 pondModel.position.set(POND_POSITION.x, 0.01, POND_POSITION.z);
                 pondModel.scale.setScalar(2.5);
 
+                // Load Gravel Texture
+                const texLoader = new THREE.TextureLoader();
+                const gravelTex = texLoader.load('assets/gravelmat.png');
+                gravelTex.colorSpace = THREE.SRGBColorSpace;
+                gravelTex.wrapS = THREE.RepeatWrapping;
+                gravelTex.wrapT = THREE.RepeatWrapping;
+                // Revert repeat to 1x1 (Let UVs control the scale entirely)
+                gravelTex.repeat.set(1, 1);
+
                 pondModel.traverse(child => {
                     if (child.isMesh) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(mat => {
-                                mat.transparent = true;
-                                mat.opacity = 0.8;
-                                mat.depthWrite = false;
-                                mat.side = THREE.DoubleSide; // Keep DoubleSide
-                                if (mat.color) mat.color.set(0xffffff); // Reset color if needed, though usually texture handles it
-                            });
-                        } else if (child.material) {
-                            child.material.transparent = true;
-                            child.material.opacity = 0.8;
-                            child.material.depthWrite = false;
-                            child.material.side = THREE.DoubleSide; // Keep DoubleSide
-                            if (child.material.color) child.material.color.set(0xffffff);
-                        }
-                        child.castShadow = false;
-                        child.receiveShadow = true;
+                        const name = child.name.toLowerCase();
+                        // console.log(`🌊 [POND] Found Mesh: ${name}`); // Debug
 
-                        // Prevent accidental culling
-                        child.frustumCulled = false;
+                        if (name.includes('gravelmat')) {
+                            // ★ Debug: Check for UVs
+                            const geom = child.geometry;
+                            const hasUV = geom.attributes.uv !== undefined;
+                            // console.log(`🪨 [Gravel] Mesh: ${child.name}, HasUV: ${hasUV}`);
+
+                            // ★ Fix: Planar Mapping with adjusted scale
+                            if (!hasUV || true) { // Force Planar Mapping for safety (User reported solid color)
+                                const posAttribute = geom.attributes.position;
+                                const uvArray = new Float32Array(posAttribute.count * 2);
+
+                                for (let i = 0; i < posAttribute.count; i++) {
+                                    const x = posAttribute.getX(i);
+                                    const y = posAttribute.getY(i); // ★Fix: Use Y instead of Z (Mesh is likely XY-plane in local space)
+                                    // Scale UVs: 1.0 means texture repeats every 1.0 local units (approx 2.5m in world)
+                                    // Previously combined with repeat 16, it was too dense. Now it's natural.
+                                    const uvScale = 1.0;
+                                    uvArray[i * 2] = x * uvScale;
+                                    uvArray[i * 2 + 1] = y * uvScale;
+                                }
+                                geom.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
+                                geom.attributes.uv.needsUpdate = true;
+                                // console.log("🔧 [Gravel] Generated Planar UVs.");
+                            }
+
+                            // ★ Gravel Settings (Opaque Ground)
+                            child.material = new THREE.MeshLambertMaterial({
+                                map: gravelTex,
+                                side: THREE.DoubleSide
+                            });
+                            child.receiveShadow = true;
+                            child.castShadow = false;
+
+                        } else {
+                            // ★ Water Settings (Transparent Blue)
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => {
+                                    mat.transparent = true;
+                                    mat.opacity = 0.6;
+                                    mat.depthWrite = false;
+                                    mat.side = THREE.DoubleSide;
+                                    mat.color.set(0x0088ff);
+                                });
+                            } else if (child.material) {
+                                child.material.transparent = true;
+                                child.material.opacity = 0.6;
+                                child.material.depthWrite = false;
+                                child.material.side = THREE.DoubleSide;
+                                child.material.color.set(0x0088ff);
+                            }
+                            child.castShadow = false;
+                            child.receiveShadow = true;
+                            child.frustumCulled = false;
+                        }
                     }
                 });
 
