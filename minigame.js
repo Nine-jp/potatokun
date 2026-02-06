@@ -862,6 +862,9 @@ const PotatoAction = (() => {
 const SearchGame = (() => {
     let container;
     let scene, camera, renderer, controls;
+    let groundRaycaster = new THREE.Raycaster(); // Persistent raycaster
+    let raycastFrameCounter = 0;                 // Counter for throttling
+    let lastGroundHeight = 0;                    // Cached ground height
 
     // ★★★ ParkState ★★★
     const ParkState = {
@@ -2520,8 +2523,8 @@ const SearchGame = (() => {
         dirLight.shadow.normalBias = 0.02;
 
         // Shadow map settings
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
         dirLight.shadow.camera.near = 0.5;
         dirLight.shadow.camera.far = 100;
         dirLight.shadow.camera.left = -40;
@@ -2631,7 +2634,7 @@ const SearchGame = (() => {
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(1);
         renderer.shadowMap.enabled = true;
         canvasContainer.appendChild(renderer.domElement);
 
@@ -3183,25 +3186,30 @@ const SearchGame = (() => {
             playerPosition.x = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.x));
             playerPosition.z = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.z));
 
-            // === 6. 地面の高さ合わせ ===
-            const groundRaycaster = new THREE.Raycaster();
-            groundRaycaster.set(new THREE.Vector3(playerPosition.x, 50, playerPosition.z), new THREE.Vector3(0, -1, 0));
+            // === 6. 地面の高さ合わせ (Throttled & Cached) ===
+            raycastFrameCounter++;
+            if (raycastFrameCounter >= 2) {
+                raycastFrameCounter = 0;
 
-            if (!window.sgWalkableMeshes || window.sgWalkableMeshes.length === 0) {
-                if (typeof window.sgRefreshWalkableMeshes === 'function') window.sgRefreshWalkableMeshes();
-            }
-            const walkableMeshes = window.sgWalkableMeshes || [];
-            const groundHits = groundRaycaster.intersectObjects(walkableMeshes, false);
+                groundRaycaster.set(new THREE.Vector3(playerPosition.x, 50, playerPosition.z), new THREE.Vector3(0, -1, 0));
 
-            let targetHeight = 0;
-            for (const hit of groundHits) {
-                if (hit.point.y >= 0 && hit.point.y < 10) {
-                    if (hit.point.y > playerPosition.y + 1.0) continue;
-                    if (hit.point.y > targetHeight) targetHeight = hit.point.y;
+                if (!window.sgWalkableMeshes || window.sgWalkableMeshes.length === 0) {
+                    if (typeof window.sgRefreshWalkableMeshes === 'function') window.sgRefreshWalkableMeshes();
                 }
+                const walkableMeshes = window.sgWalkableMeshes || [];
+                const groundHits = groundRaycaster.intersectObjects(walkableMeshes, false);
+
+                let foundHeight = 0;
+                for (const hit of groundHits) {
+                    if (hit.point.y >= 0 && hit.point.y < 10) {
+                        if (hit.point.y > playerPosition.y + 1.0) continue;
+                        if (hit.point.y > foundHeight) foundHeight = hit.point.y;
+                    }
+                }
+                lastGroundHeight = foundHeight;
             }
 
-            const desiredY = targetHeight + PLAYER_HEIGHT;
+            const desiredY = lastGroundHeight + PLAYER_HEIGHT;
             const heightDiff = desiredY - playerPosition.y;
             if (heightDiff > 0) playerPosition.y = desiredY;
             else if (heightDiff < -0.1) playerPosition.y += heightDiff * 0.15;
@@ -4195,49 +4203,82 @@ const SearchGame = (() => {
 
             // ★修正: North = -Z Coordinate System (Inverted Z)
 
-            // ★ 3Dパーティクルシステム (window.spawnSparkles用)
+            // ★ 3Dパーティクルシステム (window.spawnSparkles用 - 最適化版)
             window.spawnParticles = (x, y, z, colors, className) => {
                 if (!scene) return;
-                const count = 5;
-                for (let i = 0; i < count; i++) {
-                    const colorStr = colors[Math.floor(Math.random() * colors.length)];
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 16; canvas.height = 16;
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = colorStr;
-                    ctx.beginPath(); ctx.arc(8, 8, 8, 0, Math.PI * 2); ctx.fill();
 
-                    const tex = new THREE.CanvasTexture(canvas);
-                    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-                    const sprite = new THREE.Sprite(mat);
-                    sprite.position.set(x, y, z);
-                    sprite.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5));
-                    sprite.scale.set(0.1, 0.1, 0.1);
+                // 【最適化1】テクスチャのキャッシュ利用
+                const texture = getOrCreateCircleTexture();
+                const count = 5;
+
+                for (let i = 0; i < count; i++) {
+                    // 【最適化2】色の適用方法の変更 (SpriteMaterial.colorプロパティを使用)
+                    const colorValue = (colors && colors.length > 0)
+                        ? colors[Math.floor(Math.random() * colors.length)]
+                        : 0xffffff;
+
+                    const material = new THREE.SpriteMaterial({
+                        map: texture,
+                        color: new THREE.Color(colorValue),
+                        transparent: true,
+                        opacity: 1.0,
+                        depthWrite: false,
+                        blending: THREE.AdditiveBlending // 加算合成で光を表現
+                    });
+
+                    const sprite = new THREE.Sprite(material);
+
+                    // 初期位置のランダム拡散
+                    const spread = 0.5;
+                    sprite.position.set(
+                        x + (Math.random() - 0.5) * spread,
+                        y + (Math.random() - 0.5) * spread,
+                        z + (Math.random() - 0.5) * spread
+                    );
+
+                    // サイズのランダム化
+                    const scale = 0.1 + Math.random() * 0.1;
+                    sprite.scale.set(scale, scale, 1.0);
 
                     scene.add(sprite);
 
-                    let frame = 0;
-                    const anim = () => {
-                        frame++;
-                        sprite.position.y += 0.02;
-                        sprite.material.opacity -= 0.02;
-                        if (sprite.material.opacity <= 0) {
+                    // 【最適化3】Vanilla JSによるアニメーション処理
+                    let velocityY = 0.01 + Math.random() * 0.01;
+                    let velocityX = (Math.random() - 0.5) * 0.01;
+                    let velocityZ = (Math.random() - 0.5) * 0.01;
+                    let opacity = 1.0;
+
+                    const animate = () => {
+                        opacity -= 0.02;
+                        if (opacity <= 0) {
                             scene.remove(sprite);
-                            mat.dispose(); tex.dispose();
-                        } else {
-                            requestAnimationFrame(anim);
+                            material.dispose();
+                            return;
                         }
+
+                        // 位置更新
+                        sprite.position.x += velocityX;
+                        sprite.position.y += velocityY;
+                        sprite.position.z += velocityZ;
+
+                        // わずかな減速
+                        velocityY *= 0.98;
+
+                        // 不透明度反映
+                        sprite.material.opacity = opacity;
+
+                        requestAnimationFrame(animate);
                     };
-                    anim();
+                    animate();
                 }
             };
 
             // 1. spawnSparkles の修正（キラキラ仕様）
             // 1. spawnSparkles の修正（キラキラ仕様）
             window.spawnSparkles = (x, y, z) => {
-                if (typeof spawnParticles === 'function') {
+                if (typeof window.spawnParticles === 'function') {
                     // 白と金の小さな粒、かつ少しだけ上に浮く設定
-                    spawnParticles(x, y, z, ['#FFFFFF', '#FFD700'], 'pa-particle');
+                    window.spawnParticles(x, y, z, ['#FFFFFF', '#FFD700'], 'pa-particle');
                 }
             };
 
@@ -5673,11 +5714,18 @@ const SearchGame = (() => {
                     child.castShadow = true;
                     child.receiveShadow = true;
                     if (child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(m => m.emissive.setHex(0x000000));
-                        } else {
-                            child.material.emissive.setHex(0x000000);
-                        }
+                        const mList = Array.isArray(child.material) ? child.material : [child.material];
+                        const name = child.name.toLowerCase();
+                        const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
+
+                        mList.forEach(m => {
+                            m.emissive.setHex(0x000000);
+                            if (isLeaves) {
+                                m.transparent = false;
+                                m.alphaTest = 0.5;
+                                m.side = THREE.DoubleSide;
+                            }
+                        });
                     }
                     child.userData.isTree = true;
                     // アウトラインの事前計算
@@ -6166,8 +6214,8 @@ const SearchGame = (() => {
 
                             const count = geom.attributes.position.count;
                             const colors = new Float32Array(count * 3);
-                            const colorCenter = new THREE.Color(0x001133); // Center: Deep Dark Navy
-                            const colorEdge = new THREE.Color(0x88aabb);   // Edge: Original tinted gravel
+                            const colorCenter = new THREE.Color(0xaac1ef); // Center: Deep Dark Navy
+                            const colorEdge = new THREE.Color(0x7cc8ef);   // Edge: Original tinted gravel
 
                             for (let i = 0; i < count; i++) {
                                 const x = geom.attributes.position.getX(i);
@@ -6193,7 +6241,7 @@ const SearchGame = (() => {
                                 map: gravelTex,
                                 side: THREE.DoubleSide,
                                 vertexColors: true, // ★ Enable Vertex Colors
-                                // color: 0x88aabb // Removed (Baked into vertex colors)
+                                // color: 7cc8ef // Removed (Baked into vertex colors)
                             });
                             child.receiveShadow = true;
                             child.castShadow = false;
@@ -6215,7 +6263,7 @@ const SearchGame = (() => {
                                     mat.color.set(0xcccccc); // Light tint to preserve texture details
                                     console.log(`🌊 [POND] Using existing map for water: ${child.name}`);
                                 } else {
-                                    mat.color.set(0x003366); // Default deep blue
+                                    mat.color.set(0x3e9fff); // Default deep blue
                                 }
                             };
 
