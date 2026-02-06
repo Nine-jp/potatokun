@@ -6253,9 +6253,13 @@ const SearchGame = (() => {
                             // ★ Water Settings (Transparent Blue / Preserve Texture)
                             const setupWaterMaterial = (mat) => {
                                 mat.transparent = true;
-                                mat.opacity = 0.75;
+                                mat.opacity = 0.86;
                                 mat.depthWrite = false;
                                 mat.side = THREE.DoubleSide;
+
+                            // ★追加：これが一番効きます。「自らぼんやり光る」設定を追加
+                            mat.emissive = new THREE.Color(0x224488); // ほんのり青く光らせる
+                            mat.emissiveIntensity = 0.3; // 発光の強さ（0.0〜1.0で調整）
 
                                 // If no map exists, apply the deep blue color.
                                 // If map exists (pond_block.png), use a lighter tint to not "blow out" the design.
@@ -6263,7 +6267,7 @@ const SearchGame = (() => {
                                     mat.color.set(0xcccccc); // Light tint to preserve texture details
                                     console.log(`🌊 [POND] Using existing map for water: ${child.name}`);
                                 } else {
-                                    mat.color.set(0x3e9fff); // Default deep blue
+                                    mat.color.set(0x00BFFF); // Default deep blue
                                 }
                             };
 
