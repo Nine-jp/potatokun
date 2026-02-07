@@ -862,6 +862,9 @@ const PotatoAction = (() => {
 const SearchGame = (() => {
     let container;
     let scene, camera, renderer, controls;
+    let groundRaycaster = new THREE.Raycaster(); // Persistent raycaster
+    let raycastFrameCounter = 0;                 // Counter for throttling
+    let lastGroundHeight = 0;                    // Cached ground height
 
     // ★★★ ParkState ★★★
     const ParkState = {
@@ -877,23 +880,22 @@ const SearchGame = (() => {
 
     // ★★★ Park Zone Definition ★★★
     function getParkZone(x, z) {
-
         // 十字路
         if (Math.abs(x) < 5 || Math.abs(z) < 5) return 'crossroad';
 
         // 中央広場（噴水）
         if (x * x + z * z < 100) return 'plaza';
 
-        // 北西：更地（建設予定）
-        if (x < -2 && z < -2) return 'construction';
+        // 北西：休憩エリア
+        if (x < -2 && z < -2) return 'rest';
 
-        // 北東：休憩エリア
-        if (x > 2 && z < -2) return 'rest';
+        // 北東：更地(池エリア建設予定)
+        if (x > 2 && z < -2) return 'vacant';
 
         // 南西：森林エリア
         if (x < -2 && z > 2) return 'forest';
 
-        // 南東：森林エリア
+        // 南東：遊具エリア
         if (x > 2 && z > 2) return 'playground';
 
         return 'unknown';
@@ -904,23 +906,19 @@ const SearchGame = (() => {
         const zones = [];
 
         function checkStaticRules(x, z) {
-
             const zone = getParkZone(x, z);
 
-            // --- ParkState による制御 ---
-            if (ParkState.vegetationMode === 'allOff') {
-                return true;
-            }
+            if (ParkState.vegetationMode === 'allOff') return true;
 
             if (ParkState.vegetationMode === 'forestOnly') {
                 return zone !== 'forest';
             }
 
-            // --- エリア別の禁止ルール ---
+            // 各エリア別の禁止ルール（名称をリライト後のものに同期）
             if (zone === 'crossroad') return true;
             if (zone === 'plaza') return true;
             if (zone === 'rest') return true;
-            if (zone === 'construction') return true;
+            if (zone === 'vacant') return true;
             if (zone === 'playground') return true;
 
             // forest のみ許可
@@ -2525,8 +2523,8 @@ const SearchGame = (() => {
         dirLight.shadow.normalBias = 0.02;
 
         // Shadow map settings
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
         dirLight.shadow.camera.near = 0.5;
         dirLight.shadow.camera.far = 100;
         dirLight.shadow.camera.left = -40;
@@ -2636,7 +2634,7 @@ const SearchGame = (() => {
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(1);
         renderer.shadowMap.enabled = true;
         canvasContainer.appendChild(renderer.domElement);
 
@@ -2884,8 +2882,17 @@ const SearchGame = (() => {
                 const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
                 const isVending = targetGroup.userData.isVendingMachine;
 
+                // 3. インタラクティブ・オブジェクトの判定
+                let interactable = obj;
+                while (interactable && !interactable.userData.action) {
+                    interactable = interactable.parent;
+                }
+
                 // ターゲットが見つかったらアクション実行
-                if (isCoin) {
+                if (interactable && interactable.userData.action) {
+                    interactable.userData.action();
+                    return;
+                } else if (isCoin) {
                     // コインゲット処理！ (Helper利用)
                     collectCoin(targetGroup, clientX, clientY);
                     return; // 1個取ったら処理終了
@@ -3188,25 +3195,30 @@ const SearchGame = (() => {
             playerPosition.x = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.x));
             playerPosition.z = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.z));
 
-            // === 6. 地面の高さ合わせ ===
-            const groundRaycaster = new THREE.Raycaster();
-            groundRaycaster.set(new THREE.Vector3(playerPosition.x, 50, playerPosition.z), new THREE.Vector3(0, -1, 0));
+            // === 6. 地面の高さ合わせ (Throttled & Cached) ===
+            raycastFrameCounter++;
+            if (raycastFrameCounter >= 2) {
+                raycastFrameCounter = 0;
 
-            if (!window.sgWalkableMeshes || window.sgWalkableMeshes.length === 0) {
-                if (typeof window.sgRefreshWalkableMeshes === 'function') window.sgRefreshWalkableMeshes();
-            }
-            const walkableMeshes = window.sgWalkableMeshes || [];
-            const groundHits = groundRaycaster.intersectObjects(walkableMeshes, false);
+                groundRaycaster.set(new THREE.Vector3(playerPosition.x, 50, playerPosition.z), new THREE.Vector3(0, -1, 0));
 
-            let targetHeight = 0;
-            for (const hit of groundHits) {
-                if (hit.point.y >= 0 && hit.point.y < 10) {
-                    if (hit.point.y > playerPosition.y + 1.0) continue;
-                    if (hit.point.y > targetHeight) targetHeight = hit.point.y;
+                if (!window.sgWalkableMeshes || window.sgWalkableMeshes.length === 0) {
+                    if (typeof window.sgRefreshWalkableMeshes === 'function') window.sgRefreshWalkableMeshes();
                 }
+                const walkableMeshes = window.sgWalkableMeshes || [];
+                const groundHits = groundRaycaster.intersectObjects(walkableMeshes, false);
+
+                let foundHeight = 0;
+                for (const hit of groundHits) {
+                    if (hit.point.y >= 0 && hit.point.y < 10) {
+                        if (hit.point.y > playerPosition.y + 1.0) continue;
+                        if (hit.point.y > foundHeight) foundHeight = hit.point.y;
+                    }
+                }
+                lastGroundHeight = foundHeight;
             }
 
-            const desiredY = targetHeight + PLAYER_HEIGHT;
+            const desiredY = lastGroundHeight + PLAYER_HEIGHT;
             const heightDiff = desiredY - playerPosition.y;
             if (heightDiff > 0) playerPosition.y = desiredY;
             else if (heightDiff < -0.1) playerPosition.y += heightDiff * 0.15;
@@ -4040,6 +4052,7 @@ const SearchGame = (() => {
         try {
             if (!window.sgExtraObstacles) window.sgExtraObstacles = [];
             if (!window.sgFountainCollision) window.sgFountainCollision = [];
+            if (!window.sgInteractables) window.sgInteractables = [];
 
             if (window.sgSnowmen) {
                 window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
@@ -4198,51 +4211,134 @@ const SearchGame = (() => {
                 // console.log("❄️ Snow Explosion: Round Sprites deployed.");
             };
 
+            // 砂場の飛散エフェクト (createSandSplash)
+            window.createSandSplash = (pos) => {
+                getOrCreateCircleTexture();
+                const particleCount = 12;
+                const material = new THREE.SpriteMaterial({
+                    map: window.particleCircleTexture,
+                    color: 0xf4a460, // 砂の色 (Sandy Brown)
+                    transparent: true,
+                    opacity: 0.9,
+                    depthWrite: false
+                });
+
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = new THREE.Sprite(material.clone());
+                    particle.position.set(
+                        pos.x + (Math.random() - 0.5) * 0.8,
+                        pos.y + Math.random() * 0.5,
+                        pos.z + (Math.random() - 0.5) * 0.8
+                    );
+                    const s = 0.1 + Math.random() * 0.15;
+                    particle.scale.set(s, s, s);
+                    scene.add(particle);
+
+                    const velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.15,
+                        0.1 + Math.random() * 0.1,
+                        (Math.random() - 0.5) * 0.15
+                    );
+                    let lastTime = performance.now();
+                    const animateSplash = () => {
+                        const now = performance.now();
+                        const dt = Math.min((now - lastTime) / 1000, 0.1);
+                        lastTime = now;
+                        const timeScale = dt * 60;
+
+                        particle.position.add(velocity.clone().multiplyScalar(timeScale));
+                        velocity.y -= 0.008 * timeScale; // 重力
+
+                        particle.material.opacity -= 0.02 * timeScale;
+                        if (particle.material.opacity <= 0) {
+                            scene.remove(particle);
+                            particle.material.dispose();
+                        } else {
+                            requestAnimationFrame(animateSplash);
+                        }
+                    };
+                    animateSplash();
+                }
+            };
+
             // ★修正: North = -Z Coordinate System (Inverted Z)
 
-            // ★ 3Dパーティクルシステム (window.spawnSparkles用)
+            // ★ 3Dパーティクルシステム (window.spawnSparkles用 - 最適化版)
             window.spawnParticles = (x, y, z, colors, className) => {
                 if (!scene) return;
-                const count = 5;
-                for (let i = 0; i < count; i++) {
-                    const colorStr = colors[Math.floor(Math.random() * colors.length)];
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 16; canvas.height = 16;
-                    const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = colorStr;
-                    ctx.beginPath(); ctx.arc(8, 8, 8, 0, Math.PI * 2); ctx.fill();
 
-                    const tex = new THREE.CanvasTexture(canvas);
-                    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-                    const sprite = new THREE.Sprite(mat);
-                    sprite.position.set(x, y, z);
-                    sprite.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5));
-                    sprite.scale.set(0.1, 0.1, 0.1);
+                // 【最適化1】テクスチャのキャッシュ利用
+                const texture = getOrCreateCircleTexture();
+                const count = 5;
+
+                for (let i = 0; i < count; i++) {
+                    // 【最適化2】色の適用方法の変更 (SpriteMaterial.colorプロパティを使用)
+                    const colorValue = (colors && colors.length > 0)
+                        ? colors[Math.floor(Math.random() * colors.length)]
+                        : 0xffffff;
+
+                    const material = new THREE.SpriteMaterial({
+                        map: texture,
+                        color: new THREE.Color(colorValue),
+                        transparent: true,
+                        opacity: 1.0,
+                        depthWrite: false,
+                        blending: THREE.AdditiveBlending // 加算合成で光を表現
+                    });
+
+                    const sprite = new THREE.Sprite(material);
+
+                    // 初期位置のランダム拡散
+                    const spread = 0.5;
+                    sprite.position.set(
+                        x + (Math.random() - 0.5) * spread,
+                        y + (Math.random() - 0.5) * spread,
+                        z + (Math.random() - 0.5) * spread
+                    );
+
+                    // サイズのランダム化
+                    const scale = 0.1 + Math.random() * 0.1;
+                    sprite.scale.set(scale, scale, 1.0);
 
                     scene.add(sprite);
 
-                    let frame = 0;
-                    const anim = () => {
-                        frame++;
-                        sprite.position.y += 0.02;
-                        sprite.material.opacity -= 0.02;
-                        if (sprite.material.opacity <= 0) {
+                    // 【最適化3】Vanilla JSによるアニメーション処理
+                    let velocityY = 0.01 + Math.random() * 0.01;
+                    let velocityX = (Math.random() - 0.5) * 0.01;
+                    let velocityZ = (Math.random() - 0.5) * 0.01;
+                    let opacity = 1.0;
+
+                    const animate = () => {
+                        opacity -= 0.02;
+                        if (opacity <= 0) {
                             scene.remove(sprite);
-                            mat.dispose(); tex.dispose();
-                        } else {
-                            requestAnimationFrame(anim);
+                            material.dispose();
+                            return;
                         }
+
+                        // 位置更新
+                        sprite.position.x += velocityX;
+                        sprite.position.y += velocityY;
+                        sprite.position.z += velocityZ;
+
+                        // わずかな減速
+                        velocityY *= 0.98;
+
+                        // 不透明度反映
+                        sprite.material.opacity = opacity;
+
+                        requestAnimationFrame(animate);
                     };
-                    anim();
+                    animate();
                 }
             };
 
             // 1. spawnSparkles の修正（キラキラ仕様）
             // 1. spawnSparkles の修正（キラキラ仕様）
             window.spawnSparkles = (x, y, z) => {
-                if (typeof spawnParticles === 'function') {
+                if (typeof window.spawnParticles === 'function') {
                     // 白と金の小さな粒、かつ少しだけ上に浮く設定
-                    spawnParticles(x, y, z, ['#FFFFFF', '#FFD700'], 'pa-particle');
+                    window.spawnParticles(x, y, z, ['#FFFFFF', '#FFD700'], 'pa-particle');
                 }
             };
 
@@ -4892,6 +4988,75 @@ const SearchGame = (() => {
                             });
                         }
                     }
+                },
+
+                // ▼▼▼ 砂場 (Sandbox) ▼▼▼
+                {
+                    name: 'Sandbox',
+                    path: 'models/sandbox_set.fbx',
+                    pos: { x: 10, y: 0, z: 25 },
+                    rot: { y: 0 },
+                    scale: 1.4,
+                    checkCollisions: true,
+                    onLoad: (obj) => {
+                        console.log("🏖️ Sandbox Set Loaded");
+                        let shovel = null;
+                        let sandMound = null;
+
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+
+                                const name = c.name.toLowerCase();
+                                // メッシュ名の特定 (Shovel / SandMound)
+                                if (name.includes('shovel')) shovel = c;
+                                if (name.includes('mound') || name.includes('sandpile')) sandMound = c;
+
+                                // Register walkable mesh
+                                if (c.name.includes('SandboxMain')) {
+                                    if (window.sgWalkableMeshes) window.sgWalkableMeshes.push(c);
+                                }
+                            }
+                        });
+
+                        // --- ギミック設定 ---
+                        if (shovel && sandMound) {
+                            console.log("✨ Sandbox Shovel & Mound identified. Setting up interaction.");
+
+                            // クリック対象として登録
+                            if (window.sgInteractables) window.sgInteractables.push(shovel);
+
+                            shovel.userData.hasDug = false;
+                            shovel.userData.action = () => {
+                                if (shovel.userData.hasDug) return;
+                                shovel.userData.hasDug = true;
+
+                                console.log("⛏️ Digging in the sandbox!");
+
+                                // 音
+                                if (window.AudioManager) window.AudioManager.play('thud');
+
+                                // 演出: 砂山を消してパーティクル
+                                sandMound.visible = false;
+                                if (window.createSandSplash) {
+                                    const worldPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(worldPos);
+                                    window.createSandSplash(worldPos);
+                                }
+
+                                // 報酬: コイン出現
+                                if (typeof spawnDropCoin === 'function') {
+                                    const coinPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(coinPos);
+                                    spawnDropCoin(coinPos);
+                                }
+                            };
+                        } else {
+                            console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
+                                obj.children.map(c => c.name));
+                        }
+                    }
                 }
             ];
 
@@ -4985,23 +5150,6 @@ const SearchGame = (() => {
 
 
 
-            // 砂場
-            const sandboxGroup = new THREE.Group();
-            sandboxGroup.position.set(10, 0, 23); // Old: -23. Inverted: 23
-            sandboxGroup.scale.setScalar(2);
-            const sbW = 4.0; const sbD = 4.0; const sbH = 0.25; const sbThick = 0.15;
-            const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-            const sandMat = new THREE.MeshLambertMaterial({ color: 0xF4A460 });
-            const f1 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f1.position.set(0, sbH / 2, -sbD / 2 + sbThick / 2);
-            const f2 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f2.position.set(0, sbH / 2, sbD / 2 - sbThick / 2);
-            const f3 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f3.position.set(-sbW / 2 + sbThick / 2, sbH / 2, 0);
-            const f4 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f4.position.set(sbW / 2 - sbThick / 2, sbH / 2, 0);
-            [f1, f2, f3, f4].forEach(f => { f.castShadow = true; f.receiveShadow = true; sandboxGroup.add(f); });
-            const sand = new THREE.Mesh(new THREE.BoxGeometry(sbW - sbThick * 2, 0.1, sbD - sbThick * 2), sandMat);
-            sand.position.y = 0.05; sand.receiveShadow = true; sandboxGroup.add(sand);
-            const mound = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 16), sandMat);
-            mound.position.set(0.5, 0.3, -0.5); mound.castShadow = true; mound.receiveShadow = true; sandboxGroup.add(mound);
-            window.parkGroup.add(sandboxGroup);
 
             // 雪だるま
             const snowmanPositions = [{ x: 11, z: 14 }, { x: 11, z: 16 }, { x: 11, z: 18 }]; // Old: -14, -16, -18. Inverted: 14, 16, 18
@@ -5795,11 +5943,18 @@ const SearchGame = (() => {
                     child.castShadow = true;
                     child.receiveShadow = true;
                     if (child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(m => m.emissive.setHex(0x000000));
-                        } else {
-                            child.material.emissive.setHex(0x000000);
-                        }
+                        const mList = Array.isArray(child.material) ? child.material : [child.material];
+                        const name = child.name.toLowerCase();
+                        const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
+
+                        mList.forEach(m => {
+                            m.emissive.setHex(0x000000);
+                            if (isLeaves) {
+                                m.transparent = false;
+                                m.alphaTest = 0.5;
+                                m.side = THREE.DoubleSide;
+                            }
+                        });
                     }
                     child.userData.isTree = true;
                     // アウトラインの事前計算
@@ -6205,6 +6360,254 @@ const SearchGame = (() => {
 
         }, undefined, (err) => console.error(err));
     }
+
+    // ==========================================
+    // 🌊 POND SYSTEM: Single FBX Model Approach
+    // ==========================================
+    // ==========================================
+    // 🌊 POND SYSTEM: Single FBX Model Approach (+ Stone Wall)
+    // ==========================================
+    function spawnPond() {
+        if (window.hasSpawnedPond) return;
+        window.hasSpawnedPond = true;
+
+        // 池の中心座標
+        const POND_POSITION = { x: 22.7, y: 0, z: -18 };
+
+        console.log("🌊 [POND] Initializing spawn logic...");
+
+        const executePondSpawn = () => {
+            console.log("🌊 [POND] Scene Ready. Loading assets...");
+            const loader = new FBXLoader();
+
+            // Load Pond and Stone in parallel
+            const loadPond = new Promise((resolve, reject) => {
+                loader.load('models/pond.fbx', resolve, undefined, reject);
+            });
+            const loadStone = new Promise((resolve, reject) => {
+                loader.load('models/stone.fbx', resolve, undefined, reject);
+            });
+
+            Promise.all([loadPond, loadStone]).then(([pondModel, stoneModel]) => {
+                // --- 1. Pond Setup ---
+                // Restore height (User requested Ground Level = 0)
+                // Fix: Z-fighting reported. Lifting slightly (1cm).
+                pondModel.position.set(POND_POSITION.x, 0.01, POND_POSITION.z);
+                pondModel.scale.setScalar(2.5);
+
+                // Load Gravel Texture
+                const texLoader = new THREE.TextureLoader();
+                const gravelTex = texLoader.load('assets/gravelmat.png');
+                gravelTex.colorSpace = THREE.SRGBColorSpace;
+                gravelTex.wrapS = THREE.RepeatWrapping;
+                gravelTex.wrapT = THREE.RepeatWrapping;
+                // Revert repeat to 1x1 (Let UVs control the scale entirely)
+                gravelTex.repeat.set(1, 1);
+
+                pondModel.traverse(child => {
+                    if (child.isMesh) {
+                        const name = child.name.toLowerCase();
+                        // console.log(`🌊 [POND] Found Mesh: ${name}`); // Debug
+
+                        if (name.includes('gravelmat')) {
+                            // ★ Debug: Check for UVs
+                            const geom = child.geometry;
+                            const hasUV = geom.attributes.uv !== undefined;
+                            // console.log(`🪨 [Gravel] Mesh: ${child.name}, HasUV: ${hasUV}`);
+
+                            // ★ Fix: Planar Mapping with adjusted scale
+                            if (!hasUV || true) { // Force Planar Mapping for safety (User reported solid color)
+                                const posAttribute = geom.attributes.position;
+                                const uvArray = new Float32Array(posAttribute.count * 2);
+
+                                for (let i = 0; i < posAttribute.count; i++) {
+                                    const x = posAttribute.getX(i);
+                                    const y = posAttribute.getY(i); // ★Fix: Use Y instead of Z (Mesh is likely XY-plane in local space)
+                                    // Scale UVs: 1.0 means texture repeats every 1.0 local units (approx 2.5m in world)
+                                    // Previously combined with repeat 16, it was too dense. Now it's natural.
+                                    const uvScale = 1.0;
+                                    uvArray[i * 2] = x * uvScale;
+                                    uvArray[i * 2 + 1] = y * uvScale;
+                                }
+                                geom.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
+                                geom.attributes.uv.needsUpdate = true;
+                                // console.log("🔧 [Gravel] Generated Planar UVs.");
+                            }
+
+                            // ★ Fix: Vertex Colorによる擬似的深度表現 (Radial Gradient)
+                            geom.computeBoundingBox();
+                            const bbox = geom.boundingBox;
+                            const centerX = (bbox.max.x + bbox.min.x) / 2;
+                            const centerY = (bbox.max.y + bbox.min.y) / 2;
+                            const maxRadius = Math.max(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y) / 2;
+
+                            const count = geom.attributes.position.count;
+                            const colors = new Float32Array(count * 3);
+                            const colorCenter = new THREE.Color(0xaac1ef); // Center: Deep Dark Navy
+                            const colorEdge = new THREE.Color(0x7cc8ef);   // Edge: Original tinted gravel
+
+                            for (let i = 0; i < count; i++) {
+                                const x = geom.attributes.position.getX(i);
+                                const y = geom.attributes.position.getY(i);
+
+                                // Calculate normalized distance from center (0.0 = Center, 1.0 = Edge)
+                                const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+                                let alpha = dist / maxRadius;
+                                alpha = Math.min(1.0, Math.max(0.0, alpha));
+                                // Non-linear curve for better depth feel (Stay dark longer)
+                                alpha = Math.pow(alpha, 0.6);
+
+                                const c = colorCenter.clone().lerp(colorEdge, alpha);
+                                colors[i * 3] = c.r;
+                                colors[i * 3 + 1] = c.g;
+                                colors[i * 3 + 2] = c.b;
+                            }
+                            geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+
+                            // ★ Gravel Settings (Opaque Ground)
+                            child.material = new THREE.MeshLambertMaterial({
+                                map: gravelTex,
+                                side: THREE.DoubleSide,
+                                vertexColors: true, // ★ Enable Vertex Colors
+                                // color: 7cc8ef // Removed (Baked into vertex colors)
+                            });
+                            child.receiveShadow = true;
+                            child.castShadow = false;
+
+                            // ★ Debug: Restore bottom visibility after temporary check
+                            child.visible = true;
+
+                        } else {
+                            // ★ Water Settings (Transparent Blue / Preserve Texture)
+                            const setupWaterMaterial = (mat) => {
+                                mat.transparent = true;
+                                mat.opacity = 0.86;
+                                mat.depthWrite = false;
+                                mat.side = THREE.DoubleSide;
+
+                                // ★追加：これが一番効きます。「自らぼんやり光る」設定を追加
+                                mat.emissive = new THREE.Color(0x224488); // ほんのり青く光らせる
+                                mat.emissiveIntensity = 0.3; // 発光の強さ（0.0〜1.0で調整）
+
+                                // If no map exists, apply the deep blue color.
+                                // If map exists (pond_block.png), use a lighter tint to not "blow out" the design.
+                                if (mat.map) {
+                                    mat.color.set(0xcccccc); // Light tint to preserve texture details
+                                    console.log(`🌊 [POND] Using existing map for water: ${child.name}`);
+                                } else {
+                                    mat.color.set(0x00BFFF); // Default deep blue
+                                }
+                            };
+
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => setupWaterMaterial(mat));
+                            } else if (child.material) {
+                                setupWaterMaterial(child.material);
+                            }
+                            child.castShadow = false;
+                            child.receiveShadow = true;
+                            child.frustumCulled = false;
+                        }
+                    }
+                });
+
+                pondModel.name = 'PondMain';
+                scene.add(pondModel);
+
+                // Register walkable surface
+                if (typeof window.sgWalkableMeshes !== 'undefined' && Array.isArray(window.sgWalkableMeshes)) {
+                    pondModel.traverse(child => {
+                        if (child.isMesh) window.sgWalkableMeshes.push(child);
+                    });
+                }
+                console.log(`✅ [POND] pond.fbx placed at (${POND_POSITION.x}, ${POND_POSITION.z})`);
+
+
+                // --- 2. Stone Wall Setup (Marker Based) ---
+                console.log("🪨 [POND] Looking for 'StonePoint' markers in pond model...");
+
+                // Stone Settings
+                // Fix: Previous calculation resulted in tiny stones.
+                // stone.fbx is likely large, so let's try a fixed reasonable scale first.
+                // Assuming stone.fbx is roughly unit size or larger.
+                const stoneBaseScale = 0.01; // Try 0.01 (100x bigger than previous 0.0001??)
+
+                // Let's re-measure properly
+                stoneModel.scale.setScalar(1.0);
+                const rawBox = new THREE.Box3().setFromObject(stoneModel);
+                const rawSize = new THREE.Vector3();
+                rawBox.getSize(rawSize);
+                const maxDim = Math.max(rawSize.x, rawSize.z, rawSize.y);
+
+                // Target size: 0.8 meters (slightly larger for visibility)
+                const targetSize = 0.8;
+                let finalScale = targetSize / maxDim;
+
+                // Safety check
+                if (!isFinite(finalScale) || finalScale === 0) finalScale = 0.01;
+
+                // console.log(`🪨 [Stone] RawMax: ${maxDim}, FinalScale: ${finalScale}`);
+
+
+                const stoneGroup = new THREE.Group();
+                stoneGroup.name = 'PondStoneWall';
+                let stoneCount = 0;
+
+                pondModel.traverse((child) => {
+                    if (child.name.includes("StonePoint")) {
+                        const stone = stoneModel.clone();
+
+                        // Copy transform exactly from marker (Position & Rotation)
+                        const worldPos = new THREE.Vector3();
+                        const worldQuat = new THREE.Quaternion();
+
+                        child.getWorldPosition(worldPos);
+                        child.getWorldQuaternion(worldQuat);
+
+                        stone.position.copy(worldPos);
+                        stone.quaternion.copy(worldQuat);
+
+                        // Adjust Y slightly to prevent z-fighting with water if necessary
+                        // But keep user control. Setting to 0.05 just to be safe.
+                        stone.position.y = 0.05;
+
+                        // Variation in scale only
+                        // User requested specific range: Min 1.6, Max 1.8
+                        const scaleVar = 1.6 + Math.random() * 0.2;
+                        stone.scale.setScalar(finalScale * scaleVar);
+
+                        stone.castShadow = true;
+                        stone.receiveShadow = true;
+                        stoneGroup.add(stone);
+                        stoneCount++;
+                    }
+                });
+
+                if (stoneCount > 0) {
+                    scene.add(stoneGroup);
+                    console.log(`✅ [POND] Placed ${stoneCount} stones at markers.`);
+
+                } else {
+                    console.warn("⚠️ [POND] No 'StonePoint' markers found! Falling back to skipped.");
+                }
+
+            }).catch(err => {
+                console.error("❌ [POND] Error loading assets:", err);
+            });
+        };
+
+        // スケジューラー: scene初期化待ち
+        const scheduler = setInterval(() => {
+            if (typeof scene !== 'undefined' && scene !== null) {
+                clearInterval(scheduler);
+                executePondSpawn();
+            }
+        }, 100);
+    }
+
+    // 池を生成
+    spawnPond();
 
     // モジュールの戻り値
     return { setup, init, start, stop };
