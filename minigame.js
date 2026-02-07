@@ -2882,8 +2882,17 @@ const SearchGame = (() => {
                 const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
                 const isVending = targetGroup.userData.isVendingMachine;
 
+                // 3. インタラクティブ・オブジェクトの判定
+                let interactable = obj;
+                while (interactable && !interactable.userData.action) {
+                    interactable = interactable.parent;
+                }
+
                 // ターゲットが見つかったらアクション実行
-                if (isCoin) {
+                if (interactable && interactable.userData.action) {
+                    interactable.userData.action();
+                    return;
+                } else if (isCoin) {
                     // コインゲット処理！ (Helper利用)
                     collectCoin(targetGroup, clientX, clientY);
                     return; // 1個取ったら処理終了
@@ -4043,6 +4052,7 @@ const SearchGame = (() => {
         try {
             if (!window.sgExtraObstacles) window.sgExtraObstacles = [];
             if (!window.sgFountainCollision) window.sgFountainCollision = [];
+            if (!window.sgInteractables) window.sgInteractables = [];
 
             if (window.sgSnowmen) {
                 window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
@@ -4199,6 +4209,56 @@ const SearchGame = (() => {
                     animate();
                 }
                 // console.log("❄️ Snow Explosion: Round Sprites deployed.");
+            };
+
+            // 砂場の飛散エフェクト (createSandSplash)
+            window.createSandSplash = (pos) => {
+                getOrCreateCircleTexture();
+                const particleCount = 12;
+                const material = new THREE.SpriteMaterial({
+                    map: window.particleCircleTexture,
+                    color: 0xf4a460, // 砂の色 (Sandy Brown)
+                    transparent: true,
+                    opacity: 0.9,
+                    depthWrite: false
+                });
+
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = new THREE.Sprite(material.clone());
+                    particle.position.set(
+                        pos.x + (Math.random() - 0.5) * 0.8,
+                        pos.y + Math.random() * 0.5,
+                        pos.z + (Math.random() - 0.5) * 0.8
+                    );
+                    const s = 0.1 + Math.random() * 0.15;
+                    particle.scale.set(s, s, s);
+                    scene.add(particle);
+
+                    const velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.15,
+                        0.1 + Math.random() * 0.1,
+                        (Math.random() - 0.5) * 0.15
+                    );
+                    let lastTime = performance.now();
+                    const animateSplash = () => {
+                        const now = performance.now();
+                        const dt = Math.min((now - lastTime) / 1000, 0.1);
+                        lastTime = now;
+                        const timeScale = dt * 60;
+
+                        particle.position.add(velocity.clone().multiplyScalar(timeScale));
+                        velocity.y -= 0.008 * timeScale; // 重力
+
+                        particle.material.opacity -= 0.02 * timeScale;
+                        if (particle.material.opacity <= 0) {
+                            scene.remove(particle);
+                            particle.material.dispose();
+                        } else {
+                            requestAnimationFrame(animateSplash);
+                        }
+                    };
+                    animateSplash();
+                }
             };
 
             // ★修正: North = -Z Coordinate System (Inverted Z)
@@ -4899,16 +4959,62 @@ const SearchGame = (() => {
                     checkCollisions: true,
                     onLoad: (obj) => {
                         console.log("🏖️ Sandbox Set Loaded");
+                        let shovel = null;
+                        let sandMound = null;
+
                         obj.traverse(c => {
                             if (c.isMesh) {
                                 c.castShadow = true;
                                 c.receiveShadow = true;
+
+                                const name = c.name.toLowerCase();
+                                // メッシュ名の特定 (Shovel / SandMound)
+                                if (name.includes('shovel')) shovel = c;
+                                if (name.includes('mound') || name.includes('sandpile')) sandMound = c;
+
                                 // Register walkable mesh
                                 if (c.name.includes('SandboxMain')) {
                                     if (window.sgWalkableMeshes) window.sgWalkableMeshes.push(c);
                                 }
                             }
                         });
+
+                        // --- ギミック設定 ---
+                        if (shovel && sandMound) {
+                            console.log("✨ Sandbox Shovel & Mound identified. Setting up interaction.");
+
+                            // クリック対象として登録
+                            if (window.sgInteractables) window.sgInteractables.push(shovel);
+
+                            shovel.userData.hasDug = false;
+                            shovel.userData.action = () => {
+                                if (shovel.userData.hasDug) return;
+                                shovel.userData.hasDug = true;
+
+                                console.log("⛏️ Digging in the sandbox!");
+
+                                // 音
+                                if (window.AudioManager) window.AudioManager.play('thud');
+
+                                // 演出: 砂山を消してパーティクル
+                                sandMound.visible = false;
+                                if (window.createSandSplash) {
+                                    const worldPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(worldPos);
+                                    window.createSandSplash(worldPos);
+                                }
+
+                                // 報酬: コイン出現
+                                if (typeof spawnDropCoin === 'function') {
+                                    const coinPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(coinPos);
+                                    spawnDropCoin(coinPos);
+                                }
+                            };
+                        } else {
+                            console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
+                                obj.children.map(c => c.name));
+                        }
                     }
                 }
             ];
