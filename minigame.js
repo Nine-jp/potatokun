@@ -3553,6 +3553,7 @@ const SearchGame = (() => {
             'models/coin.fbx',
             (masterCoin) => {
                 console.log('FBX Loaded: coin.fbx (Official Master)');
+                window.sgCoinMaster = masterCoin; // ★これを追加
 
                 // === AUTO-SIZE NORMALIZATION using Box3 ===
                 const coinBox = new THREE.Box3().setFromObject(masterCoin);
@@ -5296,17 +5297,64 @@ const SearchGame = (() => {
             };
             snowmanPositions.forEach((config, index) => createSnowman(config, index === winnerIndex));
 
-            // コイン
+            // コイン出現演出 (FBX版)
             const spawnDropCoin = (startPos) => {
-                const geo = new THREE.CylinderGeometry(0.25, 0.25, 0.05, 32); geo.rotateX(Math.PI / 2);
-                const matOptions = (tex) => ({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.6 });
-                const coin = new THREE.Mesh(geo, [new THREE.MeshLambertMaterial(matOptions(coinTex.side)), new THREE.MeshLambertMaterial(matOptions(coinTex.face)), new THREE.MeshLambertMaterial(matOptions(coinTex.back))]);
-                coin.position.copy(startPos); coin.position.y += 0.5;
-                coin.userData.isCoin = true; coin.userData.collected = false;
+                // マスターモデルが準備できていない場合は安全に中止
+                if (!window.sgCoinMaster) {
+                    console.warn("⚠️ Coin Master not ready. Using fallback or skipping.");
+                    return;
+                }
+
+                // 本物のコインモデルをクローン
+                const coin = window.sgCoinMaster.clone();
+
+                // 座標・サイズ調整
+                coin.position.copy(startPos);
+                coin.position.y += 0.5;
+                // coin.fbxはロード時にサイズ調整済みだが、cloneでリセットされる場合があるため念のため再適用
+                // (ロード時のスケールロジックに依存しますが、ここでは安全策として0.5倍前後を目安に)
+                // もしロード処理側で masterCoin.scale をセットしているなら、clone にも引き継がれます。
+
+                // 影の設定
+                coin.traverse(c => {
+                    if (c.isMesh) {
+                        c.castShadow = true;
+                        c.receiveShadow = true;
+                    }
+                });
+
+                coin.userData.isCoin = true;
+                coin.userData.collected = false;
+
                 scene.add(coin);
                 if (window.sgGameCoins) window.sgGameCoins.push(coin);
-                let velocity = new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.3, (Math.random() - 0.5) * 0.2); let gravity = 0.015;
-                const dropAnim = setInterval(() => { if (!coin.parent) { clearInterval(dropAnim); return; } coin.position.add(velocity); velocity.y -= gravity; if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); } }, 16);
+
+                // 飛び出しアニメーション (物理挙動風)
+                let velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.2,
+                    0.4, // 上への跳ね上がり
+                    (Math.random() - 0.5) * 0.2
+                );
+                let gravity = 0.02;
+
+                const dropAnim = setInterval(() => {
+                    // 親から削除されたら終了
+                    if (!coin.parent || coin.userData.collected) {
+                        clearInterval(dropAnim);
+                        return;
+                    }
+
+                    // 移動と回転
+                    coin.position.add(velocity);
+                    coin.rotation.y += 0.3; // クルクル回る
+                    velocity.y -= gravity;
+
+                    // 地面に着地
+                    if (coin.position.y <= 0.5) {
+                        coin.position.y = 0.5;
+                        clearInterval(dropAnim);
+                    }
+                }, 16);
             };
 
             // ==========================================

@@ -1,3 +1,249 @@
+                    if ((dx * dx + dz * dz) < MIN_DIST2) return true;
+                }
+                return false;
+            };
+
+            while (plantingQueue.length < (NUM_TREES + 24) && attempts < 10000) {
+                attempts++;
+                const x = (Math.random() - 0.5) * range;
+                const z = (Math.random() - 0.5) * range;
+                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
+                if (isTooClose(x, z)) continue;
+
+                plantingQueue.push({ x: x, z: z, type: 'forest' });
+                placedPositions.push({ x: x, z: z });
+                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
+            }
+
+            // C. 外周の木 (Exterior)
+            const NUM_EXTERIOR = 70;
+            for (let i = 0; i < NUM_EXTERIOR; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 45 + Math.random() * 35;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+                plantingQueue.push({ x: x, z: z, type: 'exterior' });
+            }
+
+            console.log(`Total Trees to Plant: ${plantingQueue.length}`);
+
+            // ★★★ タイムスライス実行ロジック ★★★
+            const masterBox = new THREE.Box3().setFromObject(masterTree);
+            const masterOffsetY = -masterBox.min.y;
+
+            // 1フレームに植える本数（PC/スマホの性能に合わせて調整可）
+            const BATCH_SIZE = 5;
+
+            const processPlanting = () => {
+                // キューが空になったら終了
+                if (plantingQueue.length === 0) {
+                    console.log("🌲 All trees planted.");
+                    // 隠しコインのセットアップ（木が生え終わった後に実行）
+                    setupHiddenCoin();
+                    // 色の最終適用
+                    if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
+                    return;
+                }
+
+                // バッチサイズ分だけ処理
+                const batch = plantingQueue.splice(0, BATCH_SIZE);
+
+                batch.forEach((data, i) => {
+                    const tree = masterTree.clone();
+                    tree.userData.isTree = true;
+
+                    // スケールと位置
+                    let scale = 1.0;
+                    if (data.type === 'exterior') {
+                        scale = 1.2 + Math.random() * 0.8;
+                    } else {
+                        scale = 0.8 + Math.random() * 0.4;
+                    }
+                    tree.scale.setScalar(scale);
+                    tree.position.set(data.x, masterOffsetY * scale, data.z);
+                    tree.rotation.y = Math.random() * Math.PI * 2;
+
+                    // マテリアルの独立化
+                    tree.traverse(child => {
+                        if (child.isMesh && child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material = child.material.map(m => m.clone());
+                            } else {
+                                child.material = child.material.clone();
+                            }
+                        }
+                    });
+
+                    scene.add(tree);
+                    window.sgTreeObjects.push(tree);
+
+                    // 森の木だけ衝突判定を追加
+                    if (data.type !== 'exterior') {
+                        window.sgTreeCollisions.push({ x: data.x, z: data.z, radius: 0.3 * scale });
+                    }
+                });
+
+                // 次のフレームで続きを実行
+                requestAnimationFrame(processPlanting);
+            };
+
+            // 植樹開始！
+            processPlanting();
+
+        }, undefined, (error) => console.error('Error loading tree.fbx:', error));
+
+        // --- 隠しコイン生成関数 (木を直接受け取る) ---
+        function setupHiddenCoin(targetTree) {
+            if (!targetTree) {
+                console.warn('setupHiddenCoin: No target tree provided!');
+                return;
+            }
+            if (!window.sgActiveCoins) window.sgActiveCoins = [];
+            window.testTree = targetTree;
+            console.log('setupHiddenCoin: Attaching coin to', targetTree.name, 'at', targetTree.position.x.toFixed(1), targetTree.position.z.toFixed(1));
+
+            const loader = new FBXLoader();
+            loader.load('models/coin.fbx', (object) => {
+                const coin = object;
+                const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
+                const currentSeason = (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) ? GameConfig.currentSeason : 'summer';
+                const targetColor = seasonColors[currentSeason] || 0xFFFFFF;
+
+                coin.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = false;
+                        if (child.material) {
+                            const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                            const newMat = new THREE.MeshBasicMaterial({
+                                map: oldMat.map, color: targetColor, transparent: false, opacity: 1.0, side: THREE.DoubleSide
+                            });
+                            child.material = newMat;
+                        }
+                    }
+                });
+                const box = new THREE.Box3().setFromObject(coin);
+                const size = new THREE.Vector3(); box.getSize(size);
+                coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
+                const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
+                coin.add(coinLight);
+                coin.position.set(0, 2.2, 0);
+                coin.userData = { isCoin: true, isFalling: false, hasFallen: false, pointLight: coinLight };
+
+                targetTree.add(coin);
+                targetTree.userData.hasCoin = true;
+                targetTree.userData.targetCoin = coin;
+                window.sgActiveCoins.push(coin);
+                coin.userData.parentTree = targetTree;
+
+                const collisionObj = window.sgTreeCollisions.find(c =>
+                    Math.abs(c.x - targetTree.position.x) < 0.1 && Math.abs(c.z - targetTree.position.z) < 0.1
+                );
+                if (collisionObj) {
+                    collisionObj.hasCoin = true;
+                    window.testTreeCollision = collisionObj;
+                }
+            });
+            console.log('✨ Hidden Coin ready in tree:', targetTree.name);
+        }
+    }
+
+    // ==========================================
+    // 雲 (Cloud) の配置と季節カラー管理
+    // ==========================================
+    function spawnClouds() {
+        console.log("--- spawnClouds CALLED ---");
+
+        window.sgCloudObjects = []; // 雲管理用配列
+
+        // ★ 雲の色パレット (Emissive発光色)
+        const CLOUD_COLORS = {
+            spring: 0x443344, // ほんのり桜色
+            summer: 0x333333, // 通常の白（グレー発光）
+            autumn: 0x663322, // ★夕暮れ（赤みのある暖色グレー）
+            winter: 0x444455  // 雪雲（青みのあるグレー）
+        };
+
+        // ★ 雲の色変更関数
+        window.setCloudSeason = (seasonName) => {
+            console.log(`Setting Cloud Season to: ${seasonName}`);
+            const colorHex = CLOUD_COLORS[seasonName] || CLOUD_COLORS.summer;
+
+            window.sgCloudObjects.forEach(cloud => {
+                cloud.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        // エミッシブカラー（発光色）を変更して色味を変える
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(colorHex);
+                        }
+                    }
+                });
+            });
+        };
+
+        const loader = new FBXLoader();
+        loader.load('models/cloud.fbx', (masterCloud) => {
+            console.log("Cloud Loaded: cloud.fbx");
+
+            masterCloud.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = false;
+
+                    if (child.material) {
+                        child.material.fog = false; // フォグの影響を受けない
+                        // 初期色設定
+                        if (child.material.emissive) {
+                            child.material.emissive.setHex(CLOUD_COLORS.summer);
+                        }
+                    }
+                }
+            });
+
+            const cloudCount = 15;
+            for (let i = 0; i < cloudCount; i++) {
+                const cloud = masterCloud.clone();
+                const x = (Math.random() - 0.5) * 100;
+                const z = (Math.random() - 0.5) * 100;
+                const y = 15 + Math.random() * 10;
+
+                cloud.position.set(x, y, z);
+                cloud.rotation.y = Math.random() * Math.PI * 2;
+                cloud.scale.setScalar(0.8 + Math.random() * 0.7);
+
+                scene.add(cloud);
+                window.sgCloudObjects.push(cloud);
+            }
+
+            console.log(`${cloudCount} clouds placed.`);
+
+            // ★現在の季節を適用
+            if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
+                window.setCloudSeason(GameConfig.currentSeason);
+            } else {
+                window.setCloudSeason('summer');
+            }
+
+        }, undefined, (error) => {
+            console.error("Error loading cloud.fbx:", error);
+        });
+    }
+
+    // ==========================================
+    // 草 (Grass) の配置と季節カラー管理 - InstancedMesh Edition
+    // ==========================================
+    /**
+     * 🛠️ PROJECT POTATO: ULTRA LIGHTWEIGHT GRASS (InstancedMesh Edition)
+     * [GOAL] 800個の草をInstancedMeshに統合し、ドローコールを1/800に削減。
+     * [FIX] 既存の setGrassSeason との互換性を維持。
+     */
+
+    // ★ 季節ごとのカラーパレット定義
+    const GRASS_PALETTES = {
+        spring: [0x90EE90, 0x98FB98, 0xADFF2F],
+        summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+        autumn: [0xCD853F, 0xDAA520, 0x8B4513],
+        winter: [0xDDDDDD]
     };
 
     // ★ 季節切り替え関数 (InstancedMesh対応版)

@@ -1,3 +1,12 @@
+        if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+            const existingPanel = document.getElementById('debug-pos-panel');
+            if (existingPanel) existingPanel.remove();
+
+            const debugPanel = document.createElement('div');
+            debugPanel.id = 'debug-pos-panel';
+            debugPanel.style.position = 'absolute';
+            debugPanel.style.top = '10px';
+            debugPanel.style.left = '50%';
             debugPanel.style.transform = 'translateX(-50%)';
             debugPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
             debugPanel.style.color = '#00FF00';
@@ -43,6 +52,7 @@
         try {
             if (!window.sgExtraObstacles) window.sgExtraObstacles = [];
             if (!window.sgFountainCollision) window.sgFountainCollision = [];
+            if (!window.sgInteractables) window.sgInteractables = [];
 
             if (window.sgSnowmen) {
                 window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
@@ -199,6 +209,56 @@
                     animate();
                 }
                 // console.log("❄️ Snow Explosion: Round Sprites deployed.");
+            };
+
+            // 砂場の飛散エフェクト (createSandSplash)
+            window.createSandSplash = (pos) => {
+                getOrCreateCircleTexture();
+                const particleCount = 12;
+                const material = new THREE.SpriteMaterial({
+                    map: window.particleCircleTexture,
+                    color: 0xf4a460, // 砂の色 (Sandy Brown)
+                    transparent: true,
+                    opacity: 0.9,
+                    depthWrite: false
+                });
+
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = new THREE.Sprite(material.clone());
+                    particle.position.set(
+                        pos.x + (Math.random() - 0.5) * 0.8,
+                        pos.y + Math.random() * 0.5,
+                        pos.z + (Math.random() - 0.5) * 0.8
+                    );
+                    const s = 0.1 + Math.random() * 0.15;
+                    particle.scale.set(s, s, s);
+                    scene.add(particle);
+
+                    const velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.15,
+                        0.1 + Math.random() * 0.1,
+                        (Math.random() - 0.5) * 0.15
+                    );
+                    let lastTime = performance.now();
+                    const animateSplash = () => {
+                        const now = performance.now();
+                        const dt = Math.min((now - lastTime) / 1000, 0.1);
+                        lastTime = now;
+                        const timeScale = dt * 60;
+
+                        particle.position.add(velocity.clone().multiplyScalar(timeScale));
+                        velocity.y -= 0.008 * timeScale; // 重力
+
+                        particle.material.opacity -= 0.02 * timeScale;
+                        if (particle.material.opacity <= 0) {
+                            scene.remove(particle);
+                            particle.material.dispose();
+                        } else {
+                            requestAnimationFrame(animateSplash);
+                        }
+                    };
+                    animateSplash();
+                }
             };
 
             // ★修正: North = -Z Coordinate System (Inverted Z)
@@ -653,7 +713,48 @@
                         } catch (e) { console.error("Error in Dokan onLoad:", e); }
                     }
                 },
+                /*
+                {
+                    name: 'Barricade_NorthEast',
+                    path: 'models/barricade.fbx',
+                    pos: { x: 0, y: 0, z: 0 },
+                    scale: 1.0,
+                    onLoad: (master) => {
+                        // ベンチの背後（x=4, z=-4）に密着させる設定
+                        const startX = 6.0;  // ベンチからさらに後退
+                        const startZ = -6.0; // ベンチからさらに後退
+                        const count = 11;
+                        const spacing = 2.3; // 隙間を詰めた精密な間隔
 
+                        for (let i = 0; i < count; i++) {
+                            // 角の重なりを防ぐため、i=0（角の地点）は生成をスキップ
+                            if (i === 0) continue;
+                            // 横列（南側の封鎖）
+                            const bX = master.clone();
+                            bX.position.set(startX + i * spacing, 0, startZ);
+                            window.parkGroup.add(bX);
+
+                            // 縦列（西側の封鎖）
+                            const bZ = master.clone();
+                            bZ.position.set(startX, 0, startZ - i * spacing);
+                            bZ.rotation.y = Math.PI / 2;
+                            window.parkGroup.add(bZ);
+                        }
+
+                        // 全バリケードにアウトライン適用
+                        window.parkGroup.traverse(c => {
+                            if (c.name === 'Barricade_NorthEast_Clone' || (c.parent && c.parent.name === 'Barricade_NorthEast')) {
+                                if (window.applyOutlineRules) window.applyOutlineRules(c);
+                            }
+                        });
+                        master.visible = false;
+
+                        // 2. 物理封鎖の設定（createParkAssets 内）
+                        // 物理封鎖
+                        window.sgExtraObstacles.push({ minX: 5.8, maxX: 32, minZ: -32, maxZ: -5.8 });
+                    }
+                },
+                */
                 {
                     name: 'BenchCat',
                     path: 'models/cat.fbx',
@@ -885,6 +986,75 @@
                                 minX: -7 - 1.8, maxX: -7 + 1.8,
                                 minZ: -25 - 3.5, maxZ: -25 + 3.5
                             });
+                        }
+                    }
+                },
+
+                // ▼▼▼ 砂場 (Sandbox) ▼▼▼
+                {
+                    name: 'Sandbox',
+                    path: 'models/sandbox_set.fbx',
+                    pos: { x: 10, y: 0, z: 25 },
+                    rot: { y: 0 },
+                    scale: 1.4,
+                    checkCollisions: true,
+                    onLoad: (obj) => {
+                        console.log("🏖️ Sandbox Set Loaded");
+                        let shovel = null;
+                        let sandMound = null;
+
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+
+                                const name = c.name.toLowerCase();
+                                // メッシュ名の特定 (Shovel / SandMound)
+                                if (name.includes('shovel')) shovel = c;
+                                if (name.includes('mound') || name.includes('sandpile')) sandMound = c;
+
+                                // Register walkable mesh
+                                if (c.name.includes('SandboxMain')) {
+                                    if (window.sgWalkableMeshes) window.sgWalkableMeshes.push(c);
+                                }
+                            }
+                        });
+
+                        // --- ギミック設定 ---
+                        if (shovel && sandMound) {
+                            console.log("✨ Sandbox Shovel & Mound identified. Setting up interaction.");
+
+                            // クリック対象として登録
+                            if (window.sgInteractables) window.sgInteractables.push(shovel);
+
+                            shovel.userData.hasDug = false;
+                            shovel.userData.action = () => {
+                                if (shovel.userData.hasDug) return;
+                                shovel.userData.hasDug = true;
+
+                                console.log("⛏️ Digging in the sandbox!");
+
+                                // 音
+                                if (window.AudioManager) window.AudioManager.play('thud');
+
+                                // 演出: 砂山を消してパーティクル
+                                sandMound.visible = false;
+                                if (window.createSandSplash) {
+                                    const worldPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(worldPos);
+                                    window.createSandSplash(worldPos);
+                                }
+
+                                // 報酬: コイン出現
+                                if (typeof spawnDropCoin === 'function') {
+                                    const coinPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(coinPos);
+                                    spawnDropCoin(coinPos);
+                                }
+                            };
+                        } else {
+                            console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
+                                obj.children.map(c => c.name));
                         }
                     }
                 }
@@ -1138,6 +1308,82 @@
                 let velocity = new THREE.Vector3((Math.random() - 0.5) * 0.2, 0.3, (Math.random() - 0.5) * 0.2); let gravity = 0.015;
                 const dropAnim = setInterval(() => { if (!coin.parent) { clearInterval(dropAnim); return; } coin.position.add(velocity); velocity.y -= gravity; if (coin.position.y <= 0.5) { coin.position.y = 0.5; clearInterval(dropAnim); } }, 16);
             };
+
+            // ==========================================
+            // 池エリア
+            // ==========================================
+
+            /**
+             * 🛠️ PROJECT POTATO: SEAMLESS ORGANIC POND
+             * [FIX] Eliminated holes and isolated blocks.
+             * [METHOD] Use smooth Sine/Cosine wave layering instead of raw random.
+             */
+
+            const spawnPond = () => {
+                const loader = new FBXLoader();
+                const modelPath = 'models/water_block.fbx';
+
+                const bounds = {
+                    minX: 10, maxX: 28,
+                    minZ: -28, maxZ: -10,
+                    y: 0
+                };
+
+                loader.load(modelPath, (fbx) => {
+                    let waterGeometry = null;
+                    let waterMaterial = null;
+                    fbx.traverse((child) => { if (child.isMesh) { waterGeometry = child.geometry; waterMaterial = child.material; } });
+
+                    const center = { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
+                    const radiusX = (bounds.maxX - bounds.minX) / 2 - 1.5; // 少しマージン
+                    const radiusZ = (bounds.maxZ - bounds.minZ) / 2 - 1.5;
+
+                    const validPositions = [];
+                    for (let x = bounds.minX; x < bounds.maxX; x++) {
+                        for (let z = bounds.minZ; z < bounds.maxZ; z++) {
+
+                            // 角度を計算
+                            const angle = Math.atan2(z - center.z, x - center.x);
+
+                            // ★プロの工夫: 複数のサイン波を重ねて「ぐにゃぐにゃ」を作る (穴が開かない手法)
+                            const deform =
+                                Math.sin(angle * 3) * 0.15 +
+                                Math.cos(angle * 5) * 0.1 +
+                                Math.sin(angle * 2) * 0.05;
+
+                            const distortedRadius = 0.8 + deform;
+
+                            // 楕円の式 + 歪み
+                            const dx = (x - center.x) / radiusX;
+                            const dz = (z - center.z) / radiusZ;
+                            const dist = Math.sqrt(dx * dx + dz * dz);
+
+                            if (dist < distortedRadius) {
+                                validPositions.push({ x, z });
+                            }
+                        }
+                    }
+
+                    const instancedMesh = new THREE.InstancedMesh(waterGeometry, waterMaterial, validPositions.length);
+                    instancedMesh.name = "River_Pond_Water";
+
+                    const dummy = new THREE.Object3D();
+                    validPositions.forEach((pos, i) => {
+                        dummy.position.set(pos.x + 0.5, bounds.y, pos.z + 0.5);
+                        dummy.rotation.set(-Math.PI / 2, 0, 0);
+                        dummy.updateMatrix();
+                        instancedMesh.setMatrixAt(i, dummy.matrix);
+                    });
+
+                    const oldPond = window.parkGroup.getObjectByName("River_Pond_Water");
+                    if (oldPond) window.parkGroup.remove(oldPond);
+                    window.parkGroup.add(instancedMesh);
+
+                    console.log("🌊 Solid Curved Pond Ready. No holes this time.");
+                });
+            };
+
+            spawnPond();
 
             // アニメーション監視ループ (エラー修正・安全化版)
             if (window.sgSnowmanInterval) clearInterval(window.sgSnowmanInterval);
@@ -1752,249 +1998,3 @@
                 for (const placed of placedPositions) {
                     const dx = x - placed.x;
                     const dz = z - placed.z;
-                    if ((dx * dx + dz * dz) < MIN_DIST2) return true;
-                }
-                return false;
-            };
-
-            while (plantingQueue.length < (NUM_TREES + 24) && attempts < 10000) {
-                attempts++;
-                const x = (Math.random() - 0.5) * range;
-                const z = (Math.random() - 0.5) * range;
-                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
-                if (isTooClose(x, z)) continue;
-
-                plantingQueue.push({ x: x, z: z, type: 'forest' });
-                placedPositions.push({ x: x, z: z });
-                if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
-            }
-
-            // C. 外周の木 (Exterior)
-            const NUM_EXTERIOR = 70;
-            for (let i = 0; i < NUM_EXTERIOR; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const radius = 45 + Math.random() * 35;
-                const x = Math.cos(angle) * radius;
-                const z = Math.sin(angle) * radius;
-                plantingQueue.push({ x: x, z: z, type: 'exterior' });
-            }
-
-            console.log(`Total Trees to Plant: ${plantingQueue.length}`);
-
-            // ★★★ タイムスライス実行ロジック ★★★
-            const masterBox = new THREE.Box3().setFromObject(masterTree);
-            const masterOffsetY = -masterBox.min.y;
-
-            // 1フレームに植える本数（PC/スマホの性能に合わせて調整可）
-            const BATCH_SIZE = 5;
-
-            const processPlanting = () => {
-                // キューが空になったら終了
-                if (plantingQueue.length === 0) {
-                    console.log("🌲 All trees planted.");
-                    // 隠しコインのセットアップ（木が生え終わった後に実行）
-                    setupHiddenCoin();
-                    // 色の最終適用
-                    if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
-                    return;
-                }
-
-                // バッチサイズ分だけ処理
-                const batch = plantingQueue.splice(0, BATCH_SIZE);
-
-                batch.forEach((data, i) => {
-                    const tree = masterTree.clone();
-                    tree.userData.isTree = true;
-
-                    // スケールと位置
-                    let scale = 1.0;
-                    if (data.type === 'exterior') {
-                        scale = 1.2 + Math.random() * 0.8;
-                    } else {
-                        scale = 0.8 + Math.random() * 0.4;
-                    }
-                    tree.scale.setScalar(scale);
-                    tree.position.set(data.x, masterOffsetY * scale, data.z);
-                    tree.rotation.y = Math.random() * Math.PI * 2;
-
-                    // マテリアルの独立化
-                    tree.traverse(child => {
-                        if (child.isMesh && child.material) {
-                            if (Array.isArray(child.material)) {
-                                child.material = child.material.map(m => m.clone());
-                            } else {
-                                child.material = child.material.clone();
-                            }
-                        }
-                    });
-
-                    scene.add(tree);
-                    window.sgTreeObjects.push(tree);
-
-                    // 森の木だけ衝突判定を追加
-                    if (data.type !== 'exterior') {
-                        window.sgTreeCollisions.push({ x: data.x, z: data.z, radius: 0.3 * scale });
-                    }
-                });
-
-                // 次のフレームで続きを実行
-                requestAnimationFrame(processPlanting);
-            };
-
-            // 植樹開始！
-            processPlanting();
-
-        }, undefined, (error) => console.error('Error loading tree.fbx:', error));
-
-        // --- 隠しコイン生成関数 (木を直接受け取る) ---
-        function setupHiddenCoin(targetTree) {
-            if (!targetTree) {
-                console.warn('setupHiddenCoin: No target tree provided!');
-                return;
-            }
-            if (!window.sgActiveCoins) window.sgActiveCoins = [];
-            window.testTree = targetTree;
-            console.log('setupHiddenCoin: Attaching coin to', targetTree.name, 'at', targetTree.position.x.toFixed(1), targetTree.position.z.toFixed(1));
-
-            const loader = new FBXLoader();
-            loader.load('models/coin.fbx', (object) => {
-                const coin = object;
-                const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
-                const currentSeason = (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) ? GameConfig.currentSeason : 'summer';
-                const targetColor = seasonColors[currentSeason] || 0xFFFFFF;
-
-                coin.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = false;
-                        if (child.material) {
-                            const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
-                            const newMat = new THREE.MeshBasicMaterial({
-                                map: oldMat.map, color: targetColor, transparent: false, opacity: 1.0, side: THREE.DoubleSide
-                            });
-                            child.material = newMat;
-                        }
-                    }
-                });
-                const box = new THREE.Box3().setFromObject(coin);
-                const size = new THREE.Vector3(); box.getSize(size);
-                coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
-                const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
-                coin.add(coinLight);
-                coin.position.set(0, 2.2, 0);
-                coin.userData = { isCoin: true, isFalling: false, hasFallen: false, pointLight: coinLight };
-
-                targetTree.add(coin);
-                targetTree.userData.hasCoin = true;
-                targetTree.userData.targetCoin = coin;
-                window.sgActiveCoins.push(coin);
-                coin.userData.parentTree = targetTree;
-
-                const collisionObj = window.sgTreeCollisions.find(c =>
-                    Math.abs(c.x - targetTree.position.x) < 0.1 && Math.abs(c.z - targetTree.position.z) < 0.1
-                );
-                if (collisionObj) {
-                    collisionObj.hasCoin = true;
-                    window.testTreeCollision = collisionObj;
-                }
-            });
-            console.log('✨ Hidden Coin ready in tree:', targetTree.name);
-        }
-    }
-
-    // ==========================================
-    // 雲 (Cloud) の配置と季節カラー管理
-    // ==========================================
-    function spawnClouds() {
-        console.log("--- spawnClouds CALLED ---");
-
-        window.sgCloudObjects = []; // 雲管理用配列
-
-        // ★ 雲の色パレット (Emissive発光色)
-        const CLOUD_COLORS = {
-            spring: 0x443344, // ほんのり桜色
-            summer: 0x333333, // 通常の白（グレー発光）
-            autumn: 0x663322, // ★夕暮れ（赤みのある暖色グレー）
-            winter: 0x444455  // 雪雲（青みのあるグレー）
-        };
-
-        // ★ 雲の色変更関数
-        window.setCloudSeason = (seasonName) => {
-            console.log(`Setting Cloud Season to: ${seasonName}`);
-            const colorHex = CLOUD_COLORS[seasonName] || CLOUD_COLORS.summer;
-
-            window.sgCloudObjects.forEach(cloud => {
-                cloud.traverse(child => {
-                    if (child.isMesh && child.material) {
-                        // エミッシブカラー（発光色）を変更して色味を変える
-                        if (child.material.emissive) {
-                            child.material.emissive.setHex(colorHex);
-                        }
-                    }
-                });
-            });
-        };
-
-        const loader = new FBXLoader();
-        loader.load('models/cloud.fbx', (masterCloud) => {
-            console.log("Cloud Loaded: cloud.fbx");
-
-            masterCloud.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = false;
-
-                    if (child.material) {
-                        child.material.fog = false; // フォグの影響を受けない
-                        // 初期色設定
-                        if (child.material.emissive) {
-                            child.material.emissive.setHex(CLOUD_COLORS.summer);
-                        }
-                    }
-                }
-            });
-
-            const cloudCount = 15;
-            for (let i = 0; i < cloudCount; i++) {
-                const cloud = masterCloud.clone();
-                const x = (Math.random() - 0.5) * 100;
-                const z = (Math.random() - 0.5) * 100;
-                const y = 15 + Math.random() * 10;
-
-                cloud.position.set(x, y, z);
-                cloud.rotation.y = Math.random() * Math.PI * 2;
-                cloud.scale.setScalar(0.8 + Math.random() * 0.7);
-
-                scene.add(cloud);
-                window.sgCloudObjects.push(cloud);
-            }
-
-            console.log(`${cloudCount} clouds placed.`);
-
-            // ★現在の季節を適用
-            if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
-                window.setCloudSeason(GameConfig.currentSeason);
-            } else {
-                window.setCloudSeason('summer');
-            }
-
-        }, undefined, (error) => {
-            console.error("Error loading cloud.fbx:", error);
-        });
-    }
-
-    // ==========================================
-    // 草 (Grass) の配置と季節カラー管理 - InstancedMesh Edition
-    // ==========================================
-    /**
-     * 🛠️ PROJECT POTATO: ULTRA LIGHTWEIGHT GRASS (InstancedMesh Edition)
-     * [GOAL] 800個の草をInstancedMeshに統合し、ドローコールを1/800に削減。
-     * [FIX] 既存の setGrassSeason との互換性を維持。
-     */
-
-    // ★ 季節ごとのカラーパレット定義
-    const GRASS_PALETTES = {
-        spring: [0x90EE90, 0x98FB98, 0xADFF2F],
-        summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
-        autumn: [0xCD853F, 0xDAA520, 0x8B4513],
-        winter: [0xDDDDDD]
