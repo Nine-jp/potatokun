@@ -4887,6 +4887,29 @@ const SearchGame = (() => {
                             });
                         }
                     }
+                },
+
+                // ▼▼▼ 砂場 (Sandbox) ▼▼▼
+                {
+                    name: 'Sandbox',
+                    path: 'models/sandbox_set.fbx',
+                    pos: { x: 10, y: 0, z: 25 },
+                    rot: { y: 0 },
+                    scale: 1.4,
+                    checkCollisions: true,
+                    onLoad: (obj) => {
+                        console.log("🏖️ Sandbox Set Loaded");
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                                // Register walkable mesh
+                                if (c.name.includes('SandboxMain')) {
+                                    if (window.sgWalkableMeshes) window.sgWalkableMeshes.push(c);
+                                }
+                            }
+                        });
+                    }
                 }
             ];
 
@@ -4980,23 +5003,6 @@ const SearchGame = (() => {
 
 
 
-            // 砂場
-            const sandboxGroup = new THREE.Group();
-            sandboxGroup.position.set(10, 0, 23); // Old: -23. Inverted: 23
-            sandboxGroup.scale.setScalar(2);
-            const sbW = 4.0; const sbD = 4.0; const sbH = 0.25; const sbThick = 0.15;
-            const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-            const sandMat = new THREE.MeshLambertMaterial({ color: 0xF4A460 });
-            const f1 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f1.position.set(0, sbH / 2, -sbD / 2 + sbThick / 2);
-            const f2 = new THREE.Mesh(new THREE.BoxGeometry(sbW, sbH, sbThick), woodMat); f2.position.set(0, sbH / 2, sbD / 2 - sbThick / 2);
-            const f3 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f3.position.set(-sbW / 2 + sbThick / 2, sbH / 2, 0);
-            const f4 = new THREE.Mesh(new THREE.BoxGeometry(sbThick, sbH, sbD - sbThick * 2), woodMat); f4.position.set(sbW / 2 - sbThick / 2, sbH / 2, 0);
-            [f1, f2, f3, f4].forEach(f => { f.castShadow = true; f.receiveShadow = true; sandboxGroup.add(f); });
-            const sand = new THREE.Mesh(new THREE.BoxGeometry(sbW - sbThick * 2, 0.1, sbD - sbThick * 2), sandMat);
-            sand.position.y = 0.05; sand.receiveShadow = true; sandboxGroup.add(sand);
-            const mound = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 16), sandMat);
-            mound.position.set(0.5, 0.3, -0.5); mound.castShadow = true; mound.receiveShadow = true; sandboxGroup.add(mound);
-            window.parkGroup.add(sandboxGroup);
 
             // 雪だるま
             const snowmanPositions = [{ x: 11, z: 14 }, { x: 11, z: 16 }, { x: 11, z: 18 }]; // Old: -14, -16, -18. Inverted: 14, 16, 18
@@ -6257,9 +6263,9 @@ const SearchGame = (() => {
                                 mat.depthWrite = false;
                                 mat.side = THREE.DoubleSide;
 
-                            // ★追加：これが一番効きます。「自らぼんやり光る」設定を追加
-                            mat.emissive = new THREE.Color(0x224488); // ほんのり青く光らせる
-                            mat.emissiveIntensity = 0.3; // 発光の強さ（0.0〜1.0で調整）
+                                // ★追加：これが一番効きます。「自らぼんやり光る」設定を追加
+                                mat.emissive = new THREE.Color(0x224488); // ほんのり青く光らせる
+                                mat.emissiveIntensity = 0.3; // 発光の強さ（0.0〜1.0で調整）
 
                                 // If no map exists, apply the deep blue color.
                                 // If map exists (pond_block.png), use a lighter tint to not "blow out" the design.
