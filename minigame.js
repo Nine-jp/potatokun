@@ -3548,11 +3548,11 @@ const SearchGame = (() => {
         // === LOAD FBX MODEL: Coin (collectible game items) ===
         const COIN_TARGET_SIZE = 0.5; // Target diameter: 50cm
 
-        // ★修正: テスト用モデル 'coin_test.fbx' を読み込む
+        // ★修正: 正式モデル 'coin.fbx' を読み込む
         loader.load(
-            'models/coin_test.fbx',
+            'models/coin.fbx',
             (masterCoin) => {
-                console.log('FBX Loaded: coin_test.fbx (master for cloning)');
+                console.log('FBX Loaded: coin.fbx (Official Master)');
 
                 // === AUTO-SIZE NORMALIZATION using Box3 ===
                 const coinBox = new THREE.Box3().setFromObject(masterCoin);
