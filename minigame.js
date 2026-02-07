@@ -2860,46 +2860,69 @@ const SearchGame = (() => {
             clickRaycaster.setFromCamera(mouse, camera);
             const intersects = clickRaycaster.intersectObjects(scene.children, true);
 
-            // ★修正: シンプルなループに戻す (壁抜け判定なし)
+            // ★修正版: クリック判定ループ (完全版)
             for (const hit of intersects) {
-                // 1. リンク（看板）の判定 [距離5m以内] - 最優先
+                // 【最優先】無視フラグがあるオブジェクトは、何があっても即スキップ
+                // これで透明なスコップ本体は絶対に反応しなくなります
+                if (hit.object.userData.ignoreRaycast) continue;
+
+                // 1. リンク（看板）の判定 [最優先・距離5m]
                 if (hit.distance <= 5.0 && hit.object.userData.isLink && hit.object.userData.url) {
                     window.open(hit.object.userData.url, '_blank');
-                    return; // リンクを開いたら終了
+                    return;
                 }
-
-                // 2. アイテム（コイン・自販機）の判定 [距離2.5m以内]
-                if (hit.distance > 2.5) continue;
 
                 const obj = hit.object;
 
-                // 親を遡ってターゲット確認
+                // 2. 距離チェック (プレイヤー足元基準)
+                // 3.0m以上離れていたら、たとえヒットボックスでも反応しない
+                const hitPos = new THREE.Vector3();
+                obj.getWorldPosition(hitPos);
+
+                if (typeof playerPosition !== 'undefined') {
+                    // 高さの差を無視した水平距離で測るのが操作性向上のコツ
+                    const dx = playerPosition.x - hitPos.x;
+                    const dz = playerPosition.z - hitPos.z;
+                    const distSq = dx * dx + dz * dz;
+                    if (distSq > 3.0 * 3.0) continue; // 3m圏外なら無視
+                } else {
+                    if (hit.distance > 3.0) continue;
+                }
+
+                // --- ここから下は既存のターゲット特定ロジック ---
+
+                // 親を遡って主要オブジェクト（Coin, Vending, Action持ち）を探す
                 let targetGroup = obj;
-                while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
-                    targetGroup = targetGroup.parent;
+                // isHitBoxなら、その親(parentItem)をターゲットとみなす
+                if (obj.userData.isHitBox && obj.userData.parentItem) {
+                    targetGroup = obj.userData.parentItem;
+                } else {
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                        targetGroup = targetGroup.parent;
+                    }
                 }
 
                 const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
                 const isVending = targetGroup.userData.isVendingMachine;
 
-                // 3. インタラクティブ・オブジェクトの判定
-                let interactable = obj;
+                // インタラクティブ・オブジェクト（アクション持ち）の判定
+                let interactable = targetGroup; // 上で特定したグループを使う
+
+                // もし親にアクションがあればそれを使う
                 while (interactable && !interactable.userData.action) {
                     interactable = interactable.parent;
                 }
 
-                // ターゲットが見つかったらアクション実行
+                // アクション実行
                 if (interactable && interactable.userData.action) {
+                    console.log("👆 Action Triggered:", interactable.name || 'Unnamed');
                     interactable.userData.action();
                     return;
                 } else if (isCoin) {
-                    // コインゲット処理！ (Helper利用)
                     collectCoin(targetGroup, clientX, clientY);
-                    return; // 1個取ったら処理終了
-
+                    return;
                 } else if (isVending) {
                     console.log("Vending Machine Clicked");
-                    // 自販機処理があればここに記述
                     return;
                 }
             }
@@ -5011,7 +5034,45 @@ const SearchGame = (() => {
 
                                 const name = c.name.toLowerCase();
                                 // メッシュ名の特定 (Shovel / SandMound)
-                                if (name.includes('shovel')) shovel = c;
+                                if (name.includes('shovel')) {
+                                    shovel = c;
+
+                                    // ★根本治療: スコップに含まれる「全てのメッシュ」を走査して無効化する
+                                    // これにより、見えないゴースト判定も全て無効化されます
+                                    shovel.traverse((child) => {
+                                        if (child.isMesh) {
+                                            child.userData.ignoreRaycast = true;
+                                        }
+                                    });
+                                    console.log("⛏️ Shovel: All original meshes set to ignoreRaycast.");
+
+                                    // ★HitBoxの作成 (ユーザー確定サイズ)
+                                    // サイズ: 幅60cm, 高さ20cm, 奥行50cm
+                                    const hitGeo = new THREE.BoxGeometry(0.6, 0.2, 0.5);
+
+                                    // ★修正: 本番用に「透明」に戻す (visible: false)
+                                    const hitMat = new THREE.MeshBasicMaterial({
+                                        visible: false, // 透明化！
+                                        side: THREE.DoubleSide
+                                    });
+
+                                    const hitBox = new THREE.Mesh(hitGeo, hitMat);
+                                    hitBox.userData.parentItem = shovel;
+                                    hitBox.userData.isHitBox = true;
+                                    hitBox.userData.skipOutline = true;
+                                    hitBox.userData.ignoreHighlight = true;
+                                    // hitBoxには ignoreRaycast を設定しない（デフォルトfalse = 反応する）
+
+                                    // 位置合わせ
+                                    shovel.geometry.computeBoundingBox();
+                                    const center = new THREE.Vector3();
+                                    shovel.geometry.boundingBox.getCenter(center);
+                                    hitBox.position.copy(center);
+
+                                    // 最後に箱を追加
+                                    shovel.add(hitBox);
+                                    console.log("⛏️ Shovel HitBox set (RED). Original mesh raycast disabled.");
+                                }    // ------------------------------------------------
                                 if (name.includes('mound') || name.includes('sandpile')) sandMound = c;
 
                                 // Register walkable mesh
@@ -5682,6 +5743,9 @@ const SearchGame = (() => {
     function update(dt) {
         if (mixer) mixer.update(dt);
 
+        // Update interaction lights/hints
+        if (window.updateInteractionHints) window.updateInteractionHints(dt);
+
         if (currentState === GameState.ENDING) {
             updateEndingAnimation(dt);
             return;
@@ -5820,13 +5884,45 @@ const SearchGame = (() => {
             let targetType = null; // 'coin' or 'vending'
 
             for (const hit of intersects) {
-                const obj = hit.object;
+                let obj = hit.object;
+
+                // [Rule 1] Redirect Hitbox to Parent
+                if (obj.userData.isHitBox && obj.userData.parentItem) {
+                    obj = obj.userData.parentItem;
+                }
 
                 // 1. Vending Machine HitBox
                 if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
                     targetFound = obj;
                     targetType = 'vending';
                     break; // Priority
+                }
+
+                // [Rule 2] Generic Interaction (Shovel, etc.)
+                // Traverse up to find the root interactable
+                let interactable = obj;
+                while (interactable && !interactable.userData.action && interactable !== scene) {
+                    interactable = interactable.parent;
+                }
+
+                if (interactable && interactable.userData.action) {
+                    // ★ STRICT DISTANCE CHECK ★
+                    // Calculate distance from Player's feet (XZ plane), not Camera
+                    const worldPos = new THREE.Vector3();
+                    interactable.getWorldPosition(worldPos);
+
+                    if (typeof playerPosition !== 'undefined') {
+                        const dx = playerPosition.x - worldPos.x;
+                        const dz = playerPosition.z - worldPos.z;
+                        const distSq = dx * dx + dz * dz;
+                        const THRESHOLD_SQ = 3.0 * 3.0; // 3mまで反応
+
+                        if (distSq <= THRESHOLD_SQ) {
+                            targetFound = interactable;
+                            targetType = 'action'; // Mark as generic action
+                            break; // Stop checking other objects
+                        }
+                    }
                 }
 
                 // 2. Coin (game items) - check parent group or mesh
@@ -5855,8 +5951,12 @@ const SearchGame = (() => {
 
                 if (targetType === 'vending') {
                     getBtn.innerHTML = '🍹<br>BUY';
+                } else if (targetType === 'action') {
+                    getBtn.innerHTML = '⛏️<br>DIG'; // Show Dig Icon
+                    getBtn.style.background = '#FFD700'; // Gold color
                 } else {
                     getBtn.innerHTML = '🖐️<br>GET!';
+                    getBtn.style.background = ''; // Reset to default
                 }
             } else {
                 // No target
@@ -6656,6 +6756,100 @@ const SearchGame = (() => {
 
     // 池を生成
     spawnPond();
+
+    /**
+     * 💡 Interaction Hint System V2
+     * Adds a PointLight and pulses emissive material when player is near interactable objects.
+     */
+    // ★インタラクション誘導システム (完全安全版)
+    window.updateInteractionHints = function (dt) {
+        if (!window.sgInteractables || typeof playerPosition === 'undefined') return;
+
+        // ★判定距離: 1.5m (ピンポイント接近)
+        const THRESHOLD_SQ = 1.5 * 1.5;
+
+        // パルスアニメーション
+        const time = performance.now() / 1000;
+        const pulseIntensity = (Math.sin(time * 8) + 1) * 0.5 + 0.5;
+
+        window.sgInteractables.forEach(obj => {
+            if (!obj.visible) return;
+
+            const worldPos = new THREE.Vector3();
+
+            // ★重要: HitBoxがある場合は、そのワールド座標を基準にする
+            // (親オブジェクトの原点がズレている場合への対策)
+            const hitBox = obj.children.find(c => c.userData.isHitBox);
+            if (hitBox) {
+                hitBox.getWorldPosition(worldPos);
+            } else {
+                obj.getWorldPosition(worldPos);
+            }
+
+            const dx = playerPosition.x - worldPos.x;
+            const dz = playerPosition.z - worldPos.z;
+            const distSq = dx * dx + dz * dz;
+
+            // === 判定ロジック ===
+            if (distSq < THRESHOLD_SQ) {
+                // [ON] 範囲内
+                // 1. 物理ライトの追加
+                if (!obj.userData.hintLight) {
+                    const light = new THREE.PointLight(0xFFFF00, 2.0, 4.0);
+                    light.position.set(0, 0.5, 0);
+                    obj.add(light);
+                    obj.userData.hintLight = light;
+                }
+                if (obj.userData.hintLight) {
+                    obj.userData.hintLight.intensity = 2.0 * pulseIntensity;
+                }
+
+                // 2. マテリアル発光 (エラー回避チェック付き)
+                obj.traverse(c => {
+                    // 無視フラグがあれば即リターン
+                    if (c.userData.ignoreHighlight || c.userData.isHitBox) return;
+
+                    if (c.isMesh && c.material) {
+                        // 配列マテリアルにも対応
+                        const mats = Array.isArray(c.material) ? c.material : [c.material];
+                        mats.forEach(m => {
+                            // ★ここが修正点: m.emissive が存在するか必ず確認する
+                            if (m && m.emissive) {
+                                m.emissive.setHex(0xFFFF00);
+                                m.emissiveIntensity = 0.5 * pulseIntensity;
+                            }
+                        });
+                    }
+                });
+
+            } else {
+                // [OFF] 範囲外
+                // 1. 物理ライト削除
+                if (obj.userData.hintLight) {
+                    obj.remove(obj.userData.hintLight);
+                    if (obj.userData.hintLight.dispose) obj.userData.hintLight.dispose();
+                    obj.userData.hintLight = null;
+
+                    // 2. 発光リセット (エラー回避チェック付き)
+                    obj.traverse(c => {
+                        if (c.userData.ignoreHighlight || c.userData.isHitBox) return;
+
+                        if (c.isMesh && c.material) {
+                            const mats = Array.isArray(c.material) ? c.material : [c.material];
+                            mats.forEach(m => {
+                                // ★ここが修正点: m.emissive が存在するか必ず確認する
+                                if (m && m.emissive) {
+                                    // 元の色に戻す (黒)
+                                    m.emissive.setHex(0x000000);
+                                    m.emissiveIntensity = 0;
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+        });
+    };
 
     // モジュールの戻り値
     return { setup, init, start, stop };
