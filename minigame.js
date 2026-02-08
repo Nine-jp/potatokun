@@ -5113,6 +5113,10 @@ const SearchGame = (() => {
                                     sandMound.getWorldPosition(coinPos);
                                     spawnDropCoin(coinPos);
                                 }
+
+                                // スコップ本体も非表示にする (追加)
+                                // ヒットボックス(InteractionCollider)はスコップの子供なので、親を消せば一緒に消えます [cite: 1214]
+                               shovel.visible = false;
                             };
                         } else {
                             console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
