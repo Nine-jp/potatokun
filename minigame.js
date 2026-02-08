@@ -2884,7 +2884,7 @@ const SearchGame = (() => {
                     const dx = playerPosition.x - hitPos.x;
                     const dz = playerPosition.z - hitPos.z;
                     const distSq = dx * dx + dz * dz;
-                    if (distSq > 3.0 * 3.0) continue; // 3m圏外なら無視
+                    if (distSq > 1.5 * 1.5) continue; // 1.5m圏外なら無視
                 } else {
                     if (hit.distance > 3.0) continue;
                 }

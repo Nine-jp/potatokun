@@ -1,0 +1,2000 @@
+                    action: () => {
+                        console.log("Ending Step 1: Init Camera & Assets");
+
+                        // Camera Setup: Use BASE CONSTANT
+                        // Front of Vending Machine (Default Position)
+                        const base = this.baseCamera;
+                        camera.position.copy(base.pos);
+                        camera.lookAt(base.lookAt);
+                        camera.updateMatrixWorld();
+
+                        // Assets Init (Hidden at start)
+                        if (banzaiNPC) {
+                            banzaiNPC.visible = false; // Hidden until Step 3
+                            banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                            banzaiNPC.rotation.y = -Math.PI / 8;
+                        } else {
+                            // Emergency Spawn check
+                            spawnEndingAssets(() => {
+                                if (banzaiNPC) {
+                                    addEndingObject(banzaiNPC);
+                                    banzaiNPC.visible = false;
+                                    banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                                    banzaiNPC.rotation.y = -Math.PI / 8;
+                                }
+                            });
+                        }
+                        if (juiceModel) {
+                            juiceModel.visible = false; // Hidden until Step 2
+                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+                            const vm = NPC_CONFIG.vendingMachine;
+                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
+                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+
+                            // Rotation: Sideways (Z-axis rotation)
+                            juiceModel.rotation.set(0, 0, Math.PI / 2);
+                        }
+                    }
+                },
+                {
+                    time: 1.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 2: Juice Slide");
+                        if (juiceModel) juiceModel.visible = true;
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
+                    }
+                },
+                {
+                    time: 3.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 3: Potato Appears");
+                        if (banzaiNPC) banzaiNPC.visible = true;
+                        if (juiceModel) juiceModel.visible = false; // Hide Juice (Picked up by Potato)
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ありがとう💕", "#FFA500");
+                    }
+                },
+                {
+                    time: 6.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 4: Finish");
+                        finishEnding();
+                    }
+                }
+            ];
+
+            // Execute time 0 immediately
+            this.update(0);
+        },
+
+        update: function (dt) {
+            this.time += dt;
+
+            // Execute Steps
+            this.steps.forEach(step => {
+                if (!step.fired && this.time >= step.time) {
+                    step.action();
+                    step.fired = true;
+                }
+            });
+
+            // --- Continuous Animations ---
+
+            // Juice Slide (1.5s ~ 3.0s)
+            if (this.time >= 1.5 && this.time < 3.0) {
+                if (juiceModel && juiceModel.visible) {
+                    // Slide forward/up slightly
+                    juiceModel.position.z += dt * 0.1;
+                }
+            }
+
+            // Potato Bob (3.5s ~)
+            if (this.time >= 3.5) {
+                if (banzaiNPC && banzaiNPC.visible) {
+                    // Gentle vertical bob
+                    banzaiNPC.position.y = Math.sin((this.time - 3.5) * 4) * 0.05;
+                }
+            }
+        }
+    };
+
+    /**
+     * エンディング演出用アップデート関数
+     * @param {number} dt 
+     */
+    function updateEndingAnimation(dt) {
+        EndingController.update(dt);
+    }
+
+    function finishEnding() {
+        console.log("Ending Finished.");
+
+        // Message display (Success/Thank You)
+        const overlay = document.getElementById('sg-loading-overlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            overlay.style.opacity = '0';
+            overlay.style.transition = 'opacity 1s';
+            overlay.innerHTML = 'THANK YOU FOR PLAYING!';
+
+            // Force reflow
+            void overlay.offsetWidth;
+            overlay.style.opacity = '1';
+        }
+
+        // Return to Mini Game Select after delay (Auto Transition)
+        setTimeout(() => {
+            console.log("Transitioning to Menu...");
+            stop(); // Cleanup Three.js & Events
+
+            // Hide Ending Overlay directly
+            if (overlay) overlay.style.display = 'none';
+
+            // Attempt transition
+            if (typeof showGameMenu === 'function') {
+                showGameMenu();
+            } else {
+                console.warn("showGameMenu not found via scope, forcing UI reset.");
+                // Manual Fallback
+                const menu = document.getElementById('game-menu');
+                const active = document.getElementById('active-game-container');
+                const overlayPortal = document.getElementById('minigame-container');
+
+                if (active) active.classList.add('hidden');
+                if (menu) menu.classList.remove('hidden');
+                if (overlayPortal) overlayPortal.classList.remove('hidden');
+            }
+        }, 3000); // Wait 3.0s (User Request)
+    }
+
+
+
+
+
+    function startTimer() {
+        if (timerId) clearInterval(timerId);
+        timerId = setInterval(() => {
+            timeLeft--;
+            const timerEl = document.getElementById('sg-timer');
+            if (timerEl) timerEl.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                stop();
+                const collected = window.sgItemData ? window.sgItemData.collected : 0;
+                showGameOver(collected * 100);
+            }
+        }, 1000);
+    }
+
+    function stop() {
+        isPlaying = false;
+
+        // ★ Restore Viewport
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (meta) {
+            meta.content = 'width=device-width, initial-scale=1.0';
+        }
+
+        clearInterval(timerId);
+        if (animationId) cancelAnimationFrame(animationId);
+        // Button handlers are removed when HTML is cleared
+
+        // Resume Top Page Viewer
+        window.backgroundViewer?.resume();
+
+        if (renderer) {
+            renderer.dispose();
+            if (renderer.domElement && renderer.domElement.parentNode) {
+                renderer.domElement.parentNode.removeChild(renderer.domElement);
+            }
+            renderer = null;
+        }
+
+        // Reset Model References
+        slideModel = null;
+    }
+
+
+    function setupGameUI() {
+        const targetContainer = document.getElementById('active-game-container');
+        if (!targetContainer) {
+            console.error("setupGameUI: active-game-container not found.");
+            return;
+        }
+
+        // 親コンテナ設定（スクロールロック）
+        if (getComputedStyle(targetContainer).position === 'static') {
+            targetContainer.style.position = 'relative';
+        }
+        targetContainer.style.width = '100%';
+        targetContainer.style.height = '100%';
+        targetContainer.style.overflow = 'hidden';
+
+        // ★修正点: 全操作エリアに 'touch-action: none' を適用し、ブラウザの干渉を無効化
+        targetContainer.innerHTML = `
+            <div id="sg-loading-overlay" style="position:absolute; inset:0; background:#87CEEB; z-index:2000; display:flex; justify-content:center; align-items:center; color:white; font-family:monospace; font-size:24px; font-weight:bold;">
+                Now Loading...
+            </div>
+            
+            <div id="sg-canvas-container" style="position:absolute; inset:0; background:#1a1a1a; z-index:0;"></div>
+
+            <div id="sg-skip-btn" style="position:absolute; top:80px; right:20px; z-index:1500; color:white; font-weight:bold; border:2px solid white; background:rgba(0,0,0,0.5); padding:8px 16px; border-radius:6px; cursor:pointer; display:none;">
+                SKIP ▶
+            </div>
+
+            <div id="ui-container" style="position:absolute; inset:0; pointer-events:none; z-index:1000;">
+                
+                <div id="hud-top-left" style="pointer-events: auto; touch-action: none;">
+                    <h1>ポテトコイン</h1>
+                    <div id="score">コイン: <span id="sg-coin-counter">0</span>/10</div>
+                    <div id="tutorial-hint" style="display:none;">🎮 移動: D-Pad / 🦅 視点切替</div>
+                </div>
+
+                <div id="controls-bottom-left" style="pointer-events: auto; touch-action: none;">
+                    <div id="dpad-cross">
+                        <div class="dpad-empty"></div> <button id="dpad-up">▲</button> <div class="dpad-empty"></div> 
+                        <button id="dpad-left">◀</button> <div id="dpad-center"></div> <button id="dpad-right">▶</button>
+                        <div class="dpad-empty"></div> <button id="dpad-down">▼</button> <div class="dpad-empty"></div> 
+                    </div>
+                </div>
+
+                <div id="controls-bottom-right" style="pointer-events: auto; touch-action: none;">
+                    <button id="btn-action-pickup" class="action-btn pickup-btn" style="display: none;">
+                        <img src="assets/horseshoe_magnet.png" alt="GET">
+                    </button>
+                    <button id="toggle-view-btn" class="action-btn view-btn">🦅</button>
+                </div>
+            </div>
+        `;
+
+        // データの復元
+        if (window.sgItemData && typeof window.sgItemData.collected === 'number') {
+            const counter = document.getElementById('sg-coin-counter');
+            if (counter) counter.textContent = window.sgItemData.collected;
+        }
+
+        // イベントバインド
+        setTimeout(() => {
+            if (typeof bindUIEvents === 'function') {
+                bindUIEvents();
+            } else {
+                console.error("Critical: bindUIEvents is missing in this scope.");
+            }
+        }, 0);
+    }
+
+    // === UI Event Binding Helper ===
+    function bindUIEvents() {
+        // 1. 視点切替
+        const toggleViewBtn = document.getElementById('toggle-view-btn');
+        if (toggleViewBtn) {
+            const toggleHandler = (e) => {
+                e.preventDefault(); e.stopPropagation();
+                // Toggle Logic
+                if (typeof cameraDistance !== 'undefined') {
+                    const isTPS = (cameraDistance > 0.5);
+                    cameraDistance = isTPS ? 0.0 : 8.0; // Toggle
+                    console.log('View Mode:', isTPS ? 'FPS' : 'TPS');
+                    // Visual Feedback
+                    toggleViewBtn.classList.add('active');
+                    setTimeout(() => toggleViewBtn.classList.remove('active'), 100);
+                }
+            };
+            toggleViewBtn.onclick = toggleHandler;
+            toggleViewBtn.ontouchstart = toggleHandler;
+        }
+
+        // 2. PICKUPボタン (🧲) - 共通関数を使う簡略版
+        const pickupBtn = document.getElementById('btn-action-pickup');
+        if (pickupBtn) {
+            pickupBtn.onclick = null; // イベントの多重登録を防ぐ
+
+            pickupBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                console.log("🧲 Clicked!");
+
+                // 半径3m以内のコインを探す
+                if (typeof playerPosition === 'undefined' || !scene) {
+                    console.log("playerPosition or scene undefined");
+                    return;
+                }
+
+                let nearestDist = 3.0;
+                let targetCoin = null;
+
+                scene.traverse((obj) => {
+                    if (obj.userData.isCoin && !obj.userData.collected) {
+                        const worldPos = new THREE.Vector3();
+                        obj.getWorldPosition(worldPos);
+                        const dist = playerPosition.distanceTo(worldPos);
+                        if (dist < nearestDist) {
+                            nearestDist = dist;
+                            targetCoin = obj;
+                        }
+                    }
+                });
+
+                // 見つけたら共通関数に投げるだけ！
+                if (targetCoin) {
+                    collectCoin(targetCoin);
+                    pickupBtn.style.display = 'none'; // ボタンは消す
+                } else {
+                    console.log("No coin in range");
+                }
+            };
+
+            // スマホのタッチ対応
+            pickupBtn.ontouchend = (e) => { e.preventDefault(); pickupBtn.click(); };
+        }
+    }
+
+    // === Update UI (Visibility Logic - Optimized) ===
+    function updateUI() {
+        const pickupBtn = document.getElementById('btn-action-pickup');
+        if (!pickupBtn || typeof playerPosition === 'undefined') return;
+
+        let nearCoinFound = false;
+        const CHECK_DIST_SQ = 2.5 * 2.5; // 2乗距離で比較 (ルート計算回避)
+
+        // ★最適化: scene.traverse を廃止し、管理配列のみをループさせる
+
+        // 1. 通常コインのチェック
+        if (window.sgGameCoins) {
+            for (const coin of window.sgGameCoins) {
+                if (coin.visible && !coin.userData.collected) {
+                    // worldPosition計算を省略（コインは動かない前提、もしくは親の変換が単純な場合）
+                    // 念のため position で距離チェック (高速化)
+                    if (playerPosition.distanceToSquared(coin.position) < CHECK_DIST_SQ) {
+                        nearCoinFound = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 2. 隠しコインのチェック (通常コインで見つかってなければ)
+        if (!nearCoinFound && window.sgActiveCoins) {
+            for (const coin of window.sgActiveCoins) {
+                if (coin.visible && !coin.userData.collected) {
+                    // 隠しコインは動く(落下する)のでワールド座標を考慮したいが、
+                    // 毎フレーム new Vector3 は重いので、簡易的に position を参照
+                    if (playerPosition.distanceToSquared(coin.position) < CHECK_DIST_SQ) {
+                        nearCoinFound = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Toggle Display
+        if (nearCoinFound) {
+            if (pickupBtn.style.display !== 'flex') {
+                pickupBtn.style.display = 'flex';
+                pickupBtn.style.animation = 'none';
+                void pickupBtn.offsetWidth;
+                pickupBtn.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            }
+        } else {
+            if (pickupBtn.style.display !== 'none') {
+                pickupBtn.style.display = 'none';
+            }
+        }
+    }
+
+    // === Coin Collection Helper (Delta Time対応版) ===
+    /**
+     * コイン取得時の共通処理関数 (Delta Time対応)
+     * @param {THREE.Object3D} coinObj - 取得対象のコイン
+     */
+    function collectCoin(coinObj) {
+        if (!coinObj || coinObj.userData.collected) return;
+
+        // 1. ステータス更新
+        coinObj.userData.collected = true;
+
+        // コインのワールド座標を保存してから削除
+        const coinWorldPos = new THREE.Vector3();
+        coinObj.getWorldPosition(coinWorldPos);
+        scene.remove(coinObj);
+
+        // 2. スコア加算
+        if (window.sgItemData) {
+            window.sgItemData.collected++;
+            const counter = document.getElementById('sg-coin-counter');
+            if (counter) counter.textContent = window.sgItemData.collected;
+        }
+
+        // 3. 効果音
+        // 3. 効果音 (AudioManager)
+        window.AudioManager.play('coin', 0.8);
+
+        // 4. ★パーティクルエフェクト (Delta Time対応版)
+        const particleCount = 15;
+
+        // 季節設定の取得
+        const season = GameConfig.currentSeason;
+        const colors = seasonalColors[season] || seasonalColors['default'];
+        const shapes = seasonalShapes[season] || ['●'];
+
+        for (let i = 0; i < particleCount; i++) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const context = canvas.getContext('2d');
+
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const shape = shapes[Math.floor(Math.random() * shapes.length)];
+
+            context.fillStyle = '#' + color.toString(16).padStart(6, '0');
+            context.font = '24px sans-serif';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(shape, 16, 16);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                depthTest: false
+            });
+            const sprite = new THREE.Sprite(material);
+
+            // 発生位置
+            sprite.position.copy(coinWorldPos);
+            sprite.position.x += (Math.random() - 0.5) * 0.3;
+            sprite.position.y += (Math.random() - 0.5) * 0.3;
+            sprite.position.z += (Math.random() - 0.5) * 0.3;
+
+            // サイズ
+            sprite.scale.set(0.13, 0.13, 0.13);
+
+            // 速度ベクトル
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.08,
+                Math.random() * 0.08,
+                (Math.random() - 0.5) * 0.08
+            );
+
+            scene.add(sprite);
+
+            // ★時間管理用の変数
+            let lastTime = performance.now();
+
+            const animateSprite = () => {
+                if (material.opacity <= 0) {
+                    scene.remove(sprite);
+                    material.dispose();
+                    texture.dispose();
+                    return;
+                }
+
+                // ★Delta Time計算 (秒単位)
+                const now = performance.now();
+                const dt = Math.min((now - lastTime) / 1000, 0.1);
+                lastTime = now;
+
+                // 60FPS基準のタイムスケール
+                const timeScale = dt * 60;
+
+                // 移動 (速度 × タイムスケール)
+                sprite.position.x += velocity.x * timeScale;
+                sprite.position.y += velocity.y * timeScale;
+                sprite.position.z += velocity.z * timeScale;
+
+                // 減速 (空気抵抗)
+                velocity.multiplyScalar(Math.pow(0.95, timeScale));
+
+                // フェードアウト
+                material.opacity -= 0.03 * timeScale;
+
+                requestAnimationFrame(animateSprite);
+            };
+            animateSprite();
+        }
+
+        console.log(`✨ Coin collected (${GameConfig.currentSeason} + DeltaTime) at:`, coinWorldPos);
+    }
+
+
+
+
+
+
+    function initThreeJS() {
+        const canvasContainer = document.getElementById('sg-canvas-container');
+        const width = canvasContainer.clientWidth || window.innerWidth;
+        const height = canvasContainer.clientHeight || window.innerHeight;
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xBFEFFF); // Soft pastel sky blue
+        scene.fog = new THREE.Fog(0x90EE90, 5, 25); // Green-tinted fog for grass maze
+
+        // ★ ライトをグローバル変数に保持
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        // 位置は季節によって変わるため、ここでは初期化のみ
+        dirLight.castShadow = true;
+
+        // 修正: シャドウアクネ完全除去セット
+        // bias: 影全体のオフセット。小さすぎるとアクネ、大きすぎると「ピーターパン現象（影が浮く）」
+        dirLight.shadow.bias = -0.0001;
+        // normalBias: 法線方向に影をずらす。平面のアクネにはこれが一番効きます！
+        dirLight.shadow.normalBias = 0.02;
+
+        // Shadow map settings
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 100;
+        dirLight.shadow.camera.left = -40;
+        dirLight.shadow.camera.right = 40;
+        dirLight.shadow.camera.top = 40;
+        dirLight.shadow.camera.bottom = -40;
+        scene.add(dirLight);
+        window.sgSunLight = dirLight; // 参照保持
+
+        // Ambient Light (soft filler)
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.9); // Soft white light (Brighter shadows)
+        scene.add(ambientLight);
+
+        // ★ 環境設定（空・光・フォグ）
+        const ENV_CONFIG = {
+            spring: {
+                background: 0xE0FFFF, // 淡い空色
+                fog: 0xFFF0F5,        // ★重要: ラベンダーブラッシュ（桜色の霞）
+                lightPos: { x: 20, y: 40, z: 20 }, // 夏より少し低い
+                lightIntensity: 1.3,  // 柔らかい日差し
+                ambientColor: 0xFFF5EE, // シーシェル（暖かみのある白）
+                ambientIntensity: 0.9   // 優しく全体を照らす
+            },
+            summer: {
+                background: 0xBFEFFF, // パステルブルー
+                fog: 0x90EE90,        // 薄緑
+                lightPos: { x: 20, y: 50, z: 20 }, // 夏は太陽が高い
+                lightIntensity: 1.6,   // ★明るく
+                ambientColor: 0x808080, // 少し明るめのグレー
+                ambientIntensity: 1.5   // 環境光を上げて影をさらに明るく
+            },
+            autumn: {
+                background: 0xFFE4B5, // モカシン (夕暮れに近い淡いオレンジ)
+                fog: 0xFFDAB9,        // ピーチパフ (暖色の霞)
+                lightPos: { x: 20, y: 30, z: 20 }, // 夏より低く、冬より高い
+                lightIntensity: 1.4,  // 夕日のような強さ
+                ambientColor: 0x8B4513, // サドルブラウン (暖かみのある影)
+                ambientIntensity: 1.0
+            },
+            winter: {
+                background: 0xE6E6FA, // ラベンダー（冬の空）
+                fog: 0xE6E6FA,        // 霧も同色で馴染ませる
+                lightPos: { x: 20, y: 25, z: 20 }, // 太陽は低い位置（影が伸びる）
+                lightIntensity: 1.2,    // 夏(1.6)より日差しを弱くする
+                ambientColor: 0x666688, // 青みがかったグレー（冷たい影の色）
+                ambientIntensity: 1.0   // 雪の反射で影もそこそこ明るくする
+            }
+        };
+
+        window.setEnvironmentSeason = (seasonName) => {
+            console.log(`Setting Environment to: ${seasonName}`);
+            const config = ENV_CONFIG[seasonName] || ENV_CONFIG.summer;
+
+            // 1. 空の色
+            scene.background = new THREE.Color(config.background);
+
+            // 2. フォグの色 (遠景の色)
+            if (scene.fog) {
+                scene.fog.color.setHex(config.fog);
+            }
+
+            // 3. 太陽の位置と強さ
+            if (window.sgSunLight) {
+                window.sgSunLight.position.set(
+                    config.lightPos.x,
+                    config.lightPos.y,
+                    config.lightPos.z
+                );
+                window.sgSunLight.intensity = config.lightIntensity;
+                // 影カメラの更新
+                window.sgSunLight.updateMatrixWorld();
+            }
+
+            // 4. 環境光の調整
+            scene.traverse((child) => {
+                if (child.isAmbientLight) {
+                    child.color.setHex(config.ambientColor);
+                    child.intensity = config.ambientIntensity;
+                }
+            });
+        };
+
+        camera = new THREE.PerspectiveCamera(75, width / height, 0.05, 1000); // Wider FOV, closer near plane
+        camera = new THREE.PerspectiveCamera(75, width / height, 0.05, 1000); // Wider FOV, closer near plane
+        camera.position.set(0, 0.6, -25); // Old: 25. Inverted: -25. (North Entrance?)
+        // If 25 was "Entrance", and we Invert, it becomes -25.
+        // If North = -Z, then -25 is North.
+        // Standard park entrance is often South (+Z).
+        // Let's assume standard inversion: 25 -> -25.
+        camera.rotation.order = 'YXZ'; // Important for FPS camera
+        camera.rotation.order = 'YXZ'; // Important for FPS camera
+
+        // ★★★ Audio Managerの初期化 & リソースロード ★★★
+        window.AudioManager.init();
+        window.AudioManager.load('coin', 'assets/coin_se.mp3');
+        window.AudioManager.load('cat', 'assets/cat_voice.mp3');
+        window.AudioManager.load('thud', 'assets/thud.mp3');
+
+        // ▼▼▼ 今回の追加箇所 (ここだけ追加) ▼▼▼
+        window.AudioManager.load('boing', 'assets/boing.mp3');
+        window.AudioManager.load('splash', 'assets/splash.mp3');
+        window.AudioManager.load('psshhh', 'assets/psshhh.mp3');
+
+        // ▼ 追加 ▼
+        window.AudioManager.load('wheeee', 'assets/wheeee.mp3');
+        // ▲▲▲ 追加ここまで ▲▲▲
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(1);
+        renderer.shadowMap.enabled = true;
+        canvasContainer.appendChild(renderer.domElement);
+
+        // === リサイズ・画面回転時の処理 ===
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            // カメラのアスペクト比を修正
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            // レンダラーのサイズを修正
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            console.log("Window resized:", window.innerWidth, window.innerHeight);
+        }
+
+        // === EdgesGeometry Outline Function ===
+        /**
+         * オブジェクトにエッジライン（輪郭線）を追加する関数
+         * @param {THREE.Object3D} object - 対象のオブジェクト
+         * @param {number} thresholdAngle - エッジを検出する角度（デフォルト15度）
+         * @param {number} color - 線の色（デフォルト黒）
+         */
+        function addEdgesOutline(object, thresholdAngle = 15, color = 0x000000) {
+            object.traverse((child) => {
+                if (child.isMesh && child.geometry) {
+                    // Skip if flagged (e.g., water, transparent objects)
+                    if (child.userData.skipOutline) return;
+
+                    // Skip if already has edges
+                    const existingEdges = child.children.find(c => c.isLineSegments);
+                    if (existingEdges) return;
+
+                    try {
+                        const edgesGeometry = new THREE.EdgesGeometry(child.geometry, thresholdAngle);
+                        const lineMaterial = new THREE.LineBasicMaterial({
+                            color: color,
+                            linewidth: 2
+                        });
+                        const edges = new THREE.LineSegments(edgesGeometry, lineMaterial);
+                        child.add(edges);
+                    } catch (e) {
+                        console.warn('EdgesGeometry failed for', child.name, e);
+                    }
+                }
+            });
+        }
+
+        // Store addEdgesOutline globally for use in asset loaders
+        window.addEdgesOutline = addEdgesOutline;
+
+        // === OPTIMIZATION: Cached Walkable Meshes ===
+        // To prevent scene.traverse() every frame (causing stutter with many objects),
+        // we cache the list of walkable meshes and update it periodically.
+        window.sgWalkableMeshes = [];
+
+        window.sgRefreshWalkableMeshes = () => {
+            if (!scene) return;
+            const meshes = [];
+            scene.traverse((child) => {
+                if (child.isMesh && child.geometry) {
+                    // Exclude trees, ketchup items, invisible objects, vending machine HitBox
+                    if (!child.userData.isTree &&
+                        !child.userData.isKetchup &&
+                        !child.userData.isVendingMachine &&
+                        !child.userData.isCoin && // Coins are not ground
+                        !child.userData.ignoreGround && // Grass, Dokan pipe itself
+                        child.visible !== false) {
+                        meshes.push(child);
+                    }
+                }
+            });
+            window.sgWalkableMeshes = meshes;
+            // console.log("Walkable meshes updated:", displayMeshes.length);
+        };
+
+        // Update walkable meshes every 2 seconds (sufficient for static ground)
+        setInterval(window.sgRefreshWalkableMeshes, 2000);
+
+
+        // === FPS Camera Variables (POTATO PERSPECTIVE) ===
+        let yaw = Math.PI; // Looking toward center (negative Z)
+        let pitch = 0;
+        const moveSpeed = 0.08; // SLOWER - small potato walking speed
+        const lookSpeed = 0.003;
+        const moveState = { forward: false, backward: false, left: false, right: false };
+
+        // Position bounds
+        // 修正: 柵(32m)に合わせて、ギリギリまで行けるよう31mに設定
+        const BOUNDS = { min: -31, max: 31 };
+        const PLAYER_HEIGHT = 0.6; // POTATO HEIGHT (60cm)
+
+        // (Ketchup tracking REMOVED - now using Coin system via window.sgCoinData)
+
+        // === CAMERA ZOOM (FPS to TPS) ===
+        // cameraDistance, cameraAngle, cameraPitch are now MODULE SCOPE
+        // Re-initialize them here for clarity if wanted:
+        cameraDistance = 0; // 0 = FPS, 10 = max TPS
+        const CAMERA_DISTANCE_MIN = 0;
+        const CAMERA_DISTANCE_MAX = 10;
+        const ZOOM_SPEED = 0.5;
+
+        // === ORBIT CAMERA CONTROL ===
+        cameraAngle = Math.PI; // Horizontal orbit angle (starts behind player)
+        cameraPitch = 0; // Vertical look angle (for FPS mode)
+
+        // Player position tracking (separate from camera)
+        // playerPosition is now Module Scope
+        // Player position tracking (separate from camera)
+        // playerPosition is now Module Scope
+        playerPosition.set(0, 0.6, -25); // Old: 25. Inverted: -25.
+        let playerFacing = Math.PI; // Direction player is facing
+
+        // Pinch zoom tracking
+        let lastPinchDistance = 0;
+
+        // Player model reference (will be set when FBX loads)
+        let playerModel = null;
+
+
+        // Apply initial rotation (will be updated in loop)
+        camera.rotation.y = cameraAngle;
+        camera.rotation.x = cameraPitch;
+
+
+        // InputManagerの初期化
+        const inputManager = new InputManager(renderer.domElement);
+
+        // 視点切替ボタンの設定（ピンチ操作の代わり）
+        const viewBtn = document.getElementById('dpad-view');
+        if (viewBtn) {
+            let isTPS = false;
+            const toggleView = (e) => {
+                e.preventDefault(); e.stopPropagation();
+                isTPS = !isTPS;
+                cameraDistance = isTPS ? 8.0 : 0.0; // 距離切り替え
+                viewBtn.style.background = isTPS ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)";
+            };
+            // viewBtn.addEventListener('touchstart', toggleView, { passive: false });
+            // viewBtn.addEventListener('click', toggleView); // PC対応
+            // ★REMOVED: Old dpad-view listener (Moved to bindUIEvents)
+        }
+
+        // ★追加: カーソル変更用のRaycaster (マウス移動時に常時判定)
+        const hoverRaycaster = new THREE.Raycaster();
+
+        // PC用: マウス移動時のカーソル変化（コイン回収 ＆ リンク判定）
+        renderer.domElement.addEventListener('mousemove', (event) => {
+            if (!isPlaying) return;
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            hoverRaycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
+
+            const intersects = hoverRaycaster.intersectObjects(scene.children, true);
+            let cursorState = 'default'; // 'default' | 'magnet' | 'pointer'
+
+            for (const hit of intersects) {
+                // 1. リンク（看板）の判定 [距離5m以内]
+                if (hit.distance <= 5.0 && hit.object.userData.isLink) {
+                    cursorState = 'pointer';
+                    break; // 最優先で決定
+                }
+
+                // 2. コイン・自販機の判定 [距離2.5m以内]
+                if (hit.distance <= 2.5) {
+                    const obj = hit.object;
+                    // 親を遡ってターゲット確認
+                    let targetGroup = obj;
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                        targetGroup = targetGroup.parent;
+                    }
+
+                    // ターゲットが見つかったら磁石モード
+                    if (targetGroup.userData.isVendingMachine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
+                        cursorState = 'magnet';
+                        break;
+                    }
+                }
+            }
+
+            // カーソルの適用（競合なし）
+            if (cursorState === 'magnet') {
+                document.body.style.cursor = "url('assets/horseshoe_magnet.png') 32 32, auto";
+            } else if (cursorState === 'pointer') {
+                document.body.style.cursor = 'pointer';
+            } else {
+                document.body.style.cursor = 'default';
+            }
+        });
+
+
+        // ★ 新・インタラクション機能 (コインをクリックで拾う)
+        const handleInputInteraction = (event) => {
+            if (!isPlaying) return;
+
+            // 座標取得 (マウス vs タッチ)
+            const rect = renderer.domElement.getBoundingClientRect();
+            let clientX, clientY;
+
+            // タッチイベントの正規化
+            if (event.type === 'touchstart') {
+                if (event.changedTouches.length > 0) {
+                    clientX = event.changedTouches[0].clientX;
+                    clientY = event.changedTouches[0].clientY;
+                } else return;
+            } else {
+                // click (マウス)
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
+
+            // 正規化デバイス座標 (-1 to +1) への変換
+            const mouse = new THREE.Vector2();
+            mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+            // Raycaster発射
+            const clickRaycaster = new THREE.Raycaster();
+            clickRaycaster.setFromCamera(mouse, camera);
+            const intersects = clickRaycaster.intersectObjects(scene.children, true);
+
+            // ★修正版: クリック判定ループ (完全版)
+            for (const hit of intersects) {
+                // 【最優先】無視フラグがあるオブジェクトは、何があっても即スキップ
+                // これで透明なスコップ本体は絶対に反応しなくなります
+                if (hit.object.userData.ignoreRaycast) continue;
+
+                // 1. リンク（看板）の判定 [最優先・距離5m]
+                if (hit.distance <= 5.0 && hit.object.userData.isLink && hit.object.userData.url) {
+                    window.open(hit.object.userData.url, '_blank');
+                    return;
+                }
+
+                const obj = hit.object;
+
+                // 2. 距離チェック (プレイヤー足元基準)
+                // 3.0m以上離れていたら、たとえヒットボックスでも反応しない
+                const hitPos = new THREE.Vector3();
+                obj.getWorldPosition(hitPos);
+
+                if (typeof playerPosition !== 'undefined') {
+                    // 高さの差を無視した水平距離で測るのが操作性向上のコツ
+                    const dx = playerPosition.x - hitPos.x;
+                    const dz = playerPosition.z - hitPos.z;
+                    const distSq = dx * dx + dz * dz;
+                    if (distSq > 3.0 * 3.0) continue; // 3m圏外なら無視
+                } else {
+                    if (hit.distance > 3.0) continue;
+                }
+
+                // --- ここから下は既存のターゲット特定ロジック ---
+
+                // 親を遡って主要オブジェクト（Coin, Vending, Action持ち）を探す
+                let targetGroup = obj;
+                // isHitBoxなら、その親(parentItem)をターゲットとみなす
+                if (obj.userData.isHitBox && obj.userData.parentItem) {
+                    targetGroup = obj.userData.parentItem;
+                } else {
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                        targetGroup = targetGroup.parent;
+                    }
+                }
+
+                const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
+                const isVending = targetGroup.userData.isVendingMachine;
+
+                // インタラクティブ・オブジェクト（アクション持ち）の判定
+                let interactable = targetGroup; // 上で特定したグループを使う
+
+                // もし親にアクションがあればそれを使う
+                while (interactable && !interactable.userData.action) {
+                    interactable = interactable.parent;
+                }
+
+                // アクション実行
+                if (interactable && interactable.userData.action) {
+                    console.log("👆 Action Triggered:", interactable.name || 'Unnamed');
+                    interactable.userData.action();
+                    return;
+                } else if (isCoin) {
+                    collectCoin(targetGroup, clientX, clientY);
+                    return;
+                } else if (isVending) {
+                    console.log("Vending Machine Clicked");
+                    return;
+                }
+            }
+        };
+
+        // イベント登録
+        // renderer.domElement.addEventListener('click', handleInputInteraction);
+        // // タッチ環境での反応を良くするため touchstart も追加
+        // renderer.domElement.addEventListener('touchstart', handleInputInteraction, { passive: false });
+
+        /**
+         * 【Phase 2 施工完了】スワイプとタップの完全分離 (Smart Tap System)
+         * 既存の addEventListener('touchstart', ...) を無効化し、賢い判定に入れ替える
+         */
+        (() => {
+            const canvas = renderer.domElement;
+
+            // 2. スマートタップ判定用の変数
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let isSwiping = false;
+            const TAP_THRESHOLD = 10; // 10px以上動いたら「スワイプ（視点移動）」とみなす
+
+            // ■ タッチ開始：位置を記憶（まだGETしない！）
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 0) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    isSwiping = false; // フラグリセット
+                }
+            }, { passive: false });
+
+            // ■ タッチ移動：もし大きく動いたら「スワイプ中」と認定
+            canvas.addEventListener('touchmove', (e) => {
+                // 既にスワイプ判定済みなら計算不要
+                if (isSwiping) return;
+
+                if (e.touches.length > 0) {
+                    const x = e.touches[0].clientX;
+                    const y = e.touches[0].clientY;
+                    // 移動距離を三平方の定理で計算
+                    const dist = Math.sqrt(Math.pow(x - touchStartX, 2) + Math.pow(y - touchStartY, 2));
+
+                    // 閾値を超えたら「これはカメラ操作だ！」と判定
+                    if (dist > TAP_THRESHOLD) {
+                        isSwiping = true;
+                    }
+                }
+            }, { passive: false });
+
+            // ■ タッチ終了：スワイプしてなければ「タップ」として処理実行！
+            canvas.addEventListener('touchend', (e) => {
+                // スワイプ判定されていたら、コイン判定はキャンセル（視点操作のみ）
+                if (isSwiping) {
+                    // console.log("👆 Swiped (Camera Move) - Interaction Ignored");
+                    return;
+                }
+
+                console.log("👆 Tap Detected! Executing Interaction...");
+
+                // 既存の handleInputInteraction を呼び出す
+                // (touchend には touches がないので、changedTouches から座標を拾って偽装する)
+                if (typeof handleInputInteraction === 'function' && e.changedTouches.length > 0) {
+                    const t = e.changedTouches[0];
+
+                    // 擬似イベントオブジェクトを作成
+                    const fakeEvent = {
+                        preventDefault: () => { },
+                        clientX: t.clientX,
+                        clientY: t.clientY,
+                        // 既存関数が touches[0] を参照していても大丈夫なように配列化
+                        touches: [{ clientX: t.clientX, clientY: t.clientY }],
+                        type: 'touchstart', // 既存ロジックを騙すためにtouchstartとして送り込む
+                        changedTouches: [{ clientX: t.clientX, clientY: t.clientY }]
+                    };
+
+                    // 実行！
+                    handleInputInteraction(fakeEvent);
+                }
+            }, { passive: false });
+
+            // マウスのクリックもサポート（PC用）
+            canvas.addEventListener('click', handleInputInteraction);
+
+            console.log("✅ Smart Tap System Installed: Swipes are no longer Taps!");
+        })();
+
+        // ★旧UIの非表示化 (十字キーとGETボタン)
+        const crosshair = document.getElementById('sg-crosshair');
+        if (crosshair) crosshair.style.display = 'none';
+        const getBtn = document.getElementById('sg-get-btn');
+        if (getBtn) getBtn.style.display = 'none';
+
+
+        // ★ Pre-load Ending Assets here (Hidden by default)
+        spawnEndingAssets();
+
+        // ★ PlayGround Test Assets
+        if (typeof spawnTestAssets === 'function') {
+            spawnTestAssets();
+        }
+
+
+        // === Keyboard Controls ===
+        const onKeyDown = (e) => {
+            switch (e.code) {
+                case 'KeyW': case 'ArrowUp': moveState.forward = true; break;
+                case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
+                case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
+                case 'KeyD': case 'ArrowRight': moveState.right = true; break;
+                case 'KeyC':
+                    if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                        const x = camera.position.x.toFixed(2);
+                        const z = camera.position.z.toFixed(2);
+                        const y = camera.position.y.toFixed(2);
+
+                        const code = `createCoin(${x}, ${z}, ${y});`;
+
+                        console.log(`%c[COIN] ${code}`, 'color: #ffd700; font-weight: bold; font-size: 1.2em;');
+
+                        const panel = document.getElementById('debug-pos-panel');
+                        if (panel) {
+                            const originalColor = panel.style.color;
+                            panel.style.color = '#ffd700';
+                            panel.innerText = `COPIED: ${code}`;
+                            setTimeout(() => {
+                                panel.style.color = originalColor;
+                            }, 1500);
+                        }
+                    }
+                    break;
+            }
+        };
+
+        const onKeyUp = (e) => {
+            switch (e.code) {
+                case 'KeyW': case 'ArrowUp': moveState.forward = false; break;
+                case 'KeyS': case 'ArrowDown': moveState.backward = false; break;
+                case 'KeyA': case 'ArrowLeft': moveState.left = false; break;
+                case 'KeyD': case 'ArrowRight': moveState.right = false; break;
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+
+        // === D-Pad Button Controls ===
+        const setupDpadButton = (id, direction) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+
+            const activate = () => { moveState[direction] = true; btn.classList.add('active'); };
+            const deactivate = () => { moveState[direction] = false; btn.classList.remove('active'); };
+
+            btn.addEventListener('mousedown', activate);
+            btn.addEventListener('mouseup', deactivate);
+            btn.addEventListener('mouseleave', deactivate);
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); activate(); }, { passive: false });
+            btn.addEventListener('touchend', deactivate);
+        };
+
+        setupDpadButton('dpad-up', 'forward');
+        setupDpadButton('dpad-down', 'backward');
+        setupDpadButton('dpad-left', 'left');
+        setupDpadButton('dpad-right', 'right');
+
+        // === Movement Update Function (called in loop) ===
+        // ★ネコ耳アニメーション管理
+        let nekoEarAnim = {
+            active: false,
+            startTime: 0,
+            duration: 250 // ms
+        };
+        let nekoTriggered = false; // ★追加: 1回切り制御用フラグ
+
+        window.sgUpdateMovement = (dt) => {
+            // === 1. 入力とカメラの処理 ===
+            if (typeof inputManager !== 'undefined') {
+                const { dx, dy } = inputManager.consumeLookDelta();
+                cameraAngle -= dx;
+                cameraPitch -= dy;
+                const MAX_PITCH = Math.PI * 0.45;
+                cameraPitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, cameraPitch));
+            }
+
+            if (isCinematic) return;
+
+            // === 2. 移動ベクトルの計算 ===
+            const direction = new THREE.Vector3();
+            const speedFactor = (moveSpeed * 60) * dt;
+
+            if (moveState.forward) direction.z -= speedFactor;
+            if (moveState.backward) direction.z += speedFactor;
+            if (moveState.left) direction.x -= speedFactor;
+            if (moveState.right) direction.x += speedFactor;
+
+            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
+
+            if (direction.length() > 0.001) {
+                playerFacing = Math.atan2(direction.x, direction.z);
+            }
+
+            // 移動後の予定座標
+            const newX = playerPosition.x + direction.x;
+            const newZ = playerPosition.z + direction.z;
+
+            // === 3. 衝突判定 (木・障害物) ===
+            const COLLISION_MARGIN = 0.25;
+            let blockedX = false;
+            let blockedZ = false;
+
+            // 追加障害物
+            if (window.sgExtraObstacles) {
+                for (const obs of window.sgExtraObstacles) {
+                    const withinX = newX > obs.minX - COLLISION_MARGIN && newX < obs.maxX + COLLISION_MARGIN;
+                    const withinZ = newZ > obs.minZ - COLLISION_MARGIN && newZ < obs.maxZ + COLLISION_MARGIN;
+                    const currentWithinX = playerPosition.x > obs.minX - COLLISION_MARGIN && playerPosition.x < obs.maxX + COLLISION_MARGIN;
+                    const currentWithinZ = playerPosition.z > obs.minZ - COLLISION_MARGIN && playerPosition.z < obs.maxZ + COLLISION_MARGIN;
+
+                    if (withinX && currentWithinZ) blockedX = true;
+                    if (currentWithinX && withinZ) blockedZ = true;
+                }
+            }
+
+            // 木
+            if (window.sgTreeCollisions) {
+                for (const tree of window.sgTreeCollisions) {
+                    if (tree.hasCoin) continue;
+                    const dxNew = newX - tree.x;
+                    const dzNew = newZ - tree.z;
+                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
+
+                    if (distNew < tree.radius + COLLISION_MARGIN) {
+                        const dxCurrent = playerPosition.x - tree.x;
+                        const dzCurrent = playerPosition.z - tree.z;
+                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) blockedX = true;
+                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) blockedZ = true;
+                    }
+                }
+            }
+
+            // コインの木のバリア
+            if (window.testTreeCollision && window.testTreeCollision.hasCoin) {
+                const tree = window.testTreeCollision;
+                const dist = Math.sqrt(Math.pow(newX - tree.x, 2) + Math.pow(newZ - tree.z, 2));
+                const barrierRadius = 1.8;
+                if (dist < barrierRadius) {
+                    const dx = newX - tree.x;
+                    const dz = newZ - tree.z;
+                    const pushOut = barrierRadius - dist;
+                    direction.x += (dx / dist) * pushOut;
+                    direction.z += (dz / dist) * pushOut;
+
+                    // ★追加: 衝突音 (1.5秒のクールダウン) - コインの木のみ
+                    const now = Date.now();
+                    if (!window.lastThudTime || now - window.lastThudTime > 1500) {
+                        window.AudioManager.play('thud', 0.5);
+                        window.lastThudTime = now;
+                    }
+                }
+            }
+
+            // === 4. 象さんと噴水 (現状維持・ログ削除のみ) ===
+            // ※ナインさんの指示通り、ここのロジックは変更しません
+            if (window.sgFountainCollision) {
+                window.sgFountainCollision.forEach(fountain => {
+                    const dxNew = newX - fountain.x;
+                    const dzNew = newZ - fountain.z;
+                    const distNew = Math.sqrt(dxNew * dxNew + dzNew * dzNew);
+
+                    if (distNew < fountain.radius + COLLISION_MARGIN) {
+                        const dxCurrent = playerPosition.x - fountain.x;
+                        const dzCurrent = playerPosition.z - fountain.z;
+                        if (Math.abs(dxNew) < Math.abs(dxCurrent)) blockedX = true;
+                        if (Math.abs(dzNew) < Math.abs(dzCurrent)) blockedZ = true;
+
+                        // 水しぶきエフェクト
+                        let lastSplashTime = window.lastSplashTime || 0;
+                        const now = Date.now();
+                        if (now - lastSplashTime > 200) {
+                            window.spawnFountainSparkles(playerPosition.x, playerPosition.y + 1.5, playerPosition.z, true, false);
+                            window.lastSplashTime = now;
+                        }
+                    }
+                });
+            }
+
+            // === 5. 移動の適用 ===
+            if (!blockedX) playerPosition.x += direction.x;
+            if (!blockedZ) playerPosition.z += direction.z;
+
+            // エリア制限
+            playerPosition.x = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.x));
+            playerPosition.z = Math.max(BOUNDS.min, Math.min(BOUNDS.max, playerPosition.z));
+
+            // === 6. 地面の高さ合わせ (Throttled & Cached) ===
+            raycastFrameCounter++;
+            if (raycastFrameCounter >= 2) {
+                raycastFrameCounter = 0;
+
+                groundRaycaster.set(new THREE.Vector3(playerPosition.x, 50, playerPosition.z), new THREE.Vector3(0, -1, 0));
+
+                if (!window.sgWalkableMeshes || window.sgWalkableMeshes.length === 0) {
+                    if (typeof window.sgRefreshWalkableMeshes === 'function') window.sgRefreshWalkableMeshes();
+                }
+                const walkableMeshes = window.sgWalkableMeshes || [];
+                const groundHits = groundRaycaster.intersectObjects(walkableMeshes, false);
+
+                let foundHeight = 0;
+                for (const hit of groundHits) {
+                    if (hit.point.y >= 0 && hit.point.y < 10) {
+                        if (hit.point.y > playerPosition.y + 1.0) continue;
+                        if (hit.point.y > foundHeight) foundHeight = hit.point.y;
+                    }
+                }
+                lastGroundHeight = foundHeight;
+            }
+
+            const desiredY = lastGroundHeight + PLAYER_HEIGHT;
+            const heightDiff = desiredY - playerPosition.y;
+            if (heightDiff > 0) playerPosition.y = desiredY;
+            else if (heightDiff < -0.1) playerPosition.y += heightDiff * 0.15;
+            else playerPosition.y = desiredY;
+
+            // === 7. カメラとモデルの更新 ===
+            if (cameraDistance > 0) {
+                camera.position.x = playerPosition.x + Math.sin(cameraAngle) * cameraDistance;
+                camera.position.z = playerPosition.z + Math.cos(cameraAngle) * cameraDistance;
+                camera.position.y = playerPosition.y + cameraDistance * 0.3;
+                camera.lookAt(playerPosition.x, playerPosition.y, playerPosition.z);
+            } else {
+                camera.position.copy(playerPosition);
+                camera.rotation.set(cameraPitch, cameraAngle, 0, 'YXZ');
+            }
+
+            if (playerModel) {
+                playerModel.position.set(playerPosition.x, playerModel.position.y, playerPosition.z);
+                playerModel.rotation.y = -playerFacing + Math.PI;
+                playerModel.visible = cameraDistance >= 0.5;
+            }
+
+            // ★★★ ネコ耳ピクピク判定 (ここを完全修正) ★★★
+            // 修正点1: 存在しない player.position を playerPosition に変更
+            // 修正点2: 距離判定を camera.position から playerPosition (自分) に変更
+            if (currentState === GameState.PLAYING && window.sgBenchCat && window.sgBenchCat.userData.ears) {
+                const cat = window.sgBenchCat;
+
+                // プレイヤーとネコの水平距離を計算
+                const dx = playerPosition.x - cat.position.x;
+                const dz = playerPosition.z - cat.position.z;
+                const distXZ = Math.sqrt(dx * dx + dz * dz);
+
+                // ① トリガー (3.0m以内に入ったらスイッチON)
+                if (distXZ < 3.0 && !nekoTriggered) {
+                    nekoTriggered = true;
+                    nekoEarAnim.active = true;
+                    nekoEarAnim.startTime = performance.now();
+
+                    // ★修正: 3D再生(play3D)を廃止し、通常の2D再生(play)に変更
+                    window.AudioManager.play('cat', 1.0);
+                }
+
+                // ② リセット (3.5m以上離れたらスイッチOFF)
+                if (distXZ > 3.5) {
+                    nekoTriggered = false;
+                }
+            }
+
+            // ③ アニメーション実行 (トリガーが入っている間動く)
+            if (nekoEarAnim.active && window.sgBenchCat && window.sgBenchCat.userData.ears) {
+                const ears = window.sgBenchCat.userData.ears;
+                const t = performance.now() - nekoEarAnim.startTime;
+                const p = Math.min(t / nekoEarAnim.duration, 1); // 0.0 〜 1.0
+
+                // 左右に1回プルプル (サイン波)
+                // ★修正: 0.25秒, 周波数60, 振幅0.1
+                ears.rotation.z = Math.sin((t / 1000) * 60) * 0.1;
+
+                // アニメーション終了
+                if (p >= 1) {
+                    ears.rotation.z = 0;
+                    nekoEarAnim.active = false;
+                }
+            }
+        };
+
+
+
+
+        const visualConfig = SEASON_VISUALS[GameConfig.currentSeason] || SEASON_VISUALS.summer;
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(100, 100),
+            new THREE.MeshLambertMaterial({ color: visualConfig.groundColor })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // REMOVED: Beige dirt patches (previously cream-colored boards under objects)
+        // Keeping only green grass ground for a cleaner look
+
+        // =========================================
+        // ★ UTILITY HELPERS (Global Outline & Cleanup)
+        // =========================================
+
+        // 1. オブジェクトの完全廃棄（メモリリーク防止 & アウトライン残留防止）
+        window.disposeObject = (obj) => {
+            if (!obj) return;
+            // 再帰的に子要素を破棄
+            obj.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(m => m.dispose());
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                }
+                // LineSegments（アウトライン）も明示的に破棄
+                if (child.isLineSegments) {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                }
+            });
+            // 親から削除
+            if (obj.parent) obj.parent.remove(obj);
+        };
+
+        // 2. アウトライン適用ルール（重複防止 & 除外判定）
+        window.applyOutlineRules = (object) => {
+            if (!object) return;
+            // デフォルトは60（建物など）
+            let defaultThreshold = 60;
+            const color = 0x000000;
+
+            object.traverse((child) => {
+                // プレイヤー（FPS視点カメラ）以外かつメッシュであれば適用
+                if (child.isMesh && child.userData.entityType !== 'player') {
+
+                    // ★追加: アウトライン無効フラグがあればスキップ
+                    if (child.userData.skipOutline) return;
+                    // キャラ専用設定
+                    let thresholdAngle = defaultThreshold;
+                    if (child.userData.entityType === 'npc') {
+                        thresholdAngle = 70; // キャラはシルエット重視（詳細な線を出さない）
+                    }
+
+                    // 既にアウトラインがあるかチェック（二重付与防止）
+                    let hasOutline = false;
+                    child.children.forEach(c => {
+                        if (c.isLineSegments && c.userData.isOutline) hasOutline = true;
+                    });
+
+                    if (!hasOutline) {
+                        // アウトライン生成
+                        if (child.geometry) {
+                            const edges = new THREE.EdgesGeometry(child.geometry, thresholdAngle);
+                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: color }));
+                            line.userData.isOutline = true; // 識別用フラグ
+                            child.add(line);
+                        }
+                    }
+                }
+            });
+        };
+
+        // 3. 既存関数のラッパー（互換性維持）
+        // 個別の addEdgesOutline 呼び出しを applyOutlineRules に誘導するか、
+        // またはこの関数自体を安全な実装にする
+        // 3. 既存関数のラッパー（互換性維持 + NPC70度強制）
+        window.addEdgesOutline = (object, angle = 60, color = 0x000000) => {
+            object.traverse((child) => {
+                if (child.isMesh && child.userData.entityType !== 'player') {
+                    // キャラは70度（スッキリ）、その他は指定角度（デフォルト60度＝カッチリ）
+                    let threshold = (child.userData.entityType === 'npc') ? 70 : angle;
+                    // 重複チェック
+                    let hasOutline = false;
+                    child.children.forEach(c => {
+                        if (c.isLineSegments && c.userData.isOutline) hasOutline = true;
+                    });
+
+                    if (!hasOutline && child.geometry) {
+                        const edges = new THREE.EdgesGeometry(child.geometry, angle); // 引数の角度を使用
+                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: color }));
+                        line.userData.isOutline = true;
+                        child.add(line);
+                    }
+                }
+            });
+        };
+
+        // === VOXEL CLOUDS for orientation ===
+        // REMOVED at user request
+        /*
+        const cloudMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+        const cloudPositions = [
+            { x: -20, y: 15, z: -15 },
+            { x: 10, y: 18, z: -20 },
+            { x: 25, y: 12, z: 0 },
+            { x: -15, y: 14, z: 10 },
+            { x: 5, y: 20, z: 15 },
+            { x: -25, y: 16, z: -5 },
+            { x: 15, y: 13, z: -25 },
+            { x: 0, y: 17, z: -10 },
+            { x: -10, y: 19, z: -20 },
+            { x: 20, y: 11, z: 20 },
+            { x: -5, y: 15, z: 25 },
+            { x: 12, y: 14, z: 8 }
+        ];
+         
+        cloudPositions.forEach(pos => {
+            const cloudGroup = new THREE.Group();
+            // Main body
+            const main = new THREE.Mesh(
+                new THREE.BoxGeometry(4, 1.5, 3),
+                cloudMaterial
+            );
+            cloudGroup.add(main);
+            // Side puffs
+            const puff1 = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 1.2, 2),
+                cloudMaterial
+            );
+            puff1.position.set(-2, 0.2, 0.5);
+            cloudGroup.add(puff1);
+            const puff2 = new THREE.Mesh(
+                new THREE.BoxGeometry(2.5, 1.3, 2.2),
+                cloudMaterial
+            );
+            puff2.position.set(1.8, 0.3, -0.3);
+            cloudGroup.add(puff2);
+         
+            cloudGroup.position.set(pos.x, pos.y, pos.z);
+            cloudGroup.rotation.y = Math.random() * Math.PI;
+            scene.add(cloudGroup);
+        });
+        */
+
+
+        // === PERIMETER FENCE (Voxel Style) ===
+        // 修正: 35mだと広すぎたため、並木(30m)が収まるギリギリの32mに設定
+        const FENCE_BOUNDARY = 32;
+        const POST_SPACING = 4;
+        const fencePostMaterial = new THREE.MeshLambertMaterial({ color: 0xDEB887 }); // Burlywood
+        const fenceRailMaterial = new THREE.MeshLambertMaterial({ color: 0xF5DEB3 }); // Wheat
+
+        // Create fence posts and rails
+        function createFenceSection(startX, startZ, endX, endZ, isXAxis) {
+            const length = isXAxis ? Math.abs(endX - startX) : Math.abs(endZ - startZ);
+            const numPosts = Math.floor(length / POST_SPACING) + 1;
+
+            for (let i = 0; i < numPosts; i++) {
+                const t = i / (numPosts - 1);
+                const x = startX + (endX - startX) * t;
+                const z = startZ + (endZ - startZ) * t;
+
+                // Fence post
+                const post = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.4, 1.5, 0.4),
+                    fencePostMaterial
+                );
+                post.position.set(x, 0.75, z);
+                post.castShadow = true;
+                scene.add(post);
+
+                // Post top cap
+                const cap = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.5, 0.15, 0.5),
+                    fencePostMaterial
+                );
+                cap.position.set(x, 1.55, z);
+                scene.add(cap);
+            }
+
+            // Rails connecting posts
+            const railLength = length;
+            const railX = (startX + endX) / 2;
+            const railZ = (startZ + endZ) / 2;
+
+            // Upper rail
+            const upperRail = new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    isXAxis ? railLength : 0.2,
+                    0.15,
+                    isXAxis ? 0.2 : railLength
+                ),
+                fenceRailMaterial
+            );
+            upperRail.position.set(railX, 1.2, railZ);
+            scene.add(upperRail);
+
+            // Lower rail
+            const lowerRail = new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    isXAxis ? railLength : 0.2,
+                    0.15,
+                    isXAxis ? 0.2 : railLength
+                ),
+                fenceRailMaterial
+            );
+            lowerRail.position.set(railX, 0.5, railZ);
+            scene.add(lowerRail);
+        }
+
+        // Four sides of the fence
+        createFenceSection(-FENCE_BOUNDARY, -FENCE_BOUNDARY, FENCE_BOUNDARY, -FENCE_BOUNDARY, true);  // North
+        createFenceSection(-FENCE_BOUNDARY, FENCE_BOUNDARY, FENCE_BOUNDARY, FENCE_BOUNDARY, true);   // South
+        createFenceSection(-FENCE_BOUNDARY, -FENCE_BOUNDARY, -FENCE_BOUNDARY, FENCE_BOUNDARY, false); // West
+        createFenceSection(FENCE_BOUNDARY, -FENCE_BOUNDARY, FENCE_BOUNDARY, FENCE_BOUNDARY, false);  // East
+
+        // === EXTERIOR DECORATIONS (Outside fence) ===
+        // ★【削除】草・低木を削除してフィールドを更地にする
+        // (Exterior bushes removed for cleaner test field)
+
+        // Add park assets
+        // createParkAssets();
+
+
+        // ★★★ PLAYGROUND DEV: Opening Callback DISABLED ★★★
+        // Original spawnOpeningNPC callback would trigger startOpeningSequence here.
+        // Commenting out entirely to prevent any deferred opening start.
+        /*
+        spawnOpeningNPC((npc) => {
+            if (npc) {
+                setTimeout(() => {
+                    if (currentState !== GameState.PLAYING && typeof startOpeningSequence === 'function') {
+                        startOpeningSequence();
+                    }
+                }, 100);
+            } else {
+                setTimeout(() => {
+                    if (currentState !== GameState.PLAYING && typeof startOpeningSequence === 'function') {
+                        startOpeningSequence();
+                    }
+                }, 100);
+            }
+        });
+        */
+        // Instead, just load the NPC without callback (for potential later use)
+        spawnOpeningNPC(() => { /* No-op callback */ });
+
+
+
+        // === LOAD FBX MODEL: Coin (collectible game items) ===
+        const COIN_TARGET_SIZE = 0.5; // Target diameter: 50cm
+
+        // ★修正: 正式モデル 'coin.fbx' を読み込む
+        loader.load(
+            'models/coin.fbx',
+            (masterCoin) => {
+                console.log('FBX Loaded: coin.fbx (Official Master)');
+                window.sgCoinMaster = masterCoin; // ★これを追加
+
+                // === AUTO-SIZE NORMALIZATION using Box3 ===
+                const coinBox = new THREE.Box3().setFromObject(masterCoin);
+                const coinSize = new THREE.Vector3();
+                coinBox.getSize(coinSize);
+                const coinMaxDim = Math.max(coinSize.x, coinSize.y, coinSize.z);
+                const coinScaleFactor = COIN_TARGET_SIZE / coinMaxDim;
+                masterCoin.scale.setScalar(coinScaleFactor);
+
+                // === Material Replacement (Force Unlit / MeshBasicMaterial) ===
+                masterCoin.traverse((child) => {
+                    if (child.isMesh) {
+                        // 影を落とすのはOKだが、影を受けるのはNG（ムラの原因）
+                        child.castShadow = true;
+                        child.receiveShadow = false; // ★重要: 影を受けない
+
+                        // ★重要: BasicMaterial（光計算なし・常時発光）に置き換える
+                        if (child.material) {
+                            const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+
+                            // MeshBasicMaterialを作成
+                            const newMat = new THREE.MeshBasicMaterial({
+                                map: oldMat.map, // テクスチャ引き継ぎ
+                                color: 0xFFFFFF, // 白ベース（テクスチャの色をそのまま出す）
+                                transparent: false,
+                                opacity: 1.0,
+                                side: THREE.DoubleSide // 裏面も念のため描画
+                            });
+
+                            // もしテクスチャが無い場合だけ、金色にする
+                            if (!oldMat.map) {
+                                newMat.color.setHex(0xFFD700);
+                            }
+
+                            child.material = newMat;
+                        }
+                    }
+                });
+
+                // === Game coin positions (確定版: 9箇所・高さ指定) ===
+                // ★収集したコイン座標（高さも指定）
+                const coinPositions = [
+                    { x: 0.00, y: 0.62, z: 21.80 },
+                    { x: 24.14, y: 3.60, z: 23.32 },
+                    { x: 24.00, y: 0.60, z: 13.50 },
+                    { x: 2.31, y: 1.80, z: -0.23 },
+                    { x: 4.26, y: 0.60, z: -30.86 },
+                    { x: -31.00, y: 0.60, z: -31.00 },
+                    { x: -30.94, y: 0.60, z: 3.84 },
+                    { x: -19.55, y: 0.60, z: 14.04 }
+                ];
+
+                window.sgGameCoins = []; // For rotation animation
+                const gameItems = []; // For collection tracking
+
+                coinPositions.forEach((pos, index) => {
+                    const coin = masterCoin.clone();
+
+                    // ★修正: pos.y が指定されていればそれを使い、なければデフォルトの 1.0 を使う
+                    const posY = (pos.y !== undefined) ? pos.y : 1.0;
+                    coin.position.set(pos.x, posY, pos.z);
+
+                    // Collection flag
+                    coin.userData.isCoin = true;
+                    coin.userData.coinIndex = index;
+                    coin.userData.collected = false;
+
+                    // Re-apply shadows to cloned meshes
+                    coin.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+
+                    // Add edge outlines
+                    addEdgesOutline(coin, 15, 0x000000);
+
+                    scene.add(coin);
+                    window.sgGameCoins.push(coin);
+                    gameItems.push(coin);
+                });
+
+                // Store collection data globally
+                window.sgItemData = {
+                    items: gameItems,
+                    collected: 0,
+                    total: coinPositions.length
+                };
+
+                console.log(`${coinPositions.length} collectible coins placed!`);
+
+                // Update UI text
+                const ketchupLabel = document.getElementById('sg-ketchup');
+                if (ketchupLabel) {
+                    ketchupLabel.textContent = '0';
+                    // Update label text
+                    const parent = ketchupLabel.parentNode;
+                    if (parent) {
+                        parent.childNodes.forEach(node => {
+                            if (node.nodeType === 3 && node.textContent.includes('ケチャップ')) {
+                                node.textContent = '🪙 コイン: ';
+                            }
+                        });
+                    }
+                }
+            },
+            (progress) => {
+                if (progress.total > 0) {
+                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
+                    console.log(`Loading coin.fbx: ${percent}%`);
+                }
+            },
+            (error) => {
+                console.error('Error loading coin.fbx:', error);
+            }
+        );
+
+
+        // === 雲 (Clouds) の生成 ===
+        spawnClouds();
+
+
+        /**
+         * 🛠️ PROJECT POTATO: PHASE 3 - OUTLINE FIX (FINAL SOLUTION)
+         * All outlines disabled for cleaner look
+         */
+        const TreeInstanceManager = (() => {
+            let components = [];
+
+            const init = (masterModel, count) => {
+                components.forEach(c => {
+                    if (c.mesh) { scene.remove(c.mesh); c.mesh.geometry?.dispose(); c.mesh.material?.dispose(); }
+                    if (c.edge) { scene.remove(c.edge); c.edge.geometry?.dispose(); c.edge.material?.dispose(); }
+                });
+                components = [];
+
+                masterModel.updateMatrixWorld(true);
+                const rootInv = new THREE.Matrix4().copy(masterModel.matrixWorld).invert();
+
+                masterModel.traverse(child => {
+                    if (child.isMesh) {
+                        const baseMatrix = child.matrixWorld.clone().premultiply(rootInv);
+                        const name = child.name.toLowerCase();
+
+                        let mat = Array.isArray(child.material) ? child.material.map(m => m.clone()) : child.material.clone();
+                        const iMesh = new THREE.InstancedMesh(child.geometry, mat, count);
+                        iMesh.name = `Instanced_${child.name}`;
+                        iMesh.castShadow = true;
+                        iMesh.receiveShadow = true;
+                        iMesh.userData.ignoreGround = true;
+                        iMesh.userData.isTree = true;
+                        scene.add(iMesh);
+
+                        // アウトライン完全廃止
+                        components.push({ name, mesh: iMesh, edge: null, baseMatrix });
+                    }
+                });
+                console.log(`TreeInstanceManager: ${components.length} parts (No outlines).`);
+            };
+
+            const setTransform = (index, dummy) => {
+                dummy.updateMatrix();
+                components.forEach(comp => {
+                    const finalMatrix = new THREE.Matrix4().multiplyMatrices(dummy.matrix, comp.baseMatrix);
+                    comp.mesh.setMatrixAt(index, finalMatrix);
+                    if (comp.edge) comp.edge.setMatrixAt(index, finalMatrix);
+                });
+            };
+
+            const updateSeason = (seasonName) => {
+                const TREE_PALETTES = {
+                    spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
+                    summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+                    autumn: [0xFF4500, 0xD2691E, 0xFF8C00, 0xFFD700],
+                    winter: [0xE6E6FA, 0xF8F8FF, 0xD8BFD8]
+                };
+                const palette = TREE_PALETTES[seasonName] || TREE_PALETTES.summer;
+                const color = new THREE.Color();
+                components.forEach(comp => {
+                    const isLeaves = comp.name.includes('leaves') || comp.name.includes('leaf') || comp.name.includes('canopy');
+                    for (let i = 0; i < comp.mesh.count; i++) {
+                        color.setHex(isLeaves ? palette[i % palette.length] : 0xFFFFFF);
+                        comp.mesh.setColorAt(i, color);
+                    }
+                    if (comp.mesh.instanceColor) comp.mesh.instanceColor.needsUpdate = true;
+                });
+            };
+
+            const finalize = () => {
+                components.forEach(c => {
+                    c.mesh.instanceMatrix.needsUpdate = true;
+                    if (c.edge) c.edge.instanceMatrix.needsUpdate = true;
+                });
+            };
+
+            return { init, setTransform, updateSeason, finalize };
+        })();
+        window.TreeInstanceManager = TreeInstanceManager;
+
+        // ★隠しコインを木にセットアップする関数
+        function setupHiddenCoin(targetTree) {
+            if (!targetTree) return;
+            if (!window.sgActiveCoins) window.sgActiveCoins = [];
+
+            const loader = new FBXLoader();
+            loader.load('models/coin.fbx', (object) => {
+                const coin = object;
+                const season = GameConfig.currentSeason || 'summer';
+                const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
+                const targetColor = seasonColors[season];
+
+                coin.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
+                        child.material = new THREE.MeshBasicMaterial({
+                            map: oldMat.map,
+                            color: targetColor,
+                            side: THREE.DoubleSide
+                        });
+                    }
+                });
+
+                // サイズ調整
+                const box = new THREE.Box3().setFromObject(coin);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
+
+                // 配置
+                coin.position.set(0, 2.2, 0); // 木のローカル座標
+                const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
+                coin.add(coinLight);
+
+                coin.userData = {
+                    isCoin: true,
+                    isFalling: false,
+                    hasFallen: false,
+                    pointLight: coinLight,
+                    parentTree: targetTree
+                };
+
+                targetTree.add(coin);
+                targetTree.userData.hasCoin = true;
+                window.sgActiveCoins.push(coin);
+
+                // 衝突判定データの更新
+                const col = window.sgTreeCollisions.find(c =>
+                    Math.abs(c.x - targetTree.position.x) < 0.1 && Math.abs(c.z - targetTree.position.z) < 0.1
+                );
+                if (col) {
+                    col.hasCoin = true;
+                    window.testTreeCollision = col;
+                }
+                console.log("✨ Hidden Coin ready in a tree at:", targetTree.position);
+            });
+        }
+
+        function spawnTrees() {
+            console.log("spawnTrees Phase 2");
+            window.sgTreeObjects = [];
+            window.sgTreeCollisions = [];
+
+            window.setTreeSeason = (s) => {
+                if (window.TreeInstanceManager) window.TreeInstanceManager.updateSeason(s);
+            };
+
+            const benchLoader = new FBXLoader();
+            benchLoader.load('models/bench.fbx', (mb) => {
+                mb.scale.setScalar(1.0);
+                if (window.applyOutlineRules) window.applyOutlineRules(mb);
+                mb.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                const addB = (x, z, r) => { if (Math.abs(x - 4) < 0.1 && Math.abs(z - 16) < 0.1) return; const b = mb.clone(); b.position.set(x, 0, z); b.rotation.y = r * (Math.PI / 180); scene.add(b); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5); };
+                for (let d = 10; d <= 30; d += 4) { const b = d - 2; addB(b, 4, 180); addB(-b, 4, 180); addB(b, -4, 0); addB(-b, -4, 0); addB(4, b, -90); addB(4, -b, -90); addB(-4, b, 90); addB(-4, -b, 90); }
+            });
+
+            const exec = (mt) => {
+                window.sgMasterTree = mt;
+                const all = [];
+                const addA = (x, z) => { all.push({ x, z, type: 'avenue', scale: 0.8 + Math.random() * 0.4 }); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.0); };
+                for (let d = 10; d <= 30; d += 4) { addA(d, 4); addA(d, -4); addA(-d, 4); addA(-d, -4); addA(4, d); addA(-4, d); addA(4, -d); addA(-4, -d); }
+                const fq = []; let att = 0;
+                while (fq.length < 184 && att < 10000) { att++; const x = (Math.random() - 0.5) * 62, z = (Math.random() - 0.5) * 62; if ([...all, ...fq].some(p => (p.x - x) ** 2 + (p.z - z) ** 2 < 4)) continue; if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue; fq.push({ x, z, type: 'forest', scale: 0.8 + Math.random() * 0.4 }); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2); }
+                all.push(...fq);
+                for (let i = 0; i < 70; i++) { const a = Math.random() * Math.PI * 2, r = 45 + Math.random() * 35; all.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, type: 'exterior', scale: 1.2 + Math.random() * 0.8 }); }
+                const cands = all.map((p, i) => p.type === 'forest' && p.x < -10 && p.z > 10 ? i : -1).filter(i => i >= 0);
+                const cti = cands.length > 0 ? cands[Math.floor(Math.random() * cands.length)] : all.findIndex(p => p.type === 'forest');
+                const iq = [];
+                all.forEach((d, i) => {
+                    if (d.type !== 'exterior') window.sgTreeCollisions.push({ x: d.x, z: d.z, radius: 0.3 * d.scale });
+                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); if (window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); setupHiddenCoin(t); }
+                    else { iq.push({ x: d.x, z: d.z, scale: d.scale, rot: Math.random() * Math.PI * 2 }); }
+                });
+                if (window.TreeInstanceManager) { window.TreeInstanceManager.init(mt, iq.length); const dm = new THREE.Object3D(); iq.forEach((p, i) => { dm.position.set(p.x, 0, p.z); dm.rotation.y = p.rot; dm.scale.setScalar(p.scale); window.TreeInstanceManager.setTransform(i, dm); }); window.TreeInstanceManager.finalize(); console.log('Instanced ' + iq.length + ' trees.'); }
+                window.setTreeSeason(GameConfig.currentSeason);
+            };
+            if (window.sgMasterTree) exec(window.sgMasterTree); else new FBXLoader().load('models/tree.fbx', exec, undefined, console.error);
+        }
+
+        // =================================================================
+        // 🛠️ PROJECT POTATO: GRASS INSTANCED (InstancedMesh Mode)
+        // =================================================================
+        const GRASS_PALETTES = {
+            spring: [0x90EE90, 0x98FB98, 0xADFF2F],
+            summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+            autumn: [0xCD853F, 0xDAA520, 0x8B4513],
+            winter: [0xDDDDDD]
+        };
+
+        window.setGrassSeason = (seasonName) => {
+            const palette = GRASS_PALETTES[seasonName] || GRASS_PALETTES.summer;
+            if (window.sgGrassInstancedMesh) {
+                const color = new THREE.Color();
+                for (let i = 0; i < window.sgGrassInstancedMesh.count; i++) {
+                    color.setHex(palette[i % palette.length]);
+                    window.sgGrassInstancedMesh.setColorAt(i, color);
+                }
+                if (window.sgGrassInstancedMesh.instanceColor) {
+                    window.sgGrassInstancedMesh.instanceColor.needsUpdate = true;
+                }
+            }
+        };
+
+        function spawnGrass() {
+            if (window.hasSpawnedGrass) return;
+            window.hasSpawnedGrass = true;
+            console.log("--- spawnGrass (InstancedMesh Mode) ---");
+
+            // クリーンアップ
+            const existing = scene.getObjectByName('InstancedGrassField');
+            if (existing) {
+                existing.geometry?.dispose();
+                scene.remove(existing);
+            }
+
+            new FBXLoader().load('models/grass.fbx', (masterGrass) => {
+                // 1. メッシュの抽出
+                let grassMesh = null;
+                masterGrass.traverse(c => { if (c.isMesh) grassMesh = c; });
+                if (!grassMesh) return;
+
+                // 2. 【形状補正】-90度で起こす
+                grassMesh.geometry.rotateX(-Math.PI / 2);
+
+                // 3. マテリアル準備
+                let mat = grassMesh.material;
+                mat = (Array.isArray(mat) ? mat[0] : mat).clone();
+                mat.transparent = true;
+                mat.alphaTest = 0.5;
+                mat.side = THREE.DoubleSide;
+
+                // 4. InstancedMesh 作成
+                const grassCount = 800;
+                const iMesh = new THREE.InstancedMesh(grassMesh.geometry, mat, grassCount);
+                iMesh.name = 'InstancedGrassField';
+                iMesh.castShadow = false;
+                iMesh.receiveShadow = true;
+                iMesh.userData.ignoreGround = true;
+
+                const dummy = new THREE.Object3D();
+                let placed = 0;
+                let attempts = 0;
+
+                // 5. 配置ループ
+                while (placed < grassCount && attempts < 5000) {
+                    attempts++;
+                    const x = (Math.random() - 0.5) * 62;
+                    const z = (Math.random() - 0.5) * 62;
+                    if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
+
+                    dummy.position.set(x, 0, z);
+                    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+                    const s = 3.5 + Math.random() * 2.0;
+                    dummy.scale.set(s, s, s);
+                    dummy.updateMatrix();
+
+                    iMesh.setMatrixAt(placed, dummy.matrix);
+                    placed++;
+                }
+
+                iMesh.instanceMatrix.needsUpdate = true;
+                scene.add(iMesh);
+                window.sgGrassInstancedMesh = iMesh;
+
+                console.log(`✅ ${placed} grass patches (InstancedMesh Fix Mode).`);
+                if (typeof GameConfig !== 'undefined') window.setGrassSeason(GameConfig.currentSeason);
+            }, undefined, console.error);
+        }
+
+        // ★ GLOBAL SEASON MANAGER (Comms Tower)
+        window.setGameSeason = (seasonName) => {
+            console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
+
+            // 1. Grass
+            if (window.setGrassSeason) window.setGrassSeason(seasonName);
+
+            // 2. Trees
+            if (window.setTreeSeason) window.setTreeSeason(seasonName);
+
+            // 3. Environment (Sky, Fog, Sun)
+            if (window.setEnvironmentSeason) window.setEnvironmentSeason(seasonName);
+
+            // 4. Clouds ★追加
+            if (window.setCloudSeason) window.setCloudSeason(seasonName);
+
+            // 5. Parasols ★追加
+            if (window.setParasolSeason) window.setParasolSeason(seasonName);
+        };
+
+        // ★ Parasol Season Manager
+        window.sgParasolCanopies = [];
+        window.setParasolSeason = (seasonName) => {
+            const seasonColors = {
+                spring: 0xFFC0CB, // Pink
+                summer: 0x00BFFF, // Blue
+                autumn: 0xD2691E, // Orange/Brown
+                winter: 0xE0FFFF  // White/Cyan
+            };
+            const color = seasonColors[seasonName] || seasonColors.summer;
+
