@@ -5007,7 +5007,7 @@ const SearchGame = (() => {
                         // 車体の中心から前後左右にバリアを張る
                         if (window.sgExtraObstacles) {
                             window.sgExtraObstacles.push({
-                                minX: -7 - 1.8, maxX: -7 + 1.8,
+                                minX: -7 - 1.3, maxX: -7 + 1.3,
                                 minZ: -25 - 3.5, maxZ: -25 + 3.5
                             });
                         }
@@ -6799,66 +6799,39 @@ if (typeof window.setGameSeason === 'function' && typeof GameConfig !== 'undefin
 }
 
 
-// ★キッチンカー判定エリア可視化（テスト用）
-setTimeout(() => {
-    if (typeof scene !== 'undefined') {
-        // 指定座標: x:-9.8, z:-24.27
-        const geometry = new THREE.RingGeometry(0.9, 1.0, 32);
-        const material = new THREE.MeshBasicMaterial({ color: 0xFF0000, side: THREE.DoubleSide });
-        const ring = new THREE.Mesh(geometry, material);
-        
-        // 地面より少し浮かせる
-        ring.position.set(-9.8, 0.1, -24.27); 
-        ring.rotation.x = -Math.PI / 2; // 水平にする
-        
-        scene.add(ring);
-        console.log("🔴 Debug: KitchenCar Ring Created at x:-9.8 z:-24.27");
-    }
-}, 3000); // ロード待ちで3秒後に表示
-
-
 // ゲームシステムの起動
 if (typeof initGameSystem === 'function') {
     initGameSystem();
 }
 
 
-// ▼▼▼ キッチンカーイベント（デバッグ文字読み取り式・修正版v2） ▼▼▼
+// ▼▼▼ キッチンカーイベント（v5：シンプル・ポイ投げ版） ▼▼▼
 (function() {
     // 1. 設定
-    const TARGET_X = -10.53; // スクショの座標 X
-    const TARGET_Z = -24.37; // スクショの座標 Z
-    const RADIUS = 1.0;      // 半径1m
-    const REQUIRED_TIME = 3000; // 3秒
+    const TARGET_X = -9.0;   // プレイヤーが立つ位置
+    const TARGET_Z = -24.37;
+    const RADIUS = 0.8;
+    const REQUIRED_TIME = 3000;
+
+    // コインの軌道設定
+    const START_POS = { x: -7.8, y: 1.2, z: -24.28 }; // カウンターの中
+    const END_POS = { x: -8.5, y: 0.5, z: -24.28 };   // X:-8.5 に落ちる
 
     let stayTimer = 0;
     let isEventTriggered = false;
     let hintLabel = null;
-    let generatedCoin = null; // 生成したコインを管理
+    let generatedCoin = null;
 
-    // 2. 吹き出しUI作成（最強設定）
+    // 2. 吹き出しUI
     function updateHintLabel(text, show) {
         if (!hintLabel) {
             hintLabel = document.createElement('div');
-            // スタイルを直接ガチガチに指定
             hintLabel.style.cssText = `
-                position: fixed;
-                left: 50%;
-                top: 30%;
-                transform: translate(-50%, -50%);
-                color: #FFFFFF;
-                font-family: sans-serif;
-                font-size: 32px;
-                font-weight: 900;
+                position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%);
+                color: #FFFFFF; font-family: sans-serif; font-size: 32px; font-weight: 900;
                 text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-                pointer-events: none;
-                z-index: 2147483647; /* z-indexの最大値 */
-                display: none;
-                white-space: nowrap;
-                background: rgba(0, 0, 0, 0.5);
-                padding: 10px 20px;
-                border-radius: 10px;
-                border: 2px solid white;
+                pointer-events: none; z-index: 2147483647; display: none; white-space: nowrap;
+                background: rgba(0, 0, 0, 0.5); padding: 10px 20px; border-radius: 10px; border: 2px solid white;
             `;
             document.body.appendChild(hintLabel);
         }
@@ -6866,22 +6839,70 @@ if (typeof initGameSystem === 'function') {
         hintLabel.style.display = show ? 'block' : 'none';
     }
 
-    // 3. 監視ループ
+    // 3. コインを飛ばすアニメーション関数（シンプル版）
+    function spawnFlyingCoin() {
+        if (!window.sgCoinMaster || !window.parkGroup) return;
+
+        const coin = window.sgCoinMaster.clone();
+        coin.visible = true;
+        coin.userData.isCoin = true;
+        coin.userData.collected = false;
+        
+        // 初期位置
+        coin.position.set(START_POS.x, START_POS.y, START_POS.z);
+        // 回転をリセット（直立不動）
+        coin.rotation.set(0, 0, 0); 
+        
+        window.parkGroup.add(coin);
+        if (window.sgGameCoins) window.sgGameCoins.push(coin);
+        generatedCoin = coin;
+
+        // アニメーション用変数
+        let progress = 0;
+        const duration = 45; // 少し速く（約0.75秒）
+
+        const animInterval = setInterval(() => {
+            if (!coin.parent || coin.userData.collected) {
+                clearInterval(animInterval);
+                return;
+            }
+
+            progress++;
+            const t = progress / duration; // 0.0 -> 1.0
+
+            if (t >= 1.0) {
+                // 着地完了
+                coin.position.set(END_POS.x, END_POS.y, END_POS.z);
+                clearInterval(animInterval);
+            } else {
+                // イージング（減速しながら自然に）
+                const easeOut = 1 - Math.pow(1 - t, 2);
+
+                // 移動
+                coin.position.x = START_POS.x + (END_POS.x - START_POS.x) * easeOut;
+                coin.position.z = START_POS.z + (END_POS.z - START_POS.z) * easeOut;
+                
+                // 高さ：低い放物線（ポイっと感）
+                const height = Math.sin(t * Math.PI) * 0.5; 
+                coin.position.y = START_POS.y + (END_POS.y - START_POS.y) * t + height;
+                
+                // 回転は一切させない
+            }
+        }, 16);
+    }
+
+    // 4. 監視ループ
     setInterval(() => {
-        // すでにイベント済みなら、コインの状態を監視して終了
         if (isEventTriggered) {
              if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
-                 // コインが「取得済み」フラグが立っているのにまだ親がいる（消えてない）場合
                  console.log("🧹 Cleanup: Removing collected KitchenCar coin.");
                  generatedCoin.parent.remove(generatedCoin);
-                 generatedCoin = null; // 参照を切る
+                 generatedCoin = null;
              }
              return;
         }
 
-        // デバッグパネルから座標を盗み見る
         const panel = document.getElementById('debug-pos-panel');
-        // もしデバッグパネルが非表示でも動くように、プレイヤー座標があればそれを使う（バックアップ）
         let currentX, currentZ;
         
         if (panel) {
@@ -6898,47 +6919,26 @@ if (typeof initGameSystem === 'function') {
 
         if (currentX === undefined) return;
 
-        // 距離チェック
         const dx = currentX - TARGET_X;
         const dz = currentZ - TARGET_Z;
         const distSq = dx * dx + dz * dz;
 
         if (distSq < RADIUS * RADIUS) {
-            // エリア内
             stayTimer += 100;
             if (stayTimer < REQUIRED_TIME) {
-                // 秒数を計算
                 const remaining = Math.ceil((REQUIRED_TIME - stayTimer) / 1000);
-                updateHintLabel(`⌛️ 注文中... ${remaining}`, true);
+                updateHintLabel(`⌛️ Tick-Tock... ${remaining}`, true);
             } else {
-                // ★イベント発生！
                 isEventTriggered = true;
-                updateHintLabel("🎁 おまたせ！", true);
+                updateHintLabel("🎁 for U!", true);
                 setTimeout(() => updateHintLabel("", false), 2000);
 
-                // コイン生成
-                if (window.sgCoinMaster && window.parkGroup) {
-                    const coin = window.sgCoinMaster.clone();
-                    coin.position.set(-9.09, 0.5, -24.28); // 出現座標
-                    coin.visible = true;
-                    
-                    // 重要なフラグ設定
-                    coin.userData.isCoin = true;
-                    coin.userData.collected = false;
-                    
-                    // シーンに追加
-                    window.parkGroup.add(coin);
-                    if (window.sgGameCoins) window.sgGameCoins.push(coin);
-                    
-                    // 生成したコインを記憶しておく
-                    generatedCoin = coin;
-                    
-                    console.log("🎁 KitchenCar Event: Coin Spawned & Tracked!");
-                    if (window.AudioManager) window.AudioManager.play('wheeee');
-                }
+                spawnFlyingCoin(); // シンプル版呼び出し
+                
+                console.log("🎁 KitchenCar Event: Simple Toss Coin Spawned!");
+                if (window.AudioManager) window.AudioManager.play('wheeee');
             }
         } else {
-            // エリア外
             stayTimer = 0;
             updateHintLabel("", false);
         }
