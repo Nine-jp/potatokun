@@ -6805,22 +6805,23 @@ if (typeof initGameSystem === 'function') {
 }
 
 
-// ▼▼▼ キッチンカーイベント（v5：シンプル・ポイ投げ版） ▼▼▼
+// ▼▼▼ キッチンカーイベント（v7 FIX：完全自律・本番対応版） ▼▼▼
 (function() {
     // 1. 設定
-    const TARGET_X = -9.0;   // プレイヤーが立つ位置
+    const TARGET_X = -9.0;   // 判定エリアの中心
     const TARGET_Z = -24.37;
     const RADIUS = 0.8;
     const REQUIRED_TIME = 3000;
 
     // コインの軌道設定
     const START_POS = { x: -7.8, y: 1.2, z: -24.28 }; // カウンターの中
-    const END_POS = { x: -8.5, y: 0.5, z: -24.28 };   // X:-8.5 に落ちる
+    const END_POS = { x: -8.5, y: 0.5, z: -24.28 };   // プレイヤーの目の前
 
     let stayTimer = 0;
     let isEventTriggered = false;
     let hintLabel = null;
     let generatedCoin = null;
+    let playerCamera = null; // カメラ（プレイヤー）を特定して保持する変数
 
     // 2. 吹き出しUI
     function updateHintLabel(text, show) {
@@ -6839,7 +6840,7 @@ if (typeof initGameSystem === 'function') {
         hintLabel.style.display = show ? 'block' : 'none';
     }
 
-    // 3. コインを飛ばすアニメーション関数（シンプル版）
+    // 3. コインを飛ばすアニメーション関数
     function spawnFlyingCoin() {
         if (!window.sgCoinMaster || !window.parkGroup) return;
 
@@ -6850,16 +6851,14 @@ if (typeof initGameSystem === 'function') {
         
         // 初期位置
         coin.position.set(START_POS.x, START_POS.y, START_POS.z);
-        // 回転をリセット（直立不動）
         coin.rotation.set(0, 0, 0); 
         
         window.parkGroup.add(coin);
         if (window.sgGameCoins) window.sgGameCoins.push(coin);
         generatedCoin = coin;
 
-        // アニメーション用変数
         let progress = 0;
-        const duration = 45; // 少し速く（約0.75秒）
+        const duration = 45; 
 
         const animInterval = setInterval(() => {
             if (!coin.parent || coin.userData.collected) {
@@ -6868,59 +6867,60 @@ if (typeof initGameSystem === 'function') {
             }
 
             progress++;
-            const t = progress / duration; // 0.0 -> 1.0
+            const t = progress / duration; 
 
             if (t >= 1.0) {
-                // 着地完了
                 coin.position.set(END_POS.x, END_POS.y, END_POS.z);
                 clearInterval(animInterval);
             } else {
-                // イージング（減速しながら自然に）
                 const easeOut = 1 - Math.pow(1 - t, 2);
-
-                // 移動
                 coin.position.x = START_POS.x + (END_POS.x - START_POS.x) * easeOut;
                 coin.position.z = START_POS.z + (END_POS.z - START_POS.z) * easeOut;
-                
-                // 高さ：低い放物線（ポイっと感）
                 const height = Math.sin(t * Math.PI) * 0.5; 
                 coin.position.y = START_POS.y + (END_POS.y - START_POS.y) * t + height;
-                
-                // 回転は一切させない
             }
         }, 16);
     }
 
-    // 4. 監視ループ
+    // 4. プレイヤー位置取得関数（文字ではなくカメラを探す）
+    function getPlayerPosition() {
+        // 1. window.camera があればそれを使う
+        if (window.camera) return window.camera.position;
+
+        // 2. なければシーン内からカメラを探して記憶する（初回のみ検索）
+        if (!playerCamera && window.scene) {
+            window.scene.traverse(obj => {
+                if (obj.isCamera) playerCamera = obj;
+            });
+        }
+        if (playerCamera) return playerCamera.position;
+
+        // 3. どうしても見つからない時の最終手段（デバッグパネルがあれば利用）
+        const panel = document.getElementById('debug-pos-panel');
+        if (panel) {
+            const match = panel.innerText.match(/X:([-0-9.]+) Z:([-0-9.]+)/);
+            if (match) return { x: parseFloat(match[1]), z: parseFloat(match[2]) };
+        }
+
+        return null;
+    }
+
+    // 5. 監視ループ
     setInterval(() => {
         if (isEventTriggered) {
              if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
-                 console.log("🧹 Cleanup: Removing collected KitchenCar coin.");
                  generatedCoin.parent.remove(generatedCoin);
                  generatedCoin = null;
              }
              return;
         }
 
-        const panel = document.getElementById('debug-pos-panel');
-        let currentX, currentZ;
-        
-        if (panel) {
-            const text = panel.innerText;
-            const match = text.match(/X:([-0-9.]+) Z:([-0-9.]+)/);
-            if (match) {
-                currentX = parseFloat(match[1]);
-                currentZ = parseFloat(match[2]);
-            }
-        } else if (typeof playerPosition !== 'undefined') {
-            currentX = playerPosition.x;
-            currentZ = playerPosition.z;
-        }
+        // ★ここで位置を取得（本番対応）
+        const pos = getPlayerPosition();
+        if (!pos) return;
 
-        if (currentX === undefined) return;
-
-        const dx = currentX - TARGET_X;
-        const dz = currentZ - TARGET_Z;
+        const dx = pos.x - TARGET_X;
+        const dz = pos.z - TARGET_Z;
         const distSq = dx * dx + dz * dz;
 
         if (distSq < RADIUS * RADIUS) {
@@ -6933,9 +6933,7 @@ if (typeof initGameSystem === 'function') {
                 updateHintLabel("🎁 for U!", true);
                 setTimeout(() => updateHintLabel("", false), 2000);
 
-                spawnFlyingCoin(); // シンプル版呼び出し
-                
-                console.log("🎁 KitchenCar Event: Simple Toss Coin Spawned!");
+                spawnFlyingCoin(); 
                 if (window.AudioManager) window.AudioManager.play('wheeee');
             }
         } else {
