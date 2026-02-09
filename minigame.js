@@ -3264,6 +3264,70 @@ const SearchGame = (() => {
                 playerModel.visible = cameraDistance >= 0.5;
             }
 
+// ▼▼▼ 煙エフェクト（ドロン！）の実装 ▼▼▼
+window.spawnSnowExplosion = function(position) {
+    if (!window.scene) return;
+
+    const particleCount = 20; // 粒の数
+    const particles = [];
+    const geometry = new THREE.BoxGeometry(0.15, 0.15, 0.15); // 小さな四角い粒
+    const material = new THREE.MeshBasicMaterial({ 
+        color: 0xFFFFFF, 
+        transparent: true, 
+        opacity: 0.9 
+    });
+
+    // 1. 粒を生成してばら撒く
+    for (let i = 0; i < particleCount; i++) {
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.copy(position);
+        
+        // 少しランダムにずらす
+        mesh.position.x += (Math.random() - 0.5) * 0.5;
+        mesh.position.y += Math.random() * 0.5;
+        mesh.position.z += (Math.random() - 0.5) * 0.5;
+
+        // 飛び散る方向（速度）
+        mesh.userData.velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.15, // 横へ
+            (Math.random() * 0.2),        // 上へ
+            (Math.random() - 0.5) * 0.15  // 奥へ
+        );
+        
+        window.scene.add(mesh);
+        particles.push(mesh);
+    }
+
+    // 2. アニメーション（広がって消える）
+    let life = 1.0;
+    const anim = setInterval(() => {
+        life -= 0.05; // 徐々に消える
+        
+        if (life <= 0) {
+            clearInterval(anim);
+            particles.forEach(p => {
+                if(p.parent) p.parent.remove(p);
+            });
+            return;
+        }
+        
+        particles.forEach(p => {
+            p.position.add(p.userData.velocity); // 動く
+            p.rotation.x += 0.2; // 回る
+            p.rotation.y += 0.2;
+            p.scale.setScalar(life); // 小さくなる
+            p.material.opacity = life; // 薄くなる
+        });
+    }, 30);
+
+    // 音（プシューという音があれば鳴らす）
+    if (window.AudioManager && window.AudioManager.play) {
+        // もし 'psshhh' という音がロードされていれば使用、なければ省略
+         window.AudioManager.play('psshhh'); 
+    }
+};
+
+
 // ★★★ ネコ耳ピクピク判定 (恩返しイベント：サイズ1.0 & ニャー音版) ★★★
             if (currentState === GameState.PLAYING && window.sgBenchCat) {
                 const cat = window.sgBenchCat;
@@ -3276,18 +3340,52 @@ const SearchGame = (() => {
                     nekoTriggered = true;
                     console.log("🐱 Cat Event: Triggered!");
 
-                    // ★ ここで鳴く！ (コイン音の代わりにニャー)
+// 1. ニャーと鳴く
                     if (window.AudioManager) window.AudioManager.play('cat', 1.0);
 
-                    // 1. エフェクト (煙)
-                    if (typeof window.spawnSnowExplosion === 'function') {
-                        window.spawnSnowExplosion(cat.position);
+                    // 2. 煙エフェクト (直書き実装)
+                    // グレーの四角い粒をばら撒く
+                    const particleCount = 15;
+                    const particles = [];
+                    const pGeom = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+                    const pMat = new THREE.MeshBasicMaterial({ color: 0x888888 }); // グレー
+
+                    for (let i = 0; i < particleCount; i++) {
+                        const mesh = new THREE.Mesh(pGeom, pMat);
+                        // ネコの位置を中心に
+                        mesh.position.copy(cat.position);
+                        mesh.position.y += 0.5; // 少し上から
+                        // ランダムに散らす
+                        mesh.position.x += (Math.random() - 0.5) * 1.0;
+                        mesh.position.y += (Math.random() - 0.5) * 1.0;
+                        mesh.position.z += (Math.random() - 0.5) * 1.0;
+                        
+                        scene.add(mesh);
+                        particles.push(mesh);
                     }
 
-                    // 2. ネコを消す
+                    // 煙のアニメーション (拡大しながら消える)
+                    let smokeLife = 1.0;
+                    const smokeAnim = setInterval(() => {
+                        smokeLife -= 0.05;
+                        if (smokeLife <= 0) {
+                            clearInterval(smokeAnim);
+                            particles.forEach(p => scene.remove(p));
+                            return;
+                        }
+                        particles.forEach(p => {
+                            p.rotation.x += 0.1;
+                            p.rotation.y += 0.1;
+                            p.scale.setScalar(smokeLife); // 小さくなる
+                            p.position.y += 0.05; // 上に昇る
+                        });
+                    }, 30);
+
+
+                    // 3. ネコを消す
                     cat.visible = false;
 
-                    // 3. コイン出現
+                    // 4. コイン出現
                     if (window.sgCoinMaster) {
                         const coin = window.sgCoinMaster.clone();
                         
