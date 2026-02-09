@@ -3264,19 +3264,20 @@ const SearchGame = (() => {
                 playerModel.visible = cameraDistance >= 0.5;
             }
 
-// ★★★ ネコ耳ピクピク判定 (ここを完全修正：恩返しイベント版) ★★★
-            // 修正版: 3.0m以内に入ったら、煙と共に消えてコインを出す！
+// ★★★ ネコ耳ピクピク判定 (恩返しイベント：サイズ1.0 & ニャー音版) ★★★
             if (currentState === GameState.PLAYING && window.sgBenchCat) {
                 const cat = window.sgBenchCat;
                 const dx = playerPosition.x - cat.position.x;
                 const dz = playerPosition.z - cat.position.z;
                 const distXZ = Math.sqrt(dx * dx + dz * dz);
 
-                // ① トリガー (3.0m以内、かつ まだ消えていない時)
+                // ① トリガー (3.0m以内)
                 if (distXZ < 3.0 && !nekoTriggered && cat.visible) {
-                    nekoTriggered = true; // 重複防止フラグ
-                    
-                    console.log("🐱 Cat Event: Triggered internal!");
+                    nekoTriggered = true;
+                    console.log("🐱 Cat Event: Triggered!");
+
+                    // ★ ここで鳴く！ (コイン音の代わりにニャー)
+                    if (window.AudioManager) window.AudioManager.play('cat', 1.0);
 
                     // 1. エフェクト (煙)
                     if (typeof window.spawnSnowExplosion === 'function') {
@@ -3290,36 +3291,35 @@ const SearchGame = (() => {
                     if (window.sgCoinMaster) {
                         const coin = window.sgCoinMaster.clone();
                         
-                        // 座標: ネコの隣 (反転済み設定: 1.2, 0, 0)
+                        // 座標: ネコの隣
                         const offset = cat.userData.coinOffset || new THREE.Vector3(1.2, 0, 0);
                         const coinPos = cat.localToWorld(offset.clone());
                         
                         coin.position.copy(coinPos);
-                        coin.position.y += 0.25; // 少し浮かせる
                         
-                        // サイズ補正 (安全策)
-                        coin.scale.setScalar(1.0);
+                        // ★高さ調整 (ナインさん指定: 0.25)
+                        coin.position.y += 0.25;
+
+                        // ★サイズ補正
+                        coin.scale.setScalar(1.0); 
                         const box = new THREE.Box3().setFromObject(coin);
                         const size = new THREE.Vector3(); box.getSize(size);
                         const maxDim = Math.max(size.x, size.y, size.z);
+                        
+                        // 目標サイズ: 0.5m
                         if (maxDim > 0) coin.scale.setScalar(0.5 / maxDim);
 
                         coin.userData.isCoin = true;
                         coin.userData.collected = false;
                         
-                        // シーンに追加
                         scene.add(coin);
-                        
-                        // ゲーム管理配列に追加
                         if (window.sgGameCoins) window.sgGameCoins.push(coin);
 
-                        // 音を鳴らす
-                        if (window.AudioManager) window.AudioManager.play('wheeee');
+                        // コイン出現音(wheeee)は削除済み
                     }
                 }
             }
         }; // ← sgUpdateMovement の閉じカッコ
-
 
 
 
