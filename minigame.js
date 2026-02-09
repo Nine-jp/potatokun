@@ -3264,71 +3264,9 @@ const SearchGame = (() => {
                 playerModel.visible = cameraDistance >= 0.5;
             }
 
-// ▼▼▼ 煙エフェクト（ドロン！）の実装 ▼▼▼
-window.spawnSnowExplosion = function(position) {
-    if (!window.scene) return;
-
-    const particleCount = 20; // 粒の数
-    const particles = [];
-    const geometry = new THREE.BoxGeometry(0.15, 0.15, 0.15); // 小さな四角い粒
-    const material = new THREE.MeshBasicMaterial({ 
-        color: 0xFFFFFF, 
-        transparent: true, 
-        opacity: 0.9 
-    });
-
-    // 1. 粒を生成してばら撒く
-    for (let i = 0; i < particleCount; i++) {
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.copy(position);
-        
-        // 少しランダムにずらす
-        mesh.position.x += (Math.random() - 0.5) * 0.5;
-        mesh.position.y += Math.random() * 0.5;
-        mesh.position.z += (Math.random() - 0.5) * 0.5;
-
-        // 飛び散る方向（速度）
-        mesh.userData.velocity = new THREE.Vector3(
-            (Math.random() - 0.5) * 0.15, // 横へ
-            (Math.random() * 0.2),        // 上へ
-            (Math.random() - 0.5) * 0.15  // 奥へ
-        );
-        
-        window.scene.add(mesh);
-        particles.push(mesh);
-    }
-
-    // 2. アニメーション（広がって消える）
-    let life = 1.0;
-    const anim = setInterval(() => {
-        life -= 0.05; // 徐々に消える
-        
-        if (life <= 0) {
-            clearInterval(anim);
-            particles.forEach(p => {
-                if(p.parent) p.parent.remove(p);
-            });
-            return;
-        }
-        
-        particles.forEach(p => {
-            p.position.add(p.userData.velocity); // 動く
-            p.rotation.x += 0.2; // 回る
-            p.rotation.y += 0.2;
-            p.scale.setScalar(life); // 小さくなる
-            p.material.opacity = life; // 薄くなる
-        });
-    }, 30);
-
-    // 音（プシューという音があれば鳴らす）
-    if (window.AudioManager && window.AudioManager.play) {
-        // もし 'psshhh' という音がロードされていれば使用、なければ省略
-         window.AudioManager.play('psshhh'); 
-    }
-};
 
 
-// ★★★ ネコ耳ピクピク判定 (恩返しイベント：サイズ1.0 & ニャー音版) ★★★
+// ★★★ ネコ耳ピクピク判定 (恩返しイベント：ふんわり煙・完全版) ★★★
             if (currentState === GameState.PLAYING && window.sgBenchCat) {
                 const cat = window.sgBenchCat;
                 const dx = playerPosition.x - cat.position.x;
@@ -3338,48 +3276,84 @@ window.spawnSnowExplosion = function(position) {
                 // ① トリガー (3.0m以内)
                 if (distXZ < 3.0 && !nekoTriggered && cat.visible) {
                     nekoTriggered = true;
-                    console.log("🐱 Cat Event: Triggered!");
+                    console.log("🐱 Cat Event: Triggered (Fluffy Smoke)!");
 
-// 1. ニャーと鳴く
+                    // 1. ニャーと鳴く
                     if (window.AudioManager) window.AudioManager.play('cat', 1.0);
 
-                    // 2. 煙エフェクト (直書き実装)
-                    // グレーの四角い粒をばら撒く
-                    const particleCount = 15;
+                    // ▼▼▼ 2. ふんわり煙エフェクト (爆発感ゼロ) ▼▼▼
+                    const particleCount = 100; // 密度を出すために増量
                     const particles = [];
-                    const pGeom = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-                    const pMat = new THREE.MeshBasicMaterial({ color: 0x888888 }); // グレー
+                    // 極小の粒
+                    const pGeom = new THREE.BoxGeometry(0.03, 0.03, 0.03); 
+                    const pMatBase = new THREE.MeshBasicMaterial({ 
+                        color: 0xFFFFFF, // 純白
+                        transparent: true, 
+                        opacity: 0.6,    // 最初から少し透けさせる
+                        depthWrite: false
+                    });
 
                     for (let i = 0; i < particleCount; i++) {
-                        const mesh = new THREE.Mesh(pGeom, pMat);
-                        // ネコの位置を中心に
-                        mesh.position.copy(cat.position);
-                        mesh.position.y += 0.5; // 少し上から
-                        // ランダムに散らす
-                        mesh.position.x += (Math.random() - 0.5) * 1.0;
-                        mesh.position.y += (Math.random() - 0.5) * 1.0;
-                        mesh.position.z += (Math.random() - 0.5) * 1.0;
+                        const mesh = new THREE.Mesh(pGeom, pMatBase.clone()); 
                         
+                        // ネコの体全体から湧き出るように配置
+                        mesh.position.copy(cat.position);
+                        mesh.position.y += 0.3; 
+                        // ランダムに配置（飛び散らせるのではなく、最初からそこに置く）
+                        mesh.position.x += (Math.random() - 0.5) * 0.6;
+                        mesh.position.z += (Math.random() - 0.5) * 0.6;
+                        mesh.position.y += (Math.random() - 0.5) * 0.4;
+
+                        // ★速度は「ほぼゼロ」で、ゆっくり上昇するだけ
+                        mesh.userData.velocity = new THREE.Vector3(
+                            (Math.random() - 0.5) * 0.01, // 横揺れ程度
+                            0.02 + Math.random() * 0.03,  // ゆっくり上昇
+                            (Math.random() - 0.5) * 0.01  // 横揺れ程度
+                        );
+                        
+                        // 回転もゆったり
+                        mesh.userData.rotSpeed = (Math.random() - 0.5) * 0.05;
+                        
+                        // 各粒子の個別の寿命（バラバラに消えるように）
+                        mesh.userData.life = 1.0 + Math.random() * 0.5;
+
                         scene.add(mesh);
                         particles.push(mesh);
                     }
 
-                    // 煙のアニメーション (拡大しながら消える)
-                    let smokeLife = 1.0;
+                    // 煙のアニメーション (膨らみながら消える)
                     const smokeAnim = setInterval(() => {
-                        smokeLife -= 0.05;
-                        if (smokeLife <= 0) {
-                            clearInterval(smokeAnim);
-                            particles.forEach(p => scene.remove(p));
-                            return;
-                        }
+                        let activeCount = 0;
                         particles.forEach(p => {
-                            p.rotation.x += 0.1;
-                            p.rotation.y += 0.1;
-                            p.scale.setScalar(smokeLife); // 小さくなる
-                            p.position.y += 0.05; // 上に昇る
+                            if (p.userData.life <= 0) {
+                                if (p.visible) {
+                                    p.visible = false;
+                                    scene.remove(p);
+                                }
+                                return;
+                            }
+                            activeCount++;
+
+                            // 移動 (ゆっくり上昇)
+                            p.position.add(p.userData.velocity);
+                            
+                            // 回転
+                            p.rotation.x += p.userData.rotSpeed;
+                            p.rotation.y += p.userData.rotSpeed;
+                            
+                            // ★ここがポイント：粒がどんどん膨らむ（拡散表現）
+                            p.scale.multiplyScalar(1.05); 
+
+                            // 寿命を減らす
+                            p.userData.life -= 0.03;
+                            p.material.opacity = p.userData.life * 0.5; // 徐々に透明に
                         });
+
+                        if (activeCount === 0) {
+                            clearInterval(smokeAnim);
+                        }
                     }, 30);
+                    // ▲▲▲ 煙エフェクト終了 ▲▲▲
 
 
                     // 3. ネコを消す
@@ -3388,36 +3362,32 @@ window.spawnSnowExplosion = function(position) {
                     // 4. コイン出現
                     if (window.sgCoinMaster) {
                         const coin = window.sgCoinMaster.clone();
-                        
-                        // 座標: ネコの隣
                         const offset = cat.userData.coinOffset || new THREE.Vector3(1.2, 0, 0);
                         const coinPos = cat.localToWorld(offset.clone());
-                        
                         coin.position.copy(coinPos);
-                        
-                        // ★高さ調整 (ナインさん指定: 0.25)
                         coin.position.y += 0.25;
 
-                        // ★サイズ補正
+                        // ★サイズ指定: 0.5 (50cm) 絶対厳守！
                         coin.scale.setScalar(1.0); 
                         const box = new THREE.Box3().setFromObject(coin);
                         const size = new THREE.Vector3(); box.getSize(size);
                         const maxDim = Math.max(size.x, size.y, size.z);
                         
-                        // 目標サイズ: 0.5m
+                        // 0.5メートルに設定
                         if (maxDim > 0) coin.scale.setScalar(0.5 / maxDim);
 
                         coin.userData.isCoin = true;
                         coin.userData.collected = false;
-                        
                         scene.add(coin);
                         if (window.sgGameCoins) window.sgGameCoins.push(coin);
-
-                        // コイン出現音(wheeee)は削除済み
                     }
                 }
             }
         }; // ← sgUpdateMovement の閉じカッコ
+
+
+
+
 
 
 
