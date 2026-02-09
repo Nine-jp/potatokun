@@ -1264,50 +1264,130 @@
                 playerModel.visible = cameraDistance >= 0.5;
             }
 
-            // ★★★ ネコ耳ピクピク判定 (ここを完全修正) ★★★
-            // 修正点1: 存在しない player.position を playerPosition に変更
-            // 修正点2: 距離判定を camera.position から playerPosition (自分) に変更
-            if (currentState === GameState.PLAYING && window.sgBenchCat && window.sgBenchCat.userData.ears) {
-                const cat = window.sgBenchCat;
 
-                // プレイヤーとネコの水平距離を計算
+
+// ★★★ ネコ耳ピクピク判定 (恩返しイベント：ふんわり煙・完全版) ★★★
+            if (currentState === GameState.PLAYING && window.sgBenchCat) {
+                const cat = window.sgBenchCat;
                 const dx = playerPosition.x - cat.position.x;
                 const dz = playerPosition.z - cat.position.z;
                 const distXZ = Math.sqrt(dx * dx + dz * dz);
 
-                // ① トリガー (3.0m以内に入ったらスイッチON)
-                if (distXZ < 3.0 && !nekoTriggered) {
+                // ① トリガー (3.0m以内)
+                if (distXZ < 3.0 && !nekoTriggered && cat.visible) {
                     nekoTriggered = true;
-                    nekoEarAnim.active = true;
-                    nekoEarAnim.startTime = performance.now();
+                    console.log("🐱 Cat Event: Triggered (Fluffy Smoke)!");
 
-                    // ★修正: 3D再生(play3D)を廃止し、通常の2D再生(play)に変更
-                    window.AudioManager.play('cat', 1.0);
-                }
+                    // 1. ニャーと鳴く
+                    if (window.AudioManager) window.AudioManager.play('cat', 1.0);
 
-                // ② リセット (3.5m以上離れたらスイッチOFF)
-                if (distXZ > 3.5) {
-                    nekoTriggered = false;
+                    // ▼▼▼ 2. ふんわり煙エフェクト (爆発感ゼロ) ▼▼▼
+                    const particleCount = 100; // 密度を出すために増量
+                    const particles = [];
+                    // 極小の粒
+                    const pGeom = new THREE.BoxGeometry(0.03, 0.03, 0.03); 
+                    const pMatBase = new THREE.MeshBasicMaterial({ 
+                        color: 0xFFFFFF, // 純白
+                        transparent: true, 
+                        opacity: 0.6,    // 最初から少し透けさせる
+                        depthWrite: false
+                    });
+
+                    for (let i = 0; i < particleCount; i++) {
+                        const mesh = new THREE.Mesh(pGeom, pMatBase.clone()); 
+                        
+                        // ネコの体全体から湧き出るように配置
+                        mesh.position.copy(cat.position);
+                        mesh.position.y += 0.3; 
+                        // ランダムに配置（飛び散らせるのではなく、最初からそこに置く）
+                        mesh.position.x += (Math.random() - 0.5) * 0.6;
+                        mesh.position.z += (Math.random() - 0.5) * 0.6;
+                        mesh.position.y += (Math.random() - 0.5) * 0.4;
+
+                        // ★速度は「ほぼゼロ」で、ゆっくり上昇するだけ
+                        mesh.userData.velocity = new THREE.Vector3(
+                            (Math.random() - 0.5) * 0.01, // 横揺れ程度
+                            0.02 + Math.random() * 0.03,  // ゆっくり上昇
+                            (Math.random() - 0.5) * 0.01  // 横揺れ程度
+                        );
+                        
+                        // 回転もゆったり
+                        mesh.userData.rotSpeed = (Math.random() - 0.5) * 0.05;
+                        
+                        // 各粒子の個別の寿命（バラバラに消えるように）
+                        mesh.userData.life = 1.0 + Math.random() * 0.5;
+
+                        scene.add(mesh);
+                        particles.push(mesh);
+                    }
+
+                    // 煙のアニメーション (膨らみながら消える)
+                    const smokeAnim = setInterval(() => {
+                        let activeCount = 0;
+                        particles.forEach(p => {
+                            if (p.userData.life <= 0) {
+                                if (p.visible) {
+                                    p.visible = false;
+                                    scene.remove(p);
+                                }
+                                return;
+                            }
+                            activeCount++;
+
+                            // 移動 (ゆっくり上昇)
+                            p.position.add(p.userData.velocity);
+                            
+                            // 回転
+                            p.rotation.x += p.userData.rotSpeed;
+                            p.rotation.y += p.userData.rotSpeed;
+                            
+                            // ★ここがポイント：粒がどんどん膨らむ（拡散表現）
+                            p.scale.multiplyScalar(1.05); 
+
+                            // 寿命を減らす
+                            p.userData.life -= 0.03;
+                            p.material.opacity = p.userData.life * 0.5; // 徐々に透明に
+                        });
+
+                        if (activeCount === 0) {
+                            clearInterval(smokeAnim);
+                        }
+                    }, 30);
+                    // ▲▲▲ 煙エフェクト終了 ▲▲▲
+
+
+                    // 3. ネコを消す
+                    cat.visible = false;
+
+                    // 4. コイン出現
+                    if (window.sgCoinMaster) {
+                        const coin = window.sgCoinMaster.clone();
+                        const offset = cat.userData.coinOffset || new THREE.Vector3(1.2, 0, 0);
+                        const coinPos = cat.localToWorld(offset.clone());
+                        coin.position.copy(coinPos);
+                        coin.position.y += 0.25;
+
+                        // ★サイズ指定: 0.5 (50cm) 絶対厳守！
+                        coin.scale.setScalar(1.0); 
+                        const box = new THREE.Box3().setFromObject(coin);
+                        const size = new THREE.Vector3(); box.getSize(size);
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        
+                        // 0.5メートルに設定
+                        if (maxDim > 0) coin.scale.setScalar(0.5 / maxDim);
+
+                        coin.userData.isCoin = true;
+                        coin.userData.collected = false;
+                        scene.add(coin);
+                        if (window.sgGameCoins) window.sgGameCoins.push(coin);
+                    }
                 }
             }
+        }; // ← sgUpdateMovement の閉じカッコ
 
-            // ③ アニメーション実行 (トリガーが入っている間動く)
-            if (nekoEarAnim.active && window.sgBenchCat && window.sgBenchCat.userData.ears) {
-                const ears = window.sgBenchCat.userData.ears;
-                const t = performance.now() - nekoEarAnim.startTime;
-                const p = Math.min(t / nekoEarAnim.duration, 1); // 0.0 〜 1.0
 
-                // 左右に1回プルプル (サイン波)
-                // ★修正: 0.25秒, 周波数60, 振幅0.1
-                ears.rotation.z = Math.sin((t / 1000) * 60) * 0.1;
 
-                // アニメーション終了
-                if (p >= 1) {
-                    ears.rotation.z = 0;
-                    nekoEarAnim.active = false;
-                }
-            }
-        };
+
 
 
 
@@ -1918,83 +1998,3 @@
                 let grassMesh = null;
                 masterGrass.traverse(c => { if (c.isMesh) grassMesh = c; });
                 if (!grassMesh) return;
-
-                // 2. 【形状補正】-90度で起こす
-                grassMesh.geometry.rotateX(-Math.PI / 2);
-
-                // 3. マテリアル準備
-                let mat = grassMesh.material;
-                mat = (Array.isArray(mat) ? mat[0] : mat).clone();
-                mat.transparent = true;
-                mat.alphaTest = 0.5;
-                mat.side = THREE.DoubleSide;
-
-                // 4. InstancedMesh 作成
-                const grassCount = 800;
-                const iMesh = new THREE.InstancedMesh(grassMesh.geometry, mat, grassCount);
-                iMesh.name = 'InstancedGrassField';
-                iMesh.castShadow = false;
-                iMesh.receiveShadow = true;
-                iMesh.userData.ignoreGround = true;
-
-                const dummy = new THREE.Object3D();
-                let placed = 0;
-                let attempts = 0;
-
-                // 5. 配置ループ
-                while (placed < grassCount && attempts < 5000) {
-                    attempts++;
-                    const x = (Math.random() - 0.5) * 62;
-                    const z = (Math.random() - 0.5) * 62;
-                    if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
-
-                    dummy.position.set(x, 0, z);
-                    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-                    const s = 3.5 + Math.random() * 2.0;
-                    dummy.scale.set(s, s, s);
-                    dummy.updateMatrix();
-
-                    iMesh.setMatrixAt(placed, dummy.matrix);
-                    placed++;
-                }
-
-                iMesh.instanceMatrix.needsUpdate = true;
-                scene.add(iMesh);
-                window.sgGrassInstancedMesh = iMesh;
-
-                console.log(`✅ ${placed} grass patches (InstancedMesh Fix Mode).`);
-                if (typeof GameConfig !== 'undefined') window.setGrassSeason(GameConfig.currentSeason);
-            }, undefined, console.error);
-        }
-
-        // ★ GLOBAL SEASON MANAGER (Comms Tower)
-        window.setGameSeason = (seasonName) => {
-            console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
-
-            // 1. Grass
-            if (window.setGrassSeason) window.setGrassSeason(seasonName);
-
-            // 2. Trees
-            if (window.setTreeSeason) window.setTreeSeason(seasonName);
-
-            // 3. Environment (Sky, Fog, Sun)
-            if (window.setEnvironmentSeason) window.setEnvironmentSeason(seasonName);
-
-            // 4. Clouds ★追加
-            if (window.setCloudSeason) window.setCloudSeason(seasonName);
-
-            // 5. Parasols ★追加
-            if (window.setParasolSeason) window.setParasolSeason(seasonName);
-        };
-
-        // ★ Parasol Season Manager
-        window.sgParasolCanopies = [];
-        window.setParasolSeason = (seasonName) => {
-            const seasonColors = {
-                spring: 0xFFC0CB, // Pink
-                summer: 0x00BFFF, // Blue
-                autumn: 0xD2691E, // Orange/Brown
-                winter: 0xE0FFFF  // White/Cyan
-            };
-            const color = seasonColors[seasonName] || seasonColors.summer;
-

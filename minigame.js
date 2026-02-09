@@ -2337,7 +2337,7 @@ const SearchGame = (() => {
         if (!pickupBtn || typeof playerPosition === 'undefined') return;
 
         let nearCoinFound = false;
-        const CHECK_DIST_SQ = 2.5 * 2.5; // 2乗距離で比較 (ルート計算回避)
+        const CHECK_DIST_SQ = 3.0 * 3.0; // 2乗距離で比較 (ルート計算回避)
 
         // ★最適化: scene.traverse を廃止し、管理配列のみをループさせる
 
@@ -2884,9 +2884,9 @@ const SearchGame = (() => {
                     const dx = playerPosition.x - hitPos.x;
                     const dz = playerPosition.z - hitPos.z;
                     const distSq = dx * dx + dz * dz;
-                    if (distSq > 1.5 * 1.5) continue; // 1.5m圏外なら無視
+                    if (distSq > 3.0 * 3.0) continue; // 1.5m圏外なら無視
                 } else {
-                    if (hit.distance > 3.0) continue;
+                    if (hit.distance > 3.2) continue;
                 }
 
                 // --- ここから下は既存のターゲット特定ロジック ---

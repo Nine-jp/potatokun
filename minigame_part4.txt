@@ -1,3 +1,90 @@
+        if (window.sgMixers && window.sgMixers.length > 0) {
+            window.sgMixers.forEach(mixer => mixer.update(delta));
+        }
+
+        if (renderer && scene && camera) {
+            // Debug Log for Ending Camera
+            if (currentState === GameState.ENDING) {
+                // Throttle log to once per second approx? No, user asked for it. 
+                // But let's simple throttle to avoid console flood 60fps
+                if (Math.random() < 0.01) {
+                    console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
+                }
+            }
+
+            // DEBUG: 座標情報の更新
+            if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                const panel = document.getElementById('debug-pos-panel');
+                if (panel && camera) {
+                    const x = camera.position.x.toFixed(2);
+                    const z = camera.position.z.toFixed(2);
+                    const y = camera.position.y.toFixed(2);
+                    panel.innerText = `POS X:${x} Z:${z} H:${y}`;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    }
+
+
+
+
+
+
+    // ==========================================
+    // 木 (Tree) と ベンチ (Bench) の配置（品質維持・最適化版）
+    // ==========================================
+    function spawnTrees() {
+        console.log("--- spawnTrees CALLED (Time Slicing Mode) ---");
+
+        // ★ 葉っぱ専用カラーパレット
+        const TREE_PALETTES = {
+            spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
+            summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+            autumn: [0xFF4500, 0xD2691E, 0xFF8C00, 0xFFD700],
+            winter: [0xE6E6FA, 0xF8F8FF, 0xD8BFD8]
+        };
+        window.sgTreeObjects = [];
+        window.sgTreeCollisions = [];
+
+        // ★ 季節切り替え関数
+        window.setTreeSeason = (seasonName) => {
+            // (この中身は変更なし)
+            console.log(`Setting Tree Season to: ${seasonName}`);
+            const palette = TREE_PALETTES[seasonName] || TREE_PALETTES.summer;
+            window.sgTreeObjects.forEach((tree, index) => {
+                const colorHex = palette[index % palette.length];
+                const leafColorObj = new THREE.Color(colorHex);
+                const trunkColorObj = new THREE.Color(0xFFFFFF);
+                tree.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        const name = child.name.toLowerCase();
+                        const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
+                        if (child.material.color) {
+                            child.material.color.copy(isLeaves ? leafColorObj : trunkColorObj);
+                        }
+                    }
+                });
+            });
+        };
+
+        // 並木設定
+        const AVENUE_OFFSET = 4.0;
+        const AVENUE_START = 10.0;
+        const AVENUE_END = 30.0;
+        const AVENUE_STEP = 4.0;
+
+        // ===================================
+        // 1. ベンチの配置 (Benches) - 変更なし
+        // ===================================
+        const benchLoader = new FBXLoader();
+        benchLoader.load('models/bench.fbx', (masterBench) => {
+            masterBench.scale.setScalar(1.0);
+            if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(masterBench);
+            masterBench.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+
+            const addBench = (x, z, rotY) => {
                 if (Math.abs(x - 4) < 0.1 && Math.abs(z - 16) < 0.1) return;
                 const bench = masterBench.clone();
                 bench.position.set(x, 0, z);
@@ -802,3 +889,263 @@ if (typeof window.setGameSeason === 'function' && typeof GameConfig !== 'undefin
 if (typeof initGameSystem === 'function') {
     initGameSystem();
 }
+
+// ▼▼▼ ベンチ猫の「恩返し」イベント（デバッグ表示＆安全装置付き・再送） ▼▼▼
+(function() {
+    const TRIGGER_DIST = 3.0; // 判定距離
+    let isCatGone = false;
+    let debugLabel = null;
+
+    // デバッグ用ラベル（黄色い文字）
+    function updateDebug(dist) {
+        if (!debugLabel) {
+            debugLabel = document.createElement('div');
+            debugLabel.style.cssText = 'position:fixed; top:100px; left:10px; color:yellow; font-weight:bold; z-index:9999; font-family:monospace; background:rgba(0,0,0,0.5); padding:5px; pointer-events:none;';
+            document.body.appendChild(debugLabel);
+        }
+        if (isCatGone) {
+            debugLabel.style.color = '#00FF00';
+            debugLabel.textContent = "🐱 Cat Event: TRIGGERED!";
+        } else {
+            debugLabel.textContent = `🐱 Cat Dist: ${dist.toFixed(2)}m`;
+        }
+    }
+
+    setInterval(() => {
+        // ネコがいなければ中断
+        if (!window.sgBenchCat) return;
+        if (isCatGone) return;
+        
+        // プレイヤー位置取得
+        let pPos = null;
+        if (window.camera) pPos = window.camera.position;
+        else if (typeof playerPosition !== 'undefined') pPos = playerPosition;
+        if (!pPos) return;
+
+        // 距離チェック
+        const dx = pPos.x - window.sgBenchCat.position.x;
+        const dz = pPos.z - window.sgBenchCat.position.z;
+        const distSq = dx * dx + dz * dz;
+        const dist = Math.sqrt(distSq);
+
+        // 画面に距離を表示
+        updateDebug(dist);
+
+        if (dist < TRIGGER_DIST) {
+            // ★ イベント発生！
+            isCatGone = true;
+            updateDebug(dist);
+            const cat = window.sgBenchCat;
+
+            console.log("🐱 Cat Event Triggered!");
+
+            // 1. エフェクト (煙)
+            try {
+                if (typeof window.spawnSnowExplosion === 'function') {
+                    window.spawnSnowExplosion(cat.position);
+                }
+            } catch (e) { console.error("Smoke Effect Error:", e); }
+
+            // 2. ネコを消す
+            cat.visible = false;
+
+            // 3. コイン出現
+            if (window.sgCoinMaster) {
+                const coin = window.sgCoinMaster.clone();
+                
+                // 座標計算
+                const offset = cat.userData.coinOffset || new THREE.Vector3(1.2, 0, 0);
+                const coinPos = cat.localToWorld(offset.clone());
+                
+                coin.position.copy(coinPos);
+                coin.position.y = 0.5; 
+                
+                // サイズ補正
+                coin.scale.setScalar(0.01); 
+                const box = new THREE.Box3().setFromObject(coin);
+                const size = new THREE.Vector3(); box.getSize(size);
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim > 0) coin.scale.setScalar(0.5 / maxDim);
+
+                coin.userData.isCoin = true;
+                coin.userData.collected = false;
+                coin.visible = true;
+
+                if (window.parkGroup) window.parkGroup.add(coin);
+                else window.scene.add(coin);
+
+                if (window.sgGameCoins) window.sgGameCoins.push(coin);
+
+                // アニメーション
+                let velY = 0.3;
+                const gravity = 0.02;
+                const dropAnim = setInterval(() => {
+                    if (!coin.parent || coin.userData.collected) {
+                         clearInterval(dropAnim); 
+                         return;
+                    }
+                    coin.position.y += velY;
+                    velY -= gravity;
+                    coin.rotation.y += 0.5;
+
+                    if (coin.position.y <= 0.5) { 
+                        coin.position.y = 0.5;
+                        clearInterval(dropAnim);
+                    }
+                }, 16);
+
+                if (window.AudioManager) window.AudioManager.play('wheeee');
+                
+                // 吹き出し
+                const pop = document.createElement('div');
+                pop.textContent = "🐱💭 Here!";
+                pop.style.cssText = "position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); color:white; font-size:30px; font-weight:bold; text-shadow:0 0 5px black; animation: floatUp 1s forwards; pointer-events:none; z-index:10000;";
+                document.body.appendChild(pop);
+                setTimeout(() => pop.remove(), 1000);
+
+            } else {
+                console.error("⚠️ sgCoinMaster not found!");
+            }
+        }
+    }, 200);
+})();
+
+
+
+// ▼▼▼ キッチンカーイベント（v7 FIX：完全自律・本番対応版） ▼▼▼
+(function() {
+    // 1. 設定
+    const TARGET_X = -9.0;   // 判定エリアの中心
+    const TARGET_Z = -24.37;
+    const RADIUS = 0.8;
+    const REQUIRED_TIME = 3000;
+
+    // コインの軌道設定
+    const START_POS = { x: -7.8, y: 1.2, z: -24.28 }; // カウンターの中
+    const END_POS = { x: -8.5, y: 0.5, z: -24.28 };   // プレイヤーの目の前
+
+    let stayTimer = 0;
+    let isEventTriggered = false;
+    let hintLabel = null;
+    let generatedCoin = null;
+    let playerCamera = null; // カメラ（プレイヤー）を特定して保持する変数
+
+    // 2. 吹き出しUI
+    function updateHintLabel(text, show) {
+        if (!hintLabel) {
+            hintLabel = document.createElement('div');
+            hintLabel.style.cssText = `
+                position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%);
+                color: #FFFFFF; font-family: sans-serif; font-size: 32px; font-weight: 900;
+                text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                pointer-events: none; z-index: 2147483647; display: none; white-space: nowrap;
+                background: rgba(0, 0, 0, 0.5); padding: 10px 20px; border-radius: 10px; border: 2px solid white;
+            `;
+            document.body.appendChild(hintLabel);
+        }
+        hintLabel.textContent = text;
+        hintLabel.style.display = show ? 'block' : 'none';
+    }
+
+    // 3. コインを飛ばすアニメーション関数
+    function spawnFlyingCoin() {
+        if (!window.sgCoinMaster || !window.parkGroup) return;
+
+        const coin = window.sgCoinMaster.clone();
+        coin.visible = true;
+        coin.userData.isCoin = true;
+        coin.userData.collected = false;
+        
+        // 初期位置
+        coin.position.set(START_POS.x, START_POS.y, START_POS.z);
+        coin.rotation.set(0, 0, 0); 
+        
+        window.parkGroup.add(coin);
+        if (window.sgGameCoins) window.sgGameCoins.push(coin);
+        generatedCoin = coin;
+
+        let progress = 0;
+        const duration = 45; 
+
+        const animInterval = setInterval(() => {
+            if (!coin.parent || coin.userData.collected) {
+                clearInterval(animInterval);
+                return;
+            }
+
+            progress++;
+            const t = progress / duration; 
+
+            if (t >= 1.0) {
+                coin.position.set(END_POS.x, END_POS.y, END_POS.z);
+                clearInterval(animInterval);
+            } else {
+                const easeOut = 1 - Math.pow(1 - t, 2);
+                coin.position.x = START_POS.x + (END_POS.x - START_POS.x) * easeOut;
+                coin.position.z = START_POS.z + (END_POS.z - START_POS.z) * easeOut;
+                const height = Math.sin(t * Math.PI) * 0.5; 
+                coin.position.y = START_POS.y + (END_POS.y - START_POS.y) * t + height;
+            }
+        }, 16);
+    }
+
+    // 4. プレイヤー位置取得関数（文字ではなくカメラを探す）
+    function getPlayerPosition() {
+        // 1. window.camera があればそれを使う
+        if (window.camera) return window.camera.position;
+
+        // 2. なければシーン内からカメラを探して記憶する（初回のみ検索）
+        if (!playerCamera && window.scene) {
+            window.scene.traverse(obj => {
+                if (obj.isCamera) playerCamera = obj;
+            });
+        }
+        if (playerCamera) return playerCamera.position;
+
+        // 3. どうしても見つからない時の最終手段（デバッグパネルがあれば利用）
+        const panel = document.getElementById('debug-pos-panel');
+        if (panel) {
+            const match = panel.innerText.match(/X:([-0-9.]+) Z:([-0-9.]+)/);
+            if (match) return { x: parseFloat(match[1]), z: parseFloat(match[2]) };
+        }
+
+        return null;
+    }
+
+    // 5. 監視ループ
+    setInterval(() => {
+        if (isEventTriggered) {
+             if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
+                 generatedCoin.parent.remove(generatedCoin);
+                 generatedCoin = null;
+             }
+             return;
+        }
+
+        // ★ここで位置を取得（本番対応）
+        const pos = getPlayerPosition();
+        if (!pos) return;
+
+        const dx = pos.x - TARGET_X;
+        const dz = pos.z - TARGET_Z;
+        const distSq = dx * dx + dz * dz;
+
+        if (distSq < RADIUS * RADIUS) {
+            stayTimer += 100;
+            if (stayTimer < REQUIRED_TIME) {
+                const remaining = Math.ceil((REQUIRED_TIME - stayTimer) / 1000);
+                updateHintLabel(`⌛️ Tick-Tock... ${remaining}`, true);
+            } else {
+                isEventTriggered = true;
+                updateHintLabel("🎁 for U!", true);
+                setTimeout(() => updateHintLabel("", false), 2000);
+
+                spawnFlyingCoin(); 
+                if (window.AudioManager) window.AudioManager.play('wheeee');
+            }
+        } else {
+            stayTimer = 0;
+            updateHintLabel("", false);
+        }
+    }, 100);
+})();
