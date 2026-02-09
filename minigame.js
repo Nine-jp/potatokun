@@ -3264,50 +3264,62 @@ const SearchGame = (() => {
                 playerModel.visible = cameraDistance >= 0.5;
             }
 
-            // ★★★ ネコ耳ピクピク判定 (ここを完全修正) ★★★
-            // 修正点1: 存在しない player.position を playerPosition に変更
-            // 修正点2: 距離判定を camera.position から playerPosition (自分) に変更
-            if (currentState === GameState.PLAYING && window.sgBenchCat && window.sgBenchCat.userData.ears) {
+// ★★★ ネコ耳ピクピク判定 (ここを完全修正：恩返しイベント版) ★★★
+            // 修正版: 3.0m以内に入ったら、煙と共に消えてコインを出す！
+            if (currentState === GameState.PLAYING && window.sgBenchCat) {
                 const cat = window.sgBenchCat;
-
-                // プレイヤーとネコの水平距離を計算
                 const dx = playerPosition.x - cat.position.x;
                 const dz = playerPosition.z - cat.position.z;
                 const distXZ = Math.sqrt(dx * dx + dz * dz);
 
-                // ① トリガー (3.0m以内に入ったらスイッチON)
-                if (distXZ < 3.0 && !nekoTriggered) {
-                    nekoTriggered = true;
-                    nekoEarAnim.active = true;
-                    nekoEarAnim.startTime = performance.now();
+                // ① トリガー (3.0m以内、かつ まだ消えていない時)
+                if (distXZ < 3.0 && !nekoTriggered && cat.visible) {
+                    nekoTriggered = true; // 重複防止フラグ
+                    
+                    console.log("🐱 Cat Event: Triggered internal!");
 
-                    // ★修正: 3D再生(play3D)を廃止し、通常の2D再生(play)に変更
-                    window.AudioManager.play('cat', 1.0);
-                }
+                    // 1. エフェクト (煙)
+                    if (typeof window.spawnSnowExplosion === 'function') {
+                        window.spawnSnowExplosion(cat.position);
+                    }
 
-                // ② リセット (3.5m以上離れたらスイッチOFF)
-                if (distXZ > 3.5) {
-                    nekoTriggered = false;
+                    // 2. ネコを消す
+                    cat.visible = false;
+
+                    // 3. コイン出現
+                    if (window.sgCoinMaster) {
+                        const coin = window.sgCoinMaster.clone();
+                        
+                        // 座標: ネコの隣 (反転済み設定: 1.2, 0, 0)
+                        const offset = cat.userData.coinOffset || new THREE.Vector3(1.2, 0, 0);
+                        const coinPos = cat.localToWorld(offset.clone());
+                        
+                        coin.position.copy(coinPos);
+                        coin.position.y += 0.25; // 少し浮かせる
+                        
+                        // サイズ補正 (安全策)
+                        coin.scale.setScalar(1.0);
+                        const box = new THREE.Box3().setFromObject(coin);
+                        const size = new THREE.Vector3(); box.getSize(size);
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        if (maxDim > 0) coin.scale.setScalar(0.5 / maxDim);
+
+                        coin.userData.isCoin = true;
+                        coin.userData.collected = false;
+                        
+                        // シーンに追加
+                        scene.add(coin);
+                        
+                        // ゲーム管理配列に追加
+                        if (window.sgGameCoins) window.sgGameCoins.push(coin);
+
+                        // 音を鳴らす
+                        if (window.AudioManager) window.AudioManager.play('wheeee');
+                    }
                 }
             }
+        }; // ← sgUpdateMovement の閉じカッコ
 
-            // ③ アニメーション実行 (トリガーが入っている間動く)
-            if (nekoEarAnim.active && window.sgBenchCat && window.sgBenchCat.userData.ears) {
-                const ears = window.sgBenchCat.userData.ears;
-                const t = performance.now() - nekoEarAnim.startTime;
-                const p = Math.min(t / nekoEarAnim.duration, 1); // 0.0 〜 1.0
-
-                // 左右に1回プルプル (サイン波)
-                // ★修正: 0.25秒, 周波数60, 振幅0.1
-                ears.rotation.z = Math.sin((t / 1000) * 60) * 0.1;
-
-                // アニメーション終了
-                if (p >= 1) {
-                    ears.rotation.z = 0;
-                    nekoEarAnim.active = false;
-                }
-            }
-        };
 
 
 
@@ -4789,6 +4801,13 @@ const SearchGame = (() => {
                         const box = new THREE.Box3().setFromObject(cat);
                         const heightOfBench = 0.28; // ナイン氏調整済みの座面高
                         cat.position.y += (heightOfBench - box.min.y);
+
+                    // ★追加: ネコをベンチの「左」にずらす
+                    cat.translateX(-0.6); 
+
+                    // ★追加: 「右」のスペース（コイン出現位置）を計算して記憶
+                    // ネコから見て左へ1.2m（＝ベンチの反対側）の位置
+                    cat.userData.coinOffset = new THREE.Vector3(1.2, 0, 0);
 
                         cat.traverse(child => {
                             if (child.name === 'Ears') cat.userData.ears = child;
@@ -6798,11 +6817,131 @@ if (typeof window.setGameSeason === 'function' && typeof GameConfig !== 'undefin
     window.setGameSeason(GameConfig.currentSeason);
 }
 
-
 // ゲームシステムの起動
 if (typeof initGameSystem === 'function') {
     initGameSystem();
 }
+
+// ▼▼▼ ベンチ猫の「恩返し」イベント（デバッグ表示＆安全装置付き・再送） ▼▼▼
+(function() {
+    const TRIGGER_DIST = 3.0; // 判定距離
+    let isCatGone = false;
+    let debugLabel = null;
+
+    // デバッグ用ラベル（黄色い文字）
+    function updateDebug(dist) {
+        if (!debugLabel) {
+            debugLabel = document.createElement('div');
+            debugLabel.style.cssText = 'position:fixed; top:100px; left:10px; color:yellow; font-weight:bold; z-index:9999; font-family:monospace; background:rgba(0,0,0,0.5); padding:5px; pointer-events:none;';
+            document.body.appendChild(debugLabel);
+        }
+        if (isCatGone) {
+            debugLabel.style.color = '#00FF00';
+            debugLabel.textContent = "🐱 Cat Event: TRIGGERED!";
+        } else {
+            debugLabel.textContent = `🐱 Cat Dist: ${dist.toFixed(2)}m`;
+        }
+    }
+
+    setInterval(() => {
+        // ネコがいなければ中断
+        if (!window.sgBenchCat) return;
+        if (isCatGone) return;
+        
+        // プレイヤー位置取得
+        let pPos = null;
+        if (window.camera) pPos = window.camera.position;
+        else if (typeof playerPosition !== 'undefined') pPos = playerPosition;
+        if (!pPos) return;
+
+        // 距離チェック
+        const dx = pPos.x - window.sgBenchCat.position.x;
+        const dz = pPos.z - window.sgBenchCat.position.z;
+        const distSq = dx * dx + dz * dz;
+        const dist = Math.sqrt(distSq);
+
+        // 画面に距離を表示
+        updateDebug(dist);
+
+        if (dist < TRIGGER_DIST) {
+            // ★ イベント発生！
+            isCatGone = true;
+            updateDebug(dist);
+            const cat = window.sgBenchCat;
+
+            console.log("🐱 Cat Event Triggered!");
+
+            // 1. エフェクト (煙)
+            try {
+                if (typeof window.spawnSnowExplosion === 'function') {
+                    window.spawnSnowExplosion(cat.position);
+                }
+            } catch (e) { console.error("Smoke Effect Error:", e); }
+
+            // 2. ネコを消す
+            cat.visible = false;
+
+            // 3. コイン出現
+            if (window.sgCoinMaster) {
+                const coin = window.sgCoinMaster.clone();
+                
+                // 座標計算
+                const offset = cat.userData.coinOffset || new THREE.Vector3(1.2, 0, 0);
+                const coinPos = cat.localToWorld(offset.clone());
+                
+                coin.position.copy(coinPos);
+                coin.position.y = 0.5; 
+                
+                // サイズ補正
+                coin.scale.setScalar(0.01); 
+                const box = new THREE.Box3().setFromObject(coin);
+                const size = new THREE.Vector3(); box.getSize(size);
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim > 0) coin.scale.setScalar(0.5 / maxDim);
+
+                coin.userData.isCoin = true;
+                coin.userData.collected = false;
+                coin.visible = true;
+
+                if (window.parkGroup) window.parkGroup.add(coin);
+                else window.scene.add(coin);
+
+                if (window.sgGameCoins) window.sgGameCoins.push(coin);
+
+                // アニメーション
+                let velY = 0.3;
+                const gravity = 0.02;
+                const dropAnim = setInterval(() => {
+                    if (!coin.parent || coin.userData.collected) {
+                         clearInterval(dropAnim); 
+                         return;
+                    }
+                    coin.position.y += velY;
+                    velY -= gravity;
+                    coin.rotation.y += 0.5;
+
+                    if (coin.position.y <= 0.5) { 
+                        coin.position.y = 0.5;
+                        clearInterval(dropAnim);
+                    }
+                }, 16);
+
+                if (window.AudioManager) window.AudioManager.play('wheeee');
+                
+                // 吹き出し
+                const pop = document.createElement('div');
+                pop.textContent = "🐱💭 Here!";
+                pop.style.cssText = "position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); color:white; font-size:30px; font-weight:bold; text-shadow:0 0 5px black; animation: floatUp 1s forwards; pointer-events:none; z-index:10000;";
+                document.body.appendChild(pop);
+                setTimeout(() => pop.remove(), 1000);
+
+            } else {
+                console.error("⚠️ sgCoinMaster not found!");
+            }
+        }
+    }, 200);
+})();
+
 
 
 // ▼▼▼ キッチンカーイベント（v7 FIX：完全自律・本番対応版） ▼▼▼
