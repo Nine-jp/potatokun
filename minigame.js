@@ -6798,7 +6798,149 @@ if (typeof window.setGameSeason === 'function' && typeof GameConfig !== 'undefin
     window.setGameSeason(GameConfig.currentSeason);
 }
 
+
+// ★キッチンカー判定エリア可視化（テスト用）
+setTimeout(() => {
+    if (typeof scene !== 'undefined') {
+        // 指定座標: x:-9.8, z:-24.27
+        const geometry = new THREE.RingGeometry(0.9, 1.0, 32);
+        const material = new THREE.MeshBasicMaterial({ color: 0xFF0000, side: THREE.DoubleSide });
+        const ring = new THREE.Mesh(geometry, material);
+        
+        // 地面より少し浮かせる
+        ring.position.set(-9.8, 0.1, -24.27); 
+        ring.rotation.x = -Math.PI / 2; // 水平にする
+        
+        scene.add(ring);
+        console.log("🔴 Debug: KitchenCar Ring Created at x:-9.8 z:-24.27");
+    }
+}, 3000); // ロード待ちで3秒後に表示
+
+
 // ゲームシステムの起動
 if (typeof initGameSystem === 'function') {
     initGameSystem();
 }
+
+
+// ▼▼▼ キッチンカーイベント（デバッグ文字読み取り式・修正版v2） ▼▼▼
+(function() {
+    // 1. 設定
+    const TARGET_X = -10.53; // スクショの座標 X
+    const TARGET_Z = -24.37; // スクショの座標 Z
+    const RADIUS = 1.0;      // 半径1m
+    const REQUIRED_TIME = 3000; // 3秒
+
+    let stayTimer = 0;
+    let isEventTriggered = false;
+    let hintLabel = null;
+    let generatedCoin = null; // 生成したコインを管理
+
+    // 2. 吹き出しUI作成（最強設定）
+    function updateHintLabel(text, show) {
+        if (!hintLabel) {
+            hintLabel = document.createElement('div');
+            // スタイルを直接ガチガチに指定
+            hintLabel.style.cssText = `
+                position: fixed;
+                left: 50%;
+                top: 30%;
+                transform: translate(-50%, -50%);
+                color: #FFFFFF;
+                font-family: sans-serif;
+                font-size: 32px;
+                font-weight: 900;
+                text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+                pointer-events: none;
+                z-index: 2147483647; /* z-indexの最大値 */
+                display: none;
+                white-space: nowrap;
+                background: rgba(0, 0, 0, 0.5);
+                padding: 10px 20px;
+                border-radius: 10px;
+                border: 2px solid white;
+            `;
+            document.body.appendChild(hintLabel);
+        }
+        hintLabel.textContent = text;
+        hintLabel.style.display = show ? 'block' : 'none';
+    }
+
+    // 3. 監視ループ
+    setInterval(() => {
+        // すでにイベント済みなら、コインの状態を監視して終了
+        if (isEventTriggered) {
+             if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
+                 // コインが「取得済み」フラグが立っているのにまだ親がいる（消えてない）場合
+                 console.log("🧹 Cleanup: Removing collected KitchenCar coin.");
+                 generatedCoin.parent.remove(generatedCoin);
+                 generatedCoin = null; // 参照を切る
+             }
+             return;
+        }
+
+        // デバッグパネルから座標を盗み見る
+        const panel = document.getElementById('debug-pos-panel');
+        // もしデバッグパネルが非表示でも動くように、プレイヤー座標があればそれを使う（バックアップ）
+        let currentX, currentZ;
+        
+        if (panel) {
+            const text = panel.innerText;
+            const match = text.match(/X:([-0-9.]+) Z:([-0-9.]+)/);
+            if (match) {
+                currentX = parseFloat(match[1]);
+                currentZ = parseFloat(match[2]);
+            }
+        } else if (typeof playerPosition !== 'undefined') {
+            currentX = playerPosition.x;
+            currentZ = playerPosition.z;
+        }
+
+        if (currentX === undefined) return;
+
+        // 距離チェック
+        const dx = currentX - TARGET_X;
+        const dz = currentZ - TARGET_Z;
+        const distSq = dx * dx + dz * dz;
+
+        if (distSq < RADIUS * RADIUS) {
+            // エリア内
+            stayTimer += 100;
+            if (stayTimer < REQUIRED_TIME) {
+                // 秒数を計算
+                const remaining = Math.ceil((REQUIRED_TIME - stayTimer) / 1000);
+                updateHintLabel(`⌛️ 注文中... ${remaining}`, true);
+            } else {
+                // ★イベント発生！
+                isEventTriggered = true;
+                updateHintLabel("🎁 おまたせ！", true);
+                setTimeout(() => updateHintLabel("", false), 2000);
+
+                // コイン生成
+                if (window.sgCoinMaster && window.parkGroup) {
+                    const coin = window.sgCoinMaster.clone();
+                    coin.position.set(-9.09, 0.5, -24.28); // 出現座標
+                    coin.visible = true;
+                    
+                    // 重要なフラグ設定
+                    coin.userData.isCoin = true;
+                    coin.userData.collected = false;
+                    
+                    // シーンに追加
+                    window.parkGroup.add(coin);
+                    if (window.sgGameCoins) window.sgGameCoins.push(coin);
+                    
+                    // 生成したコインを記憶しておく
+                    generatedCoin = coin;
+                    
+                    console.log("🎁 KitchenCar Event: Coin Spawned & Tracked!");
+                    if (window.AudioManager) window.AudioManager.play('wheeee');
+                }
+            }
+        } else {
+            // エリア外
+            stayTimer = 0;
+            updateHintLabel("", false);
+        }
+    }, 100);
+})();
