@@ -3266,17 +3266,28 @@ const SearchGame = (() => {
 
 
 
-// ★★★ ネコ耳ピクピク判定 (恩返しイベント：ふんわり煙・完全版) ★★★
-            if (currentState === GameState.PLAYING && window.sgBenchCat) {
+                // ★★★ ネコ耳ピクピク判定 (恩返しイベント：設定確定版) ★★★
+               if (currentState === GameState.PLAYING && window.sgBenchCat) {
                 const cat = window.sgBenchCat;
-                const dx = playerPosition.x - cat.position.x;
-                const dz = playerPosition.z - cat.position.z;
+
+                // ▼▼▼ 判定エリア設定 (Master Settings) ▼▼▼
+                
+                // 1. 判定の中心: ネコの前方 0.5m
+                const triggerOffset = new THREE.Vector3(0, 0, 0.5); 
+                const triggerCenter = triggerOffset.applyMatrix4(cat.matrixWorld);
+
+                // 2. 判定の半径: 1.0m (これが正解です)
+                const TRIGGER_RADIUS = 1.0;
+
+                // 距離計算
+                const dx = playerPosition.x - triggerCenter.x;
+                const dz = playerPosition.z - triggerCenter.z;
                 const distXZ = Math.sqrt(dx * dx + dz * dz);
 
-                // ① トリガー (3.0m以内)
-                if (distXZ < 3.0 && !nekoTriggered && cat.visible) {
+                // ① トリガー判定 (変数 TRIGGER_RADIUS を正しく使用)
+                if (distXZ < TRIGGER_RADIUS && !nekoTriggered && cat.visible) {
                     nekoTriggered = true;
-                    console.log("🐱 Cat Event: Triggered (Fluffy Smoke)!");
+                    console.log("🐱 Cat Event: Triggered (Master Settings)!");
 
                     // 1. ニャーと鳴く
                     if (window.AudioManager) window.AudioManager.play('cat', 1.0);
@@ -6534,9 +6545,7 @@ const SearchGame = (() => {
         }, undefined, (err) => console.error(err));
     }
 
-    // ==========================================
-    // 🌊 POND SYSTEM: Single FBX Model Approach
-    // ==========================================
+
     // ==========================================
     // 🌊 POND SYSTEM: Single FBX Model Approach (+ Stone Wall)
     // ==========================================
