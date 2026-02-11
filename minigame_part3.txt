@@ -531,7 +531,7 @@
                     scale: 3.0,
                     rot: { y: 0 },
                     collision: false,
-
+                    exclusionRadius: 8.0,
                     onLoad: (obj) => {
                         obj.traverse(c => {
                             // メッシュかつ名前に'water'が含まれる場合（大文字小文字無視）
@@ -551,7 +551,7 @@
                         });
                     }
                 },
-                { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: 23 }, rot: { y: 270 }, scale: 3.0, collision: false }, // Old z: -23
+                { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: 23 }, rot: { y: 270 }, scale: 3.0, collision: false, exclusionRadius: 8.0 }, // Old z: -23
                 {
                     name: 'Seesaw',
                     path: 'models/seesaw.fbx',
@@ -559,7 +559,7 @@
                     rot: { y: 90 },
                     scale: 1.0,
                     collision: false,
-
+                    exclusionRadius: 3.0,
                     onLoad: (obj) => {
                         // --- ハードリセット修正 ---
 
@@ -805,7 +805,7 @@
                         { x: -28, z: -23.9 }
                     ],
                     collision: true,
-
+                    exclusionRadius: 1.0,
                     onLoad: (obj) => {
                         obj.traverse(c => {
                             if (c.isMesh) {
@@ -816,7 +816,7 @@
                     }
                 },
                 {
-                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: 14 }, rot: { y: 90 }, scale: 2.0, // Old z: -14
+                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: 14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, // Old z: -14
                     onLoad: (obj) => {
                         try {
                             obj.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(obj); obj.position.y -= box.min.y;
@@ -1031,7 +1031,7 @@
                     rot: { y: 180 }, // 南向き
                     scale: 1.0,
                     collision: false, // カスタム衝突判定を使用するためfalse
-
+                    exclusionRadius: 3.5,
                     onLoad: (tuktuk) => {
                         console.log("🚙 TukTuk KitchenCar: Ground-level Deployment (South Facing)");
 
