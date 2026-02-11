@@ -7,10 +7,10 @@
     --bg-color: #FFFBE6;
 
     /* UI Element Defaults (Auto-ensured visibility) */
-    --ui-select-bg: rgba(255, 255, 255, 0.1);
-    --ui-select-text: #ffffff;
-    --ui-dropdown-bg: #1e3a5f;
-    --ui-dropdown-text: #ffffff;
+    --ui-select-bg: rgba(255, 255, 255, 0.2);
+    --ui-select-text: #333333;
+    --ui-dropdown-bg: #ffffff;
+    --ui-dropdown-text: #333333;
 }
 
 /* Theme: Christmas */
@@ -53,6 +53,12 @@ body {
     background-color: var(--bg-color);
     margin: 0;
     line-height: 1.6;
+}
+
+body.modal-open {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
 }
 
 .container {
@@ -101,6 +107,14 @@ body {
 
 .header nav a:hover {
     color: var(--secondary-color);
+}
+
+.mini-game-guide {
+    font-size: 1.2rem;
+    color: orange;
+    margin-top: 10px;
+    margin-bottom: 0px;
+    font-weight: 700;
 }
 
 /* Language Selector */
@@ -308,11 +322,11 @@ body {
     outline: none;
     transition: all 0.3s ease;
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgba(0,0,0,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 16px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .model-select-ui:hover {
@@ -413,28 +427,71 @@ body {
     border: 4px solid var(--primary-color);
 }
 
-dl {
+/* Details Grid System */
+.details-grid {
     display: grid;
-    grid-template-columns: 1fr 2fr;
-    gap: 15px;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
     margin-bottom: 30px;
-    font-size: 1.1rem;
 }
 
-dt {
+.detail-item {
+    background: #fdfdfd;
+    border: 2px solid #e0e0e0;
+    border-radius: 16px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.detail-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    border-color: var(--primary-color);
+}
+
+.detail-item-wide {
+    grid-column: span 2;
+}
+
+.detail-label {
+    display: block;
+    font-size: 1.2rem;
+    color: #666;
+    margin-bottom: 8px;
     font-weight: 700;
-    color: var(--secondary-color);
-    text-align: right;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 3px;
+    width: 100%;
 }
 
-dd {
-    margin: 0;
+.detail-value {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--theme-accent);
 }
 
 .price {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
     font-weight: 900;
-    color: var(--secondary-color);
+    color: #ff4500;
+    /* Pop red for price */
+    text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.1);
+}
+
+/* Theme specific adjustments for details items */
+.theme-newyear .detail-item {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: #e0d0a0;
+}
+
+.theme-newyear .price {
+    color: #B22222;
 }
 
 .license-info {
@@ -541,15 +598,14 @@ dd {
         max-width: 320px;
     }
 
-    dl {
+    .details-grid {
         grid-template-columns: 1fr;
-        text-align: center;
     }
 
-    dt {
-        text-align: center;
-        margin-bottom: -10px;
+    .detail-item-wide {
+        grid-column: span 1;
     }
+
 }
 
 @media (max-width: 480px) {
@@ -704,57 +760,55 @@ dd {
 }
 
 /* New Year Petals/Gold */
-.theme-newyear .effect-item::before {
-    content: '🌸';
-    /* Plum petal */
-    color: #ffb7c5;
+/* New Year Effects - 2 Pattern Cycle (Simple) */
+.theme-newyear .effect-item:nth-child(odd)::before {
+    content: '🎍';
+    color: #228B22;
+    /* Forest Green for Bamboo */
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
 }
 
 .theme-newyear .effect-item:nth-child(even)::before {
-    content: '✨';
-    /* Gold spark */
-    color: #D4AF37;
+    content: '🐎';
+    font-size: 1.1em;
+    /* Slightly larger for horse detail */
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
 }
 
-/* Distribute effect items across the screen */
+/* Distribute effect items across the screen (5 items) */
 .effect-item:nth-child(1) {
-    left: 5%;
+    left: 10%;
     animation-duration: 10s;
     animation-delay: 0s;
 }
 
 .effect-item:nth-child(2) {
-    left: 15%;
+    left: 30%;
     animation-duration: 12s;
     animation-delay: 2s;
     font-size: 1.2em;
 }
 
 .effect-item:nth-child(3) {
-    left: 25%;
+    left: 50%;
     animation-duration: 8s;
     animation-delay: 4s;
     font-size: 1.8em;
 }
 
 .effect-item:nth-child(4) {
-    left: 35%;
+    left: 70%;
     animation-duration: 14s;
     animation-delay: 1s;
 }
 
 .effect-item:nth-child(5) {
-    left: 45%;
+    left: 90%;
     animation-duration: 11s;
     animation-delay: 3s;
     font-size: 1.4em;
 }
 
-.effect-item:nth-child(6) {
-    left: 55%;
-    animation-duration: 9s;
-    animation-delay: 5s;
-}
 
 .effect-item:nth-child(7) {
     left: 65%;
@@ -780,4 +834,1632 @@ dd {
     left: 95%;
     animation-duration: 11s;
     animation-delay: 4.5s;
+
+}
+
+/* Mini Game Portal Styles */
+#fab-play-game {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    font-size: 30px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    z-index: 9000;
+    transition: transform 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+#fab-play-game:hover {
+    transform: scale(1.1);
+    background: var(--secondary-color);
+}
+
+#minigame-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(20, 20, 20, 0.95);
+    z-index: 10000;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-family: "M PLUS Rounded 1c", sans-serif;
+}
+
+#minigame-container.hidden {
+    display: none;
+}
+
+#portal-close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 2.5rem;
+    cursor: pointer;
+    z-index: 10001;
+}
+
+/* 1. Game Menu */
+#game-menu {
+    width: 100%;
+    max-width: 800px;
+    padding: 20px;
+    text-align: center;
+    pointer-events: auto;
+    /* Mobile scrolling support */
+    max-height: 80vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+#game-menu.hidden {
+    display: none;
+}
+
+.portal-title {
+    font-size: 2rem;
+    margin-bottom: 30px;
+    color: var(--primary-color);
+}
+
+#game-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.game-card {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 20px;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.2);
+    border-color: var(--primary-color);
+}
+
+.game-card.disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.game-card.disabled:hover {
+    transform: none;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.game-icon {
+    font-size: 4rem;
+    margin-bottom: 10px;
+}
+
+.game-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.coming-soon-badge {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    background: #555;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.beta-badge {
+    margin-top: 5px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    background: linear-gradient(135deg, #ff4d4d, #f9cb28);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 12px;
+    box-shadow: 0 0 10px rgba(255, 77, 77, 0.4);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* 2. Intro Screen */
+#game-intro {
+    text-align: center;
+    max-width: 600px;
+    padding: 30px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+#game-intro.hidden {
+    display: none;
+}
+
+.large-icon {
+    font-size: 6rem;
+    margin-bottom: 20px;
+}
+
+/* Image Icons */
+.game-icon-img {
+    width: 8rem;
+    height: 8rem;
+    object-fit: contain;
+    margin-bottom: 10px;
+}
+
+.large-icon-img-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.large-icon-img {
+    width: 150px;
+    /* Matching player size */
+    height: 150px;
+    object-fit: contain;
+}
+
+#intro-title {
+    font-size: 2rem;
+    margin-bottom: 20px;
+    color: var(--primary-color);
+}
+
+#intro-desc {
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+    line-height: 1.6;
+}
+
+.intro-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+/* 3. Common Buttons */
+.primary-btn,
+.secondary-btn {
+    display: inline-block;
+    text-decoration: none;
+    padding: 12px 30px;
+    font-size: 1.2rem;
+    border-radius: 50px;
+    cursor: pointer;
+    border: none;
+    font-weight: bold;
+    font-family: inherit;
+    transition: transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    /* iOS optimization */
+    touch-action: manipulation;
+    /* Allow scrolling but prioritize taps */
+}
+
+.primary-btn {
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 4px 10px rgba(220, 20, 60, 0.3);
+}
+
+.primary-btn:hover {
+    background: var(--secondary-color);
+    transform: scale(1.05);
+}
+
+.secondary-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.secondary-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* 4. Active Game Container */
+#active-game-container {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    touch-action: none;
+}
+
+#active-game-container.hidden {
+    display: none;
+}
+
+/* Potato Action Specific Styles */
+#pa-ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    pointer-events: none;
+}
+
+#pa-player {
+    position: absolute;
+    bottom: 20px;
+    width: 150px;
+    height: 150px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+#pa-player img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.pa-item {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    font-size: 40px;
+    line-height: 40px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.pa-float-text {
+    position: absolute;
+    color: #FFD700;
+    font-weight: bold;
+    font-size: 1.5rem;
+    animation: floatUp 1s forwards;
+    text-shadow: 0 0 5px black;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.pa-particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: particleBurst 0.6s ease-out forwards;
+    z-index: 9;
+}
+
+@keyframes particleBurst {
+    0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(var(--tx), var(--ty)) scale(0);
+        opacity: 0;
+    }
+}
+
+/* Prize Box */
+#prize-container {
+    background: rgba(220, 20, 60, 0.05);
+    padding: 15px;
+    border-radius: 10px;
+    border: 2px dashed var(--primary-color);
+    margin: 15px 0;
+}
+
+#prize-container.hidden {
+    display: none;
+}
+
+.prize-msg {
+    font-weight: bold;
+    color: var(--primary-color);
+    margin: 0 0 15px 0 !important;
+    animation: flash 1s infinite alternate;
+}
+
+#prize-status {
+    font-size: 0.9rem;
+    color: #888;
+    margin-top: 10px !important;
+    font-style: italic;
+}
+
+@keyframes flash {
+    from {
+        opacity: 0.5;
+    }
+
+    to {
+        opacity: 1;
+        text-shadow: 0 0 10px rgba(220, 20, 60, 0.5);
+    }
+}
+
+/* Barrier Visuals (Stackable) */
+#pa-player.shield-1::after,
+#pa-player.shield-2::after,
+#pa-player.shield-3::after {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    border-radius: 50%;
+    animation: barrierPulse 2s infinite ease-in-out;
+    pointer-events: none;
+    transition: all 0.3s ease;
+}
+
+#pa-player.shield-1::after {
+    border: 3px solid rgba(0, 191, 255, 0.8);
+    box-shadow: 0 0 15px rgba(0, 191, 255, 0.6);
+}
+
+#pa-player.shield-2::after {
+    border: 4px solid rgba(135, 206, 250, 0.9);
+    box-shadow: 0 0 25px rgba(135, 206, 250, 0.8), inset 0 0 10px rgba(135, 206, 250, 0.4);
+}
+
+#pa-player.shield-3::after {
+    border: 5px solid rgba(240, 248, 255, 1);
+    box-shadow: 0 0 35px rgba(255, 255, 255, 0.9), inset 0 0 20px rgba(0, 191, 255, 0.6);
+}
+
+@keyframes barrierPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+
+    50% {
+        transform: scale(1.05);
+        opacity: 0.4;
+    }
+}
+
+/* Friendly Bomb Item */
+.pa-item.bomb {
+    text-shadow: 0 0 15px #fff, 0 0 25px var(--secondary-color);
+    animation: bombGlow 1.5s infinite alternate;
+}
+
+@keyframes bombGlow {
+    from {
+        filter: drop-shadow(0 0 5px #fff);
+    }
+
+    to {
+        filter: drop-shadow(0 0 15px var(--secondary-color));
+    }
+}
+
+/* Sacred Flash */
+#pa-sacred-flash {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.flash-active {
+    animation: sacredFlash 0.5s ease-out;
+}
+
+@keyframes sacredFlash {
+    0% {
+        opacity: 0.8;
+        background: #fff;
+    }
+
+    50% {
+        background: #e0faff;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+/* Heart Particle */
+.pa-heart {
+    position: absolute;
+    pointer-events: none;
+    z-index: 10;
+    animation: particleBurst 0.8s ease-out forwards;
+}
+
+/* 5. Common Game Over */
+#common-game-over {
+    position: relative;
+    text-align: center;
+    background: white;
+    color: #333;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+    z-index: 10002;
+    margin: 20px;
+}
+
+#common-game-over.hidden {
+    display: none;
+}
+
+#common-game-over h2 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.game-over-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* === style.css 末尾に追加 === */
+
+/* --- 共通設定 & アニメーション準備 --- */
+
+/* UIコンテナ全体は画面全体を覆うが、操作を阻害しないように */
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* コンテナ自体はクリックを透過 */
+    /* 子要素の配置基準にするためrelativeなどは設定しない */
+}
+
+/* コンテナ内の各要素はクリック可能に戻す */
+#ui-container>* {
+    pointer-events: auto;
+}
+
+/* コントロールグループの共通スタイル */
+.controls-group {
+    position: absolute;
+    /* フワッと移動するためのトランジション設定 */
+    transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+    /* 滑らかなイージング */
+
+    /* デフォルト（縦持ち）の位置：左上 */
+    top: 120px;
+    /* タイトルの下あたり */
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    /* ボタン間の隙間 */
+}
+
+/* アクションコンテナは縦持ち時は少し下にずらす */
+#controls-right-container {
+    top: 300px;
+    /* D-Padの下あたり */
+}
+
+
+/* --- 横持ち（ランドスケープ）時のレイアウト上書き --- */
+@media (orientation: landscape) {
+
+    /* 左側コンテナ：左下へ移動 */
+    #controls-left-container {
+        top: auto;
+        /* 上の指定を解除 */
+        bottom: 30px;
+        /* 下からの位置 */
+        left: 30px;
+        /* 左からの位置 */
+
+        /* 少し大きくして操作しやすく */
+        transform: scale(1.1);
+        transform-origin: bottom left;
+    }
+
+    /* 右側コンテナ：右下へ移動 */
+    #controls-right-container {
+        top: auto;
+        /* 上の指定を解除 */
+        left: auto;
+        /* 左の指定を解除 */
+        bottom: 30px;
+        /* 下からの位置 */
+        right: 30px;
+        /* 右からの位置 */
+
+        /* ボタンを横並びにする */
+        flex-direction: row-reverse;
+        /* 右端基準で並べる */
+        align-items: flex-end;
+        gap: 20px;
+
+        /* 少し大きくして操作しやすく */
+        transform: scale(1.1);
+        transform-origin: bottom right;
+    }
+
+    /* ボタンのスタイル調整（横持ち時） */
+    #jump-btn,
+    #sg-get-btn,
+    #toggle-view-btn,
+    #dpad-view {
+        /* よりボタンらしく丸くする */
+        border-radius: 50px;
+        padding: 15px 25px;
+        font-size: 16px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* チュートリアルは邪魔なので隠す */
+    #tutorial,
+    #sg-instructions {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.5s ease;
+    }
+}
+
+
+/* === UI Base Layout (Fixed Absolute Positioning) === */
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* UIの隙間はクリック透過 */
+    z-index: 1000;
+    font-family: 'Segoe UI', sans-serif;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+/* 各エリア内のボタンはクリック可能に */
+#ui-container>div {
+    pointer-events: auto;
+}
+
+/* --- 1. 左上エリア --- */
+#hud-top-left {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+}
+
+#hud-top-left h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #FFD700;
+}
+
+#score {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+#tutorial-hint {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-top: 5px;
+}
+
+/* --- 2. 左下エリア (移動) --- */
+#controls-bottom-left {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+/* D-Pad Style */
+#dpad {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.dpad-middle {
+    display: flex;
+    gap: 50px;
+    /* 十字キーの真ん中を空ける */
+}
+
+#dpad button {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 10px;
+    color: white;
+    font-size: 20px;
+    backdrop-filter: blur(4px);
+    touch-action: manipulation;
+    /* ダブルタップ拡大防止 */
+    cursor: pointer;
+}
+
+#dpad button:active,
+#dpad button.active {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+#dpad-view {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid white;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+/* --- 3. 右下エリア (アクション) --- */
+#controls-bottom-right {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+}
+
+/* Action Buttons */
+#jump-btn,
+#sg-get-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid white;
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    touch-action: manipulation;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#jump-btn {
+    background: rgba(0, 100, 255, 0.5);
+    /* 青系 */
+    color: white;
+}
+
+#jump-btn:active {
+    background: rgba(0, 100, 255, 0.8);
+    transform: scale(0.95);
+}
+
+#sg-get-btn {
+    background: rgba(255, 215, 0, 0.8);
+    /* 金色 */
+    color: black;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* アニメーション定義 */
+@keyframes popIn {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* --- レスポンシブ調整 --- */
+/* 横持ち（Landscape）の時は、左右の距離を少し広げて持ちやすくする */
+@media (orientation: landscape) {
+    #controls-bottom-left {
+        left: 50px;
+        bottom: 20px;
+    }
+
+    #controls-bottom-right {
+        right: 50px;
+        bottom: 20px;
+    }
+}
+
+
+/* === ファミコン風 十字キーデザイン === */
+#controls-bottom-left {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    /* 十字キーだけなのでシンプルに配置 */
+}
+
+#dpad-cross {
+    display: grid;
+    grid-template-columns: 50px 50px 50px;
+    /* ボタンサイズ */
+    grid-template-rows: 50px 50px 50px;
+    gap: 0;
+    /* 隙間をなくして一体化 */
+
+    /* 全体のフィルタ効果（半透明ガラス風） */
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+}
+
+/* D-Padのボタン共通設定 */
+#dpad-cross button,
+#dpad-center {
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.25);
+    /* 半透明グレー */
+    border: none;
+    color: white;
+    font-size: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+    touch-action: manipulation;
+    cursor: pointer;
+}
+
+/* 中央のパーツ（装飾用） */
+#dpad-center {
+    background: rgba(255, 255, 255, 0.25);
+    /* 矢印などを入れたければここに content 追加 */
+}
+
+/* 角丸の処理：十字型に見えるように外側の角だけ丸くする */
+#dpad-up {
+    border-radius: 10px 10px 0 0;
+}
+
+#dpad-down {
+    border-radius: 0 0 10px 10px;
+}
+
+#dpad-left {
+    border-radius: 10px 0 0 10px;
+}
+
+#dpad-right {
+    border-radius: 0 10px 10px 0;
+}
+
+/* 押した時のリアクション */
+#dpad-cross button:active,
+#dpad-cross button.active {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+
+/* --- 3. 右下エリア (アクション・縦並び) --- */
+#controls-bottom-right {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+
+    display: flex;
+    flex-direction: column;
+    /* ★縦並びに変更 */
+    gap: 15px;
+    /* 上下の隙間 */
+    align-items: center;
+}
+
+/* アクションボタン共通 */
+.action-btn {
+    width: 70px;
+    /* 縦並びなので少し小さめに */
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    color: white;
+    font-size: 32px;
+    /* アイコンを大きく */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.1s;
+    cursor: pointer;
+}
+
+.action-btn:active {
+    transform: scale(0.9);
+}
+
+/* 個別カラー */
+.view-btn {
+    background: rgba(0, 100, 255, 0.6);
+}
+
+.get-btn {
+    background: rgba(255, 50, 50, 0.8);
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* --- 横持ち（Landscape）時の微調整 --- */
+@media (orientation: landscape) {
+
+    /* 横持ち時は少し中央寄りに配置して、親指が届きやすくする */
+    #controls-bottom-left {
+        bottom: 40px;
+        left: 60px;
+    }
+
+    #controls-bottom-right {
+        bottom: 40px;
+        right: 60px;
+        /* 横持ちなら横並びに戻しても良いが、今回は縦並び維持で統一 */
+    }
+}
+
+/* === アクションボタン最適化 (Pickup) === */
+.action-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    background: rgba(0, 0, 0, 0.3);
+    /* 背景は少し暗く */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    /* 文字(🦅)のサイズ */
+    font-size: 32px;
+    padding: 0;
+    overflow: hidden;
+    /* はみ出し防止 */
+    transition: transform 0.1s;
+}
+
+.pickup-btn {
+    background: rgba(255, 50, 50, 0.8);
+    /* 出現アニメーション */
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* ボタン内の画像調整 */
+.pickup-btn img {
+    width: 60%;
+    /* ボタンのicon比率 */
+    height: auto;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+    /* 画像にも影 */
+    pointer-events: none;
+    /* クリック透過 */
+}
+
+
+/* === ボタン色修正（優先度強化） === */
+button.view-btn {
+    background-color: rgba(0, 100, 255, 0.8) !important;
+    /* 強制的に青 */
+    box-shadow: 0 0 15px rgba(0, 100, 255, 0.4);
+    /* 青い発光感 */
+}
+
+button.pickup-btn {
+    background-color: rgba(255, 50, 50, 0.8) !important;
+    /* 強制的に赤 */
+    box-shadow: 0 0 15px rgba(255, 50, 50, 0.4);
+}
+
+/* === PC/iPad 大画面時のサイズ調整 === */
+@media (min-width: 768px) {
+
+    /* ボタン枠自体の拡大 */
+    .action-btn {
+        width: 100px;
+        height: 100px;
+        border-width: 4px;
+    }
+
+    /* 🦅 (絵文字) の巨大化 */
+    button.view-btn {
+        font-size: 60px;
+        line-height: 100px;
+    }
+
+    /* 🧲 (画像) の巨大化 */
+    button.pickup-btn img {
+        width: 80%;
+        height: auto;
+    }
+
+    /* D-Padの文字サイズも大きく */
+    #dpad-cross button {
+        font-size: 40px;
+    }
+}
+
+
+/* === 🦅 サイズ強制適用 (PC/iPad) === */
+@media (min-width: 768px) {
+    button.view-btn {
+        font-size: 60px !important;
+        line-height: 100px;
+        padding: 0;
+    }
+}
+
+
+/* ========================================
+   FULLSCREEN OVERLAY UI SYSTEM
+======================================== */
+
+/* ゲームキャンバスを全画面化 */
+#sg-canvas-container {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: transparent !important;
+}
+
+#sg-canvas-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* UIコンテナをオーバーレイ化 */
+#ui-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* ボタン以外は透過 */
+    z-index: 200;
+}
+
+/* HUD上部左 */
+#hud-top-left {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    pointer-events: auto;
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+#hud-top-left h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+#hud-top-left #score {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+/* D-Pad: 左下固定 */
+#controls-bottom-left {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    pointer-events: auto;
+}
+
+#dpad-cross {
+    display: grid;
+    grid-template-columns: repeat(3, 50px);
+    grid-template-rows: repeat(3, 50px);
+    gap: 2px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+    padding: 5px;
+}
+
+#dpad-cross button {
+    width: 50px;
+    height: 50px;
+    border: none;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 20px;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#dpad-cross button:active {
+    background: rgba(255, 255, 255, 0.9);
+    transform: scale(0.95);
+}
+
+#dpad-center {
+    background: transparent !important;
+}
+
+.dpad-empty {
+    background: transparent;
+}
+
+/* アクションボタン: 右下固定 */
+#controls-bottom-right {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.action-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.8);
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 32px;
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s, background 0.2s;
+}
+
+.action-btn:active {
+    transform: scale(0.9);
+}
+
+/* 色の強制適用 */
+button.view-btn {
+    background-color: rgba(0, 100, 255, 0.8) !important;
+    box-shadow: 0 0 15px rgba(0, 100, 255, 0.4);
+}
+
+button.pickup-btn {
+    background-color: rgba(255, 50, 50, 0.8) !important;
+    box-shadow: 0 0 15px rgba(255, 50, 50, 0.4);
+}
+
+.pickup-btn img {
+    width: 60%;
+    height: auto;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+    pointer-events: none;
+}
+
+/* PC/iPad 大画面時のサイズ調整 */
+@media (min-width: 768px) {
+    .action-btn {
+        width: 100px;
+        height: 100px;
+        border-width: 4px;
+    }
+
+    button.view-btn {
+        font-size: 60px !important;
+        line-height: 100px;
+        padding: 0;
+    }
+
+    button.pickup-btn img {
+        width: 80%;
+    }
+
+    #dpad-cross {
+        grid-template-columns: repeat(3, 60px);
+        grid-template-rows: repeat(3, 60px);
+    }
+
+    #dpad-cross button {
+        width: 60px;
+        height: 60px;
+        font-size: 28px;
+    }
+}
+
+/* popIn アニメーション */
+@keyframes popIn {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    80% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+
+/* === 十字キー (D-Pad) の修復 - ファミコン風 === */
+#dpad-cross {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    width: 160px;
+    height: 160px;
+    z-index: 1000;
+
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 0 !important;
+    /* 隙間をなくして一体化 */
+
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+}
+
+#dpad-cross button {
+    width: 100%;
+    height: 100%;
+    background-color: #333 !important;
+    border: 1px solid #222 !important;
+    color: white;
+    font-size: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    border-radius: 0 !important;
+    margin: 0;
+    padding: 0;
+}
+
+#dpad-cross button:active {
+    background-color: #555 !important;
+}
+
+/* 上ボタン */
+#dpad-up {
+    grid-column: 2;
+    grid-row: 1;
+    border-radius: 10px 10px 0 0 !important;
+}
+
+/* 左ボタン */
+#dpad-left {
+    grid-column: 1;
+    grid-row: 2;
+    border-radius: 10px 0 0 10px !important;
+}
+
+/* 中央の埋め合わせ */
+#dpad-center,
+#dpad-center-fill {
+    grid-column: 2;
+    grid-row: 2;
+    background-color: #333 !important;
+    border: 1px solid #222 !important;
+}
+
+/* 右ボタン */
+#dpad-right {
+    grid-column: 3;
+    grid-row: 2;
+    border-radius: 0 10px 10px 0 !important;
+}
+
+/* 下ボタン */
+#dpad-down {
+    grid-column: 2;
+    grid-row: 3;
+    border-radius: 0 0 10px 10px !important;
+}
+
+/* 空きスペースを非表示 */
+.dpad-empty {
+    display: none !important;
+}
+
+
+/* === 十字キー (D-Pad) 一体型デザイン === */
+#controls-bottom-left {
+    position: absolute !important;
+    bottom: 20px !important;
+    left: 20px !important;
+    pointer-events: auto !important;
+}
+
+#dpad-cross {
+    width: 160px !important;
+    height: 160px !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-rows: repeat(3, 1fr) !important;
+    gap: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+#dpad-cross button,
+#dpad-center {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #444 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: white !important;
+    font-size: 28px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#dpad-cross button:active {
+    background-color: #666 !important;
+}
+
+/* 上ボタン - 上部だけ丸く */
+#dpad-up {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    border-radius: 15px 15px 0 0 !important;
+}
+
+/* 左ボタン - 左部だけ丸く */
+#dpad-left {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    border-radius: 15px 0 0 15px !important;
+}
+
+/* 中央 - 同じ色で埋める */
+#dpad-center {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    background-color: #444 !important;
+    cursor: default;
+}
+
+/* 右ボタン - 右部だけ丸く */
+#dpad-right {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    border-radius: 0 15px 15px 0 !important;
+}
+
+/* 下ボタン - 下部だけ丸く */
+#dpad-down {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    border-radius: 0 0 15px 15px !important;
+}
+
+/* 空きスペースを完全非表示 */
+.dpad-empty {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+
+/* === 十字キー最終修正 - 角丸＆半透明 === */
+#dpad-cross button,
+#dpad-cross #dpad-center {
+    background-color: rgba(128, 128, 128, 0.6) !important;
+    /* 薄いグレー + 半透明 */
+}
+
+#dpad-cross button:active {
+    background-color: rgba(180, 180, 180, 0.8) !important;
+}
+
+#dpad-up {
+    border-top-left-radius: 15px !important;
+    border-top-right-radius: 15px !important;
+}
+
+#dpad-left {
+    border-top-left-radius: 15px !important;
+    border-bottom-left-radius: 15px !important;
+}
+
+#dpad-right {
+    border-top-right-radius: 15px !important;
+    border-bottom-right-radius: 15px !important;
+}
+
+#dpad-down {
+    border-bottom-left-radius: 15px !important;
+    border-bottom-right-radius: 15px !important;
+}
+
+
+/* === 十字キー 8箇所の角丸修正 === */
+/* 上ボタン: 左上と右上を丸める */
+#dpad-up {
+    border-top-left-radius: 20px !important;
+    border-top-right-radius: 20px !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+/* 左ボタン: 左上と左下を丸める */
+#dpad-left {
+    border-top-left-radius: 20px !important;
+    border-bottom-left-radius: 20px !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+/* 右ボタン: 右上と右下を丸める */
+#dpad-right {
+    border-top-right-radius: 20px !important;
+    border-bottom-right-radius: 20px !important;
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+/* 下ボタン: 左下と右下を丸める */
+#dpad-down {
+    border-bottom-left-radius: 20px !important;
+    border-bottom-right-radius: 20px !important;
+    border-top-left-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+}
+
+/* 中央は角丸なし */
+#dpad-center {
+    border-radius: 0 !important;
+}
+
+
+/* === 十字キー デザイン修正 (優先度・色調整) === */
+
+/* ボタンと中央の共通設定 (色: 明るい半透明グレー) */
+#dpad-cross button,
+#dpad-cross #dpad-center {
+    background-color: rgba(255, 255, 255, 0.3) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    box-shadow: none !important;
+}
+
+/* 押した時 */
+#dpad-cross button:active {
+    background-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* 角丸設定 (IDセレクタを連結して優先度を最強にする) */
+/* 上ボタン: 上の角2つ */
+#dpad-cross #dpad-up {
+    border-radius: 15px 15px 0 0 !important;
+}
+
+/* 左ボタン: 左の角2つ */
+#dpad-cross #dpad-left {
+    border-radius: 15px 0 0 15px !important;
+}
+
+/* 右ボタン: 右の角2つ */
+#dpad-cross #dpad-right {
+    border-radius: 0 15px 15px 0 !important;
+}
+
+/* 下ボタン: 下の角2つ */
+#dpad-cross #dpad-down {
+    border-radius: 0 0 15px 15px !important;
+}
+
+/* 中央: 角丸なし */
+#dpad-cross #dpad-center {
+    border-radius: 0 !important;
+}
+
+
+/* === 十字キー 仕切り線を削除 === */
+#dpad-cross button,
+#dpad-cross #dpad-center {
+    border: none !important;
+}
+
+
+/* ========================================
+   UI Animation & Transition Enhancement
+======================================== */
+
+/* === A. ボタン共通アニメーション（押し感） === */
+button:active,
+.action-btn:active,
+#dpad-cross button:active,
+.game-card:active {
+    transform: scale(0.92) !important;
+    transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* アクションボタンの呼吸アニメーション */
+@keyframes breathe {
+
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6);
+    }
+}
+
+.pickup-btn {
+    animation: breathe 2s infinite ease-in-out;
+}
+
+.pickup-btn:active {
+    animation: none;
+}
+
+/* === B. フェードトランジション === */
+#minigame-container,
+#game-menu,
+#game-intro,
+#active-game-container,
+#common-game-over,
+#ui-container {
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    opacity: 1;
+    visibility: visible;
+}
+
+/* 非表示状態（フェードアウト） */
+.fade-hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: scale(1.05);
+}
+
+/* === C. HUD スライドイン演出 === */
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInTop {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* HUD要素にスライドイン適用 */
+#hud-top-left {
+    animation: slideInTop 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+#controls-bottom-left {
+    animation: slideInLeft 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s forwards;
+    opacity: 0;
+}
+
+#controls-bottom-right {
+    animation: slideInRight 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s forwards;
+    opacity: 0;
+}
+
+/* アニメーション後に表示を維持 */
+#controls-bottom-left,
+#controls-bottom-right {
+    animation-fill-mode: forwards;
+}
+
+/* === D-Pad Fix: Prevent separation === */
+/* 十字キーは縮小すると隙間ができるので、縮小を禁止する */
+#dpad-cross button:active {
+    transform: none !important;
+    /* サイズ変更なし */
+    background-color: rgba(255, 255, 255, 0.6) !important;
+    /* 押すと明るく/濃くなる */
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5) !important;
+    /* 内側に影を落として「凹み」を表現 */
+    transition: background-color 0.1s;
 }

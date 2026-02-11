@@ -5,9 +5,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // Smooth scrolling for anchor links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
+        const href = this.getAttribute('href');
+        if (href === '#' || !href.startsWith('#')) return; // Ignore non-internal links
+
+        const target = document.querySelector(href);
         if (target) {
+            e.preventDefault();
             target.scrollIntoView({
                 behavior: 'smooth'
             });
@@ -16,22 +19,35 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 });
 
 // 3D Model Viewer
+let backgroundViewerDestroyed = false; // ★ Global Flag
+
 const init3DViewer = () => {
+    // ★ Blocking Guard
+    if (window.backgroundViewer?.isInitialized) {
+        console.log('init3DViewer blocked: already initialized');
+        return;
+    }
+    if (backgroundViewerDestroyed) {
+        console.warn('init3DViewer blocked: viewer already destroyed');
+        return;
+    }
+
     const container = document.getElementById('canvas-container');
     if (!container) return;
 
     // Scene setup
-    const scene = new THREE.Scene();
+    let scene = new THREE.Scene();
 
     // Camera setup
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 1.5, 4);
-    camera.lookAt(0, 1, 0);
+    let camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(0, 2.3, 4); // Y: 1.5 -> 2.3 (Shift Up to lower model)
+    camera.lookAt(0, 0.8, 0); // Y: 0 -> 0.8
 
     // Renderer setup
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    let renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace; // Crucial for vivid colors
     container.appendChild(renderer.domElement);
 
     // Controls (OrbitControls)
@@ -43,6 +59,8 @@ const init3DViewer = () => {
     controls.maxDistance = 6;
     controls.enablePan = false;
     controls.maxPolarAngle = Math.PI / 1.5;
+    controls.target.set(0, 0.8, 0); // Shift target UP
+    controls.update();
 
     // Theme detection
     const isNewYear = document.body.classList.contains('theme-newyear');
@@ -55,8 +73,13 @@ const init3DViewer = () => {
     scene.add(gridHelper);
 
     // Lighting
+    // Soft global light (Hemisphere) - significantly brightens without glare
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
+
     const ambientColor = isNewYear ? 0xFFFBE6 : 0x404040;
-    const ambientLight = new THREE.AmbientLight(ambientColor, 1.2);
+    const ambientLight = new THREE.AmbientLight(ambientColor, 0.5); // Reduced ambient intensity as Hemi handles base brightness
     scene.add(ambientLight);
 
     const spotColor1 = isNewYear ? 0xFFD700 : 0xff3333;
@@ -83,9 +106,14 @@ const init3DViewer = () => {
     scene.add(spotLight2);
     scene.add(spotLight2.target);
 
-    const fillLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.5); // Reduced intensity to prevent blowout
     fillLight.position.set(0, 5, 10);
     scene.add(fillLight);
+
+    // Front Light (Targeted at model visibility)
+    const frontLight = new THREE.DirectionalLight(0xffffff, 1.0); // Boosted for brightness without emissive
+    frontLight.position.set(0, 2, 5);
+    scene.add(frontLight);
 
     // Animation variables
     let mixer;
@@ -94,11 +122,12 @@ const init3DViewer = () => {
     let rightForeArmBone = null;
     let leftArmBone = null;
     let currentObject = null;
+    let animationId = null; // ★ Restore animationId
 
     // Model Configuration
     const models = [
-        { file: "ポテトくん(通常).fbx" },
-        { file: "ポテトくん(2026年午年).fbx" }
+        { name: "ノーマルポテトくん", file: "potatokun_normal.fbx" },
+        { name: "午年ポテトくん", file: "potatokun_newyear2026.fbx" }
     ];
 
     // Populate dropdown
@@ -107,9 +136,8 @@ const init3DViewer = () => {
         models.forEach((m, index) => {
             const opt = document.createElement('option');
             opt.value = index;
-            const displayName = m.file.split('.')[0];
-            opt.textContent = displayName;
-            if (m.file === (isNewYear ? 'ポテトくん(2026年午年).fbx' : 'ポテトくん(通常).fbx')) opt.selected = true;
+            opt.textContent = m.name;
+            if (m.file === (isNewYear ? 'potatokun_newyear2026.fbx' : 'potatokun_normal.fbx')) opt.selected = true;
             modelSelect.appendChild(opt);
         });
 
@@ -145,6 +173,13 @@ const init3DViewer = () => {
                     if (!rightForeArmBone && (name === 'lower_armr' || name.includes('lower_armr') || name.includes('rightforearm') || name.includes('forearm_r'))) rightForeArmBone = child;
                     if (!leftArmBone && (name === 'upper_arml' || name.includes('upper_arml') || name.includes('leftarm') || name.includes('arm_l'))) leftArmBone = child;
                 }
+
+                // Material fix for dark models
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    // Removed manual emissive boost to preserve vivid texture colors
+                }
             });
 
             if (object.animations && object.animations.length > 0) {
@@ -178,7 +213,7 @@ const init3DViewer = () => {
     };
 
     // Initial load based on theme
-    const defaultModelName = isNewYear ? 'ポテトくん(2026年午年).fbx' : 'ポテトくん(通常).fbx';
+    const defaultModelName = isNewYear ? 'potatokun_newyear2026.fbx' : 'potatokun_normal.fbx';
     loadModel(`models/${encodeURIComponent(defaultModelName)}`);
 
     // Handle window resize
@@ -187,29 +222,117 @@ const init3DViewer = () => {
         const height = container.clientHeight;
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
+        if (renderer) renderer.setSize(width, height);
     });
 
-    // Animation Loop
-    function animate() {
-        requestAnimationFrame(animate);
+    // ★ GLOBAL API (Encapsulated)
+    window.backgroundViewer = {
+        isInitialized: true, // Guard Flag
+        /**
+         * Pause viewer (Hide container).
+         * Used during mini-game to save resources without destroying context.
+         */
+        pause: () => {
+            if (container) container.style.display = 'none';
+            // Stop Loop logic
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        },
+
+        /**
+         * Resume viewer (Show container & Resize).
+         * Used when returning from mini-game.
+         */
+        resume: () => {
+            if (container) {
+                container.style.display = 'block';
+                // Force resize
+                if (renderer) {
+                    const width = container.clientWidth;
+                    const height = container.clientHeight;
+                    camera.aspect = width / height;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(width, height);
+
+                    // Re-center Camera & Controls (with Offset)
+                    if (currentObject) {
+                        const targetPos = currentObject.position.clone().add(new THREE.Vector3(0, 0.8, 0));
+                        camera.lookAt(targetPos);
+                        if (controls) {
+                            controls.target.copy(targetPos);
+                            controls.update();
+                        }
+                    }
+
+                    // Force initial render frame
+                    renderer.render(scene, camera);
+                }
+            }
+
+            // Restart Loop if not running and not destroyed
+            if (!animationId && renderer && !backgroundViewerDestroyed) {
+                animate();
+            }
+        },
+
+        /**
+         * Completely destroy viewer.
+         * [WARNING] Do not use during game transitions. Use only on page unload.
+         * Re-initialization from this state is expensive/complex.
+         */
+        cleanup: () => {
+            backgroundViewerDestroyed = true;
+            this.isInitialized = false; // Reset Guard
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            if (scene) {
+                scene.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(m => m.dispose());
+                        } else {
+                            m.dispose && m.dispose(); // Safe check
+                            if (child.material.map) child.material.map.dispose();
+                        }
+                    }
+                });
+                scene.clear();
+            }
+            if (renderer) {
+                renderer.dispose();
+                renderer.forceContextLoss();
+                const canvas = renderer.domElement;
+                if (canvas && canvas.parentNode) canvas.parentNode.removeChild(canvas);
+                renderer = null;
+            }
+            if (container) container.style.display = 'none';
+            console.log("Background Viewer DESTROYED via backgroundViewer.cleanup()");
+        }
+    };
+
+    // Deprecated global aliases (Removed to prevent misuse)
+    // window.pauseBackgroundViewer = ...
+
+    // Animation Loop (Restored)
+    const animate = () => {
+        if (!renderer) return; // Stop if destroyed
+        animationId = requestAnimationFrame(animate);
+
         controls.update();
+
         const delta = clock.getDelta();
         if (mixer) mixer.update(delta);
-        renderer.render(scene, camera);
-    }
-    animate();
 
-    // Trigger explicit resize after a short delay to handle mobile layout shifts
-    setTimeout(() => {
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-        if (width > 0 && height > 0) {
-            camera.aspect = width / height;
-            camera.updateProjectionMatrix();
-            renderer.setSize(width, height);
-        }
-    }, 500);
+        renderer.render(scene, camera);
+    };
+
+    // Start Loop
+    animate();
 };
 
 // i18n Translation Data
@@ -219,7 +342,7 @@ const translations = {
         "description": "Clusterで使えるオリジナルアバター「ポテトくん」の無料配布ページです。",
         "nav-details": "配布データ",
         "hero-title": "ポテトの妖精<br>「ポテトくん」",
-        "hero-desc": "Clusterで使えるオリジナルVRMアバターを無料配布中！<br>🐴 今だけ来年の干支「午」の着ぐるみを着たポテトくんを配布中！",
+        "hero-desc": "Clusterで使えるオリジナルVRMアバターを無料配布中！<br>🐴 今年の干支「午」の着ぐるみを着たポテトくんを配布中！",
         "hero-btn": "今すぐダウンロード",
         "details-title": "🎁 配布データについて",
         "details-format": "形式",
@@ -231,14 +354,15 @@ const translations = {
         "license-item1": "個人利用OK",
         "license-item3": "再配布NG",
         "license-item4": "公序良俗に反する利用NG",
-        "download-btn": "VRMをダウンロード"
+        "download-btn": "VRMをダウンロード",
+        "mini-game-guide": "右下の🎮️ボタンからミニゲームで遊べるよ！"
     },
     en: {
         "title": "PotatoKun VRM Free Distribution!",
         "description": "Free distribution page for 'PotatoKun', an original avatar for Cluster!",
         "nav-details": "Distribution Data",
         "hero-title": "Potato Fairy<br>'PotatoKun'",
-        "hero-desc": "Original VRM avatar for Cluster now free!",
+        "hero-desc": "Original VRM avatar for Cluster now free!<br>🐴 Distributing Potato-kun in a Horse costume for this year's zodiac!",
         "hero-btn": "Download Now",
         "details-title": "🎁 Distribution Data",
         "details-format": "Format",
@@ -250,14 +374,15 @@ const translations = {
         "license-item1": "Personal use OK",
         "license-item3": "Redistribution prohibited",
         "license-item4": "Use against public order prohibited",
-        "download-btn": "Download VRM"
+        "download-btn": "Download VRM",
+        "mini-game-guide": "Play mini-games from the 🎮️ button on the bottom right!"
     },
     es: {
         "title": "¡Distribución gratuita de PotatoKun VRM!",
         "description": "¡Página de distribución gratuita de 'PotatoKun', un avatar original para Cluster!",
         "nav-details": "Datos de Distribución",
         "hero-title": "Hada de la Patata<br>'PotatoKun'",
-        "hero-desc": "¡Avatar VRM original para Cluster gratis!",
+        "hero-desc": "¡Avatar VRM original para Cluster gratis!<br>🐴 ¡Distribuyendo a Potato-kun con un disfraz de Caballo para el zodiaco de este año!",
         "hero-btn": "Descargar Ahora",
         "details-title": "🎁 Datos de Distribución",
         "details-format": "Formato",
@@ -269,14 +394,15 @@ const translations = {
         "license-item1": "Uso personal OK",
         "license-item3": "Redistribución prohibida",
         "license-item4": "Prohibido uso contra orden público",
-        "download-btn": "Descargar VRM"
+        "download-btn": "Descargar VRM",
+        "mini-game-guide": "¡Juega minijuegos desde el botón 🎮️ abajo a la derecha!"
     },
     zh: {
         "title": "PotatoKun VRM 免费发放中！",
         "description": "Cluster 原创化身“PotatoKun”的免费发放页面！",
         "nav-details": "发放数据",
         "hero-title": "土豆精灵<br>“PotatoKun”",
-        "hero-desc": "Cluster 可用原创 VRM 化身免费发放中！",
+        "hero-desc": "Cluster 可用原创 VRM 化身免费发放中！<br>🐴 正在分发穿着今年生肖“马”玩偶服的土豆君！",
         "hero-btn": "立即下载",
         "details-title": "🎁 关于发放数据",
         "details-format": "格式",
@@ -288,14 +414,15 @@ const translations = {
         "license-item1": "个人使用 OK",
         "license-item3": "禁止二次分发",
         "license-item4": "禁止違反公共秩序和道德的使用",
-        "download-btn": "下载 VRM"
+        "download-btn": "下载 VRM",
+        "mini-game-guide": "点击右下角的🎮️按钮玩小游戏！"
     },
     ko: {
         "title": "포테토군 VRM 무료 배포 중!",
         "description": "Cluster에서 사용할 수 있는 오리지널 아바타 '포테토군'의 무료 배포 페이지입니다!",
         "nav-details": "배포 데이터",
         "hero-title": "감자 요정<br>'포テト군'",
-        "hero-desc": "Cluster에서 쓸 수 있는 오리지널 VRM 아바타 무료 배포 중!",
+        "hero-desc": "Cluster에서 쓸 수 있는 오리지널 VRM 아바타 무료 배포 중!<br>🐴 올해의 띠인 '말' 인형 옷을 입은 포테이토 군을 배포 중!",
         "hero-btn": "지금 다운로드",
         "details-title": "🎁 배포 데이터 정보",
         "details-format": "형식",
@@ -307,7 +434,8 @@ const translations = {
         "license-item1": "개인 이용 OK",
         "license-item3": "재배포 금지",
         "license-item4": "공서양속에 반하는 이용 금지",
-        "download-btn": "VRM 다운로드"
+        "download-btn": "VRM 다운로드",
+        "mini-game-guide": "오른쪽 하단의 🎮️ 버튼에서 미니 게임을 즐길 수 있어요!"
     }
 };
 
@@ -339,6 +467,16 @@ const initI18n = () => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    init3DViewer();
+    // Top Page 3D Viewer Initialization
+    // Only initialize if we are on the Top Page (hero section exists)
+    // and NOT deep-linking into minigame (though minigame handles its own cleanup)
+    const heroSection = document.querySelector('.hero');
+    const canvasContainer = document.getElementById('canvas-container');
+
+    if (heroSection && canvasContainer) {
+        // console.log("Top Page detected: Initializing 3D Viewer");
+        init3DViewer();
+    }
+
     initI18n();
 });
