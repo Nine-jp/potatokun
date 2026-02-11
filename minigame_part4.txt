@@ -1,3 +1,14 @@
+                getBtn.style.display = 'none';
+            }
+        }
+    }
+
+    function render() {
+        // Init mix clock if needed
+        if (!window.sgClock) window.sgClock = new THREE.Clock();
+        const delta = window.sgClock.getDelta();
+
+        // Update Mixers
         if (window.sgMixers && window.sgMixers.length > 0) {
             window.sgMixers.forEach(mixer => mixer.update(delta));
         }
@@ -534,9 +545,7 @@
         }, undefined, (err) => console.error(err));
     }
 
-    // ==========================================
-    // 🌊 POND SYSTEM: Single FBX Model Approach
-    // ==========================================
+
     // ==========================================
     // 🌊 POND SYSTEM: Single FBX Model Approach (+ Stone Wall)
     // ==========================================
