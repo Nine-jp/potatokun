@@ -1,7 +1,3 @@
-            window.hasSpawnedGrass = true;
-            console.log("--- spawnGrass (InstancedMesh Mode) ---");
-
-            // クリーンアップ
             const existing = scene.getObjectByName('InstancedGrassField');
             if (existing) {
                 existing.geometry?.dispose();
@@ -885,12 +881,12 @@
                         const heightOfBench = 0.28; // ナイン氏調整済みの座面高
                         cat.position.y += (heightOfBench - box.min.y);
 
-                        // ★追加: ネコをベンチの「左」にずらす
-                        cat.translateX(-0.6);
+                    // ★追加: ネコをベンチの「左」にずらす
+                    cat.translateX(-0.6); 
 
-                        // ★追加: 「右」のスペース（コイン出現位置）を計算して記憶
-                        // ネコから見て左へ1.2m（＝ベンチの反対側）の位置
-                        cat.userData.coinOffset = new THREE.Vector3(1.2, 0, 0);
+                    // ★追加: 「右」のスペース（コイン出現位置）を計算して記憶
+                    // ネコから見て左へ1.2m（＝ベンチの反対側）の位置
+                    cat.userData.coinOffset = new THREE.Vector3(1.2, 0, 0);
 
                         cat.traverse(child => {
                             if (child.name === 'Ears') cat.userData.ears = child;
@@ -1218,7 +1214,7 @@
 
                                 // スコップ本体も非表示にする (追加)
                                 // ヒットボックス(InteractionCollider)はスコップの子供なので、親を消せば一緒に消えます [cite: 1214]
-                                shovel.visible = false;
+                               shovel.visible = false;
                             };
                         } else {
                             console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
@@ -1227,140 +1223,6 @@
                     }
                 }
             ];
-
-            // ★追加: 新遊具アセット (切り株・ブランコ・ロケット)
-            ASSET_CONFIG.push(
-                {
-                    name: 'Stump_Center',
-                    path: 'models/stump.fbx',
-                    pos: { x: 5, z: -5 },
-                    rot: { y: Math.random() * 360 },
-                    scale: 1.2, // 少し大きめに
-                    collision: true,
-                    exclusionRadius: 2.0,
-                    onLoad: (obj) => {
-                        console.log("🪵 Stump placed at (5, -5)");
-                        // コイン追加 (子要素として)
-                        const loader = new FBXLoader();
-                        loader.load('models/coin.fbx', (coin) => {
-                            coin.scale.setScalar(0.015); // 親のスケールに依存するため調整
-                            coin.position.set(0, 1.5, 0); // 切り株の上に配置
-
-                            // マテリアル調整 (発光)
-                            coin.traverse(c => {
-                                if (c.isMesh) {
-                                    c.castShadow = true;
-                                    const oldMat = Array.isArray(c.material) ? c.material[0] : c.material;
-                                    c.material = new THREE.MeshBasicMaterial({
-                                        map: oldMat ? oldMat.map : null,
-                                        color: 0xFFD700,
-                                        side: THREE.DoubleSide
-                                    });
-                                }
-                            });
-
-                            // 属性付与
-                            coin.userData.isCoin = true;
-                            coin.userData.collected = false;
-
-                            // アニメーション用
-                            coin.userData.spinSpeed = 0.05;
-                            const animateCoin = () => {
-                                if (!coin.parent || coin.userData.collected) return;
-                                coin.rotation.y += coin.userData.spinSpeed;
-                                requestAnimationFrame(animateCoin);
-                            };
-                            animateCoin();
-
-                            obj.add(coin);
-                            if (window.sgGameCoins) window.sgGameCoins.push(coin);
-                        });
-                    }
-                },
-                {
-                    name: 'Swing_Playground',
-                    path: 'models/swing.fbx',
-                    pos: { x: -2, z: 12 },
-                    rot: { y: 180 }, // 南向き
-                    scale: 1.0,
-                    collision: false, // 支柱判定は複雑なので簡易除外エリアで対応
-                    exclusionRadius: 3.0,
-                    onLoad: (obj) => {
-                        console.log("🎠 Swing placed at (-2, 12)");
-                        // コイン追加
-                        const loader = new FBXLoader();
-                        loader.load('models/coin.fbx', (coin) => {
-                            coin.scale.setScalar(0.01);
-                            coin.position.set(0, 2.5, 0); // 梁の上に配置
-
-                            coin.traverse(c => {
-                                if (c.isMesh) {
-                                    c.castShadow = true;
-                                    const oldMat = Array.isArray(c.material) ? c.material[0] : c.material;
-                                    c.material = new THREE.MeshBasicMaterial({
-                                        map: oldMat ? oldMat.map : null,
-                                        color: 0xFFD700
-                                    });
-                                }
-                            });
-                            coin.userData.isCoin = true;
-                            coin.userData.collected = false;
-
-                            const animateCoin = () => {
-                                if (!coin.parent || coin.userData.collected) return;
-                                coin.rotation.y += 0.05;
-                                requestAnimationFrame(animateCoin);
-                            };
-                            animateCoin();
-
-                            obj.add(coin);
-                            if (window.sgGameCoins) window.sgGameCoins.push(coin);
-                        });
-                    }
-                },
-                {
-                    name: 'Rocket_Secret',
-                    path: 'models/rocket.fbx',
-                    pos: { x: -22, z: -20 },
-                    rot: { y: -45 }, // 斜めに配置
-                    scale: 1.5, // 秘密基地感を出すため大きく
-                    collision: true,
-                    collisionType: 'cylinder', // 円柱判定
-                    exclusionRadius: 2.5,
-                    onLoad: (obj) => {
-                        console.log("🚀 Rocket placed at (-22, -20)");
-                        // コイン追加
-                        const loader = new FBXLoader();
-                        loader.load('models/coin.fbx', (coin) => {
-                            coin.scale.setScalar(0.008);
-                            coin.position.set(0, 1.8, 0.8); // 窓付近に配置
-
-                            coin.traverse(c => {
-                                if (c.isMesh) {
-                                    c.castShadow = true;
-                                    const oldMat = Array.isArray(c.material) ? c.material[0] : c.material;
-                                    c.material = new THREE.MeshBasicMaterial({
-                                        map: oldMat ? oldMat.map : null,
-                                        color: 0xFFD700
-                                    });
-                                }
-                            });
-                            coin.userData.isCoin = true;
-                            coin.userData.collected = false;
-
-                            const animateCoin = () => {
-                                if (!coin.parent || coin.userData.collected) return;
-                                coin.rotation.y += 0.05;
-                                requestAnimationFrame(animateCoin);
-                            };
-                            animateCoin();
-
-                            obj.add(coin);
-                            if (window.sgGameCoins) window.sgGameCoins.push(coin);
-                        });
-                    }
-                }
-            );
 
             const loader = new FBXLoader();
             window.sgMixers = []; // Clear mixers
@@ -1998,3 +1860,141 @@
                         parentTree.rotation.z = 0;
                         parentTree.rotation.x = 0;
                     }
+
+                    // C. 落下物理
+                    if (coin.userData.isFalling) {
+                        coin.userData.velY -= 15.0 * dt;
+                        coin.position.x += coin.userData.velX * dt;
+                        coin.position.y += coin.userData.velY * dt;
+                        coin.position.z += coin.userData.velZ * dt;
+
+                        const targetY = coin.userData.groundY || 0.25;
+                        if (coin.position.y <= targetY) {
+                            coin.position.y = targetY;
+                            coin.userData.isFalling = false;
+                            coin.userData.hasFallen = true;
+
+                            if (coin.userData.pointLight) {
+                                coin.userData.pointLight.intensity = 0;
+                            }
+
+                            coin.traverse((child) => {
+                                if (child.isMesh && child.material) {
+                                    if (child.material.color) child.material.color.setHex(0xFFFFFF);
+                                    if (!(child.material instanceof THREE.MeshBasicMaterial)) {
+                                        const oldMat = child.material;
+                                        child.material = new THREE.MeshBasicMaterial({
+                                            map: oldMat.map,
+                                            color: 0xFFFFFF,
+                                            side: THREE.DoubleSide
+                                        });
+                                    }
+                                }
+                            });
+
+                            if (window.testTreeCollision) {
+                                window.testTreeCollision.hasCoin = false;
+                            }
+                        }
+                    }
+                    return true;
+                });
+            }
+        }
+    }
+
+
+    function updateAim() {
+        // === AIM DETECTION (Raycaster from center of screen) ===
+        const getBtn = document.getElementById('sg-get-btn');
+        const crosshair = document.getElementById('sg-crosshair');
+
+        if (getBtn && camera && crosshair) {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            // Objects to interact with: Coins + Scene Children (for Vending HitBox)
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            let targetFound = null;
+            let targetType = null; // 'coin' or 'vending'
+
+            for (const hit of intersects) {
+                let obj = hit.object;
+
+                // [Rule 1] Redirect Hitbox to Parent
+                if (obj.userData.isHitBox && obj.userData.parentItem) {
+                    obj = obj.userData.parentItem;
+                }
+
+                // 1. Vending Machine HitBox
+                if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
+                    targetFound = obj;
+                    targetType = 'vending';
+                    break; // Priority
+                }
+
+                // [Rule 2] Generic Interaction (Shovel, etc.)
+                // Traverse up to find the root interactable
+                let interactable = obj;
+                while (interactable && !interactable.userData.action && interactable !== scene) {
+                    interactable = interactable.parent;
+                }
+
+                if (interactable && interactable.userData.action) {
+                    // ★ STRICT DISTANCE CHECK ★
+                    // Calculate distance from Player's feet (XZ plane), not Camera
+                    const worldPos = new THREE.Vector3();
+                    interactable.getWorldPosition(worldPos);
+
+                    if (typeof playerPosition !== 'undefined') {
+                        const dx = playerPosition.x - worldPos.x;
+                        const dz = playerPosition.z - worldPos.z;
+                        const distSq = dx * dx + dz * dz;
+                        const THRESHOLD_SQ = 3.0 * 3.0; // 3mまで反応
+
+                        if (distSq <= THRESHOLD_SQ) {
+                            targetFound = interactable;
+                            targetType = 'action'; // Mark as generic action
+                            break; // Stop checking other objects
+                        }
+                    }
+                }
+
+                // 2. Coin (game items) - check parent group or mesh
+                let coinGroup = obj;
+                while (coinGroup.parent && !coinGroup.userData.isCoin && coinGroup !== scene) {
+                    coinGroup = coinGroup.parent;
+                }
+
+                if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
+                    targetFound = coinGroup;
+                    targetType = 'coin';
+                    break;
+                }
+            }
+
+            if (targetFound) {
+                // Target locked
+                window.sgCurrentTarget = targetFound;
+                crosshair.classList.add('target-locked');
+                getBtn.style.display = 'block';
+
+                // Position button near crosshair
+                getBtn.style.left = '50%';
+                getBtn.style.top = '60%';
+                getBtn.style.transform = 'translate(-50%, -50%)';
+
+                if (targetType === 'vending') {
+                    getBtn.innerHTML = '🍹<br>BUY';
+                } else if (targetType === 'action') {
+                    getBtn.innerHTML = '⛏️<br>DIG'; // Show Dig Icon
+                    getBtn.style.background = '#FFD700'; // Gold color
+                } else {
+                    getBtn.innerHTML = '🖐️<br>GET!';
+                    getBtn.style.background = ''; // Reset to default
+                }
+            } else {
+                // No target
+                window.sgCurrentTarget = null;
+                crosshair.classList.remove('target-locked');

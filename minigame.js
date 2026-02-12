@@ -889,7 +889,7 @@ const SearchGame = (() => {
         // 北西：休憩エリア
         if (x < -2 && z < -2) return 'rest';
 
-        // 北東：更地(池エリア建設予定)
+        // 北東：池エリア建設予定
         if (x > 2 && z < -2) return 'vacant';
 
         // 南西：森林エリア
@@ -3507,52 +3507,6 @@ const SearchGame = (() => {
             });
         };
 
-        // === VOXEL CLOUDS for orientation ===
-        // REMOVED at user request
-        /*
-        const cloudMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-        const cloudPositions = [
-            { x: -20, y: 15, z: -15 },
-            { x: 10, y: 18, z: -20 },
-            { x: 25, y: 12, z: 0 },
-            { x: -15, y: 14, z: 10 },
-            { x: 5, y: 20, z: 15 },
-            { x: -25, y: 16, z: -5 },
-            { x: 15, y: 13, z: -25 },
-            { x: 0, y: 17, z: -10 },
-            { x: -10, y: 19, z: -20 },
-            { x: 20, y: 11, z: 20 },
-            { x: -5, y: 15, z: 25 },
-            { x: 12, y: 14, z: 8 }
-        ];
-         
-        cloudPositions.forEach(pos => {
-            const cloudGroup = new THREE.Group();
-            // Main body
-            const main = new THREE.Mesh(
-                new THREE.BoxGeometry(4, 1.5, 3),
-                cloudMaterial
-            );
-            cloudGroup.add(main);
-            // Side puffs
-            const puff1 = new THREE.Mesh(
-                new THREE.BoxGeometry(2, 1.2, 2),
-                cloudMaterial
-            );
-            puff1.position.set(-2, 0.2, 0.5);
-            cloudGroup.add(puff1);
-            const puff2 = new THREE.Mesh(
-                new THREE.BoxGeometry(2.5, 1.3, 2.2),
-                cloudMaterial
-            );
-            puff2.position.set(1.8, 0.3, -0.3);
-            cloudGroup.add(puff2);
-         
-            cloudGroup.position.set(pos.x, pos.y, pos.z);
-            cloudGroup.rotation.y = Math.random() * Math.PI;
-            scene.add(cloudGroup);
-        });
-        */
 
 
         // === PERIMETER FENCE (Voxel Style) ===
@@ -3625,13 +3579,6 @@ const SearchGame = (() => {
         createFenceSection(-FENCE_BOUNDARY, FENCE_BOUNDARY, FENCE_BOUNDARY, FENCE_BOUNDARY, true);   // South
         createFenceSection(-FENCE_BOUNDARY, -FENCE_BOUNDARY, -FENCE_BOUNDARY, FENCE_BOUNDARY, false); // West
         createFenceSection(FENCE_BOUNDARY, -FENCE_BOUNDARY, FENCE_BOUNDARY, FENCE_BOUNDARY, false);  // East
-
-        // === EXTERIOR DECORATIONS (Outside fence) ===
-        // ★【削除】草・低木を削除してフィールドを更地にする
-        // (Exterior bushes removed for cleaner test field)
-
-        // Add park assets
-        // createParkAssets();
 
 
         // ★★★ PLAYGROUND DEV: Opening Callback DISABLED ★★★
@@ -3707,8 +3654,9 @@ const SearchGame = (() => {
                     }
                 });
 
-                // === Game coin positions (確定版: 11箇所・高さ指定) ===
-                // ★収集したコイン座標（高さも指定）
+
+                // ▼▼▼ 🪙コインの座標・場所 (Coin) ▼▼▼
+
                 const coinPositions = [
                     { x: 0.00, y: 0.62, z: 21.80 }, // 正面(十字路)
                     { x: 24.00, y: 3.60, z: 23.00 }, // 噴水(十字路)
@@ -3793,15 +3741,9 @@ const SearchGame = (() => {
             }
         );
 
+                // ▼▼▼ 💭雲 (Cloud) ▼▼▼
 
-        // === 雲 (Clouds) の生成 ===
         spawnClouds();
-
-
-        /**
-         * 🛠️ PROJECT POTATO: PHASE 3 - OUTLINE FIX (FINAL SOLUTION)
-         * All outlines disabled for cleaner look
-         */
         const TreeInstanceManager = (() => {
             let components = [];
 
@@ -4142,18 +4084,6 @@ const SearchGame = (() => {
             debugPanel.innerText = 'POS X:0.00 Z:0.00 H:0.00';
             document.body.appendChild(debugPanel);
         }
-
-
-        /* REMOVED OLD TREE LOADING LOGIC */
-
-
-
-
-
-        // === GRASS MAZE GENERATION REMOVED ===
-        // (Field cleared for better visibility)
-
-        // (Ketchup items REMOVED - now using Coins via FBX loader)
     }
 
 
@@ -4455,7 +4385,7 @@ const SearchGame = (() => {
                 }
             };
 
-            // 1. spawnSparkles の修正（キラキラ仕様）
+
             // 1. spawnSparkles の修正（キラキラ仕様）
             window.spawnSparkles = (x, y, z) => {
                 if (typeof window.spawnParticles === 'function') {
@@ -4512,7 +4442,9 @@ const SearchGame = (() => {
                 }
             };
 
-            // --- ランダムベンチ選択ロジック ---
+                // ▼▼▼ 🪑🪑🪑ベンチ (Bench) ▼▼▼
+               // --- ランダムベンチ選択ロジック ---
+
             const getTargetBench = () => {
                 const benches = [];
                 const START = 10.0, END = 30.0, STEP = 4.0;
@@ -4558,67 +4490,48 @@ const SearchGame = (() => {
                         });
                     }
                 },
-                { name: 'Slide', path: 'models/slide.fbx', pos: { x: 24, y: 0, z: 23 }, rot: { y: 270 }, scale: 3.0, collision: false, exclusionRadius: 8.0 }, // Old z: -23
+
+
+
+                // ▼▼▼ 🛝滑り台 (Slide) ▼▼▼
+
+                {
+                    name: 'Slide',
+                    path: 'models/slide.fbx',
+                    pos: { x: 24, z: 23 },
+                    rot: { y: 270 }, 
+                    scale: 3.0,
+                    collision: false, 
+                    exclusionRadius: 8.0,
+                    onLoad: (obj) => {
+                        console.log("🛝 Slide placed at (x: 24, z: 23)");
+                    }
+                },
+
+                // ▼▼▼ ⚖️シーソー (Seesaw) - 静的オブジェクト版 ▼▼▼
+
                 {
                     name: 'Seesaw',
                     path: 'models/seesaw.fbx',
-                    pos: { x: 20, y: 0.6, z: 10 },
-                    rot: { y: 90 },
+                    pos: { x: 18, y: 0.6, z: 25 }, // 地面(y=0)に設置。浮いている場合は微調整してください
+                    rot: { y: 0 },
                     scale: 1.0,
                     collision: false,
                     exclusionRadius: 3.0,
                     onLoad: (obj) => {
-                        // --- ハードリセット修正 ---
-
-                        // 1. 座標系の確定
-                        obj.updateMatrixWorld(true);
-
-                        const movingParts = [];
-                        let plankPart = null; // 回転軸の基準にするパーツ
-
-                        // 2. パーツの選別（土台以外は全部動かす！）
+                        // 余計なPivot作成などは行わず、影の設定のみを適用
                         obj.traverse(c => {
                             if (c.isMesh) {
                                 c.castShadow = true;
                                 c.receiveShadow = true;
-
-                                // 土台(fulcrum)以外はすべてリストアップ
-                                if (!c.name.toLowerCase().includes('fulcrum')) {
-                                    movingParts.push(c);
-
-                                    // 丸太(plank)を見つけておく（これを回転の中心にするため）
-                                    if (c.name.toLowerCase().includes('plank')) {
-                                        plankPart = c;
-                                    }
-                                }
                             }
                         });
-
-                        if (movingParts.length > 0) {
-                            // 3. 回転軸(Pivot)の作成
-                            // 全体重心ではなく「丸太(plank)」の幾何学的中心をPivotにする
-                            // (plankが見つからない場合は、動くパーツの先頭を仮の基準にする)
-                            const target = plankPart || movingParts[0];
-                            const box = new THREE.Box3().setFromObject(target);
-                            const center = new THREE.Vector3();
-                            box.getCenter(center); // ここが真の回転軸
-
-                            // 4. ピボットグループの作成と配置
-                            const pivotGroup = new THREE.Group();
-                            pivotGroup.position.copy(center); // 丸太の中心に配置
-                            obj.add(pivotGroup); // 親(Seesaw Root)に追加
-
-                            // 5. 全パーツをPivotに吸着 (attachメソッド)
-                            // attachを使うと、見た目の位置を変えずに親子関係だけ移動できる
-                            movingParts.forEach(part => {
-                                pivotGroup.attach(part);
-                            });
-
-                            // アニメーション対象をこのグループに設定
-                            obj.userData.movingPart = pivotGroup;
-                        }
+                        console.log("Seesaw loaded as a static object.");
                     }
                 },
+
+                // ▼▼▼ 🐘象さん (ElephantSprayer) ▼▼▼
+
                 {
                     name: 'ElephantSprayer',
                     path: 'models/elephant_sprayer.fbx',
@@ -4675,6 +4588,9 @@ const SearchGame = (() => {
                         if (window.applyOutlineRules) window.applyOutlineRules(obj);
                     }
                 },
+
+                // ▼▼▼ 🪧看板 (Signboard) ▼▼▼
+
                 {
                     name: 'InfoBoard',
                     path: 'models/signboard.fbx',
@@ -4733,6 +4649,9 @@ const SearchGame = (() => {
                         // 3. クリックイベントは handleInputInteraction で統合管理するため削除
                     }
                 },
+
+                // ▼▼▼ 🎰自動販売機 (VendingMachine) ▼▼▼
+
                 {
                     name: 'VendingMachine',
                     path: 'models/vending_machine.fbx',
@@ -4801,6 +4720,9 @@ const SearchGame = (() => {
                         );
                     }
                 },
+
+                // ▼▼▼ 🗑️ゴミ箱 (TrashCan) ▼▼▼
+
                 {
                     name: 'TrashCan',
                     path: 'models/recyclebin.fbx',
@@ -4822,6 +4744,7 @@ const SearchGame = (() => {
                         });
                     }
                 },
+
                 {
                     name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: 14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, // Old z: -14
                     onLoad: (obj) => {
@@ -4835,48 +4758,10 @@ const SearchGame = (() => {
                         } catch (e) { console.error("Error in Dokan onLoad:", e); }
                     }
                 },
-                /*
-                {
-                    name: 'Barricade_NorthEast',
-                    path: 'models/barricade.fbx',
-                    pos: { x: 0, y: 0, z: 0 },
-                    scale: 1.0,
-                    onLoad: (master) => {
-                        // ベンチの背後（x=4, z=-4）に密着させる設定
-                        const startX = 6.0;  // ベンチからさらに後退
-                        const startZ = -6.0; // ベンチからさらに後退
-                        const count = 11;
-                        const spacing = 2.3; // 隙間を詰めた精密な間隔
 
-                        for (let i = 0; i < count; i++) {
-                            // 角の重なりを防ぐため、i=0（角の地点）は生成をスキップ
-                            if (i === 0) continue;
-                            // 横列（南側の封鎖）
-                            const bX = master.clone();
-                            bX.position.set(startX + i * spacing, 0, startZ);
-                            window.parkGroup.add(bX);
 
-                            // 縦列（西側の封鎖）
-                            const bZ = master.clone();
-                            bZ.position.set(startX, 0, startZ - i * spacing);
-                            bZ.rotation.y = Math.PI / 2;
-                            window.parkGroup.add(bZ);
-                        }
+                // ▼▼▼ 🪑🐱ベンチねこ (BenchCat) ▼▼▼
 
-                        // 全バリケードにアウトライン適用
-                        window.parkGroup.traverse(c => {
-                            if (c.name === 'Barricade_NorthEast_Clone' || (c.parent && c.parent.name === 'Barricade_NorthEast')) {
-                                if (window.applyOutlineRules) window.applyOutlineRules(c);
-                            }
-                        });
-                        master.visible = false;
-
-                        // 2. 物理封鎖の設定（createParkAssets 内）
-                        // 物理封鎖
-                        window.sgExtraObstacles.push({ minX: 5.8, maxX: 32, minZ: -32, maxZ: -5.8 });
-                    }
-                },
-                */
                 {
                     name: 'BenchCat',
                     path: 'models/cat.fbx',
@@ -4911,6 +4796,9 @@ const SearchGame = (() => {
                         console.log(`🐱 Bench Cat Spawned at (x:${selectedBench.x}, z:${selectedBench.z})`);
                     }
                 },
+
+                // ▼▼▼ 🛞タイヤ (Tire) ▼▼▼
+
                 {
                     name: 'Tire',
                     path: 'models/tire.fbx',
@@ -4919,7 +4807,7 @@ const SearchGame = (() => {
                     scale: 1.0,
                     collision: false,
                     onLoad: (baseTire) => {
-                        console.log("🚙 Tire FBX Loaded. Configuring Layout...");
+                        console.log("🛞 Tire FBX Loaded. Configuring Layout...");
 
                         // 1. 自動スケール調整 (Auto-Scale to 1.0m)
                         baseTire.updateMatrixWorld(true);
@@ -4989,6 +4877,9 @@ const SearchGame = (() => {
                         console.log(`Placed ${tirePositions.length} tires (Walkable).`);
                     }
                 },
+
+                // ▼▼▼ ⛱️パラソル (Parasol) ▼▼▼
+
                 {
                     name: 'Parasol',
                     path: 'models/parasol.fbx',
@@ -5031,6 +4922,9 @@ const SearchGame = (() => {
                         }
                     }
                 },
+
+                // ▼▼▼ 🚙キッチンカー (KitchenCar) ▼▼▼
+
                 {
                     name: 'KitchenCar_Tuktuk',
                     path: 'models/tuktuk.fbx',
@@ -5119,7 +5013,8 @@ const SearchGame = (() => {
                     }
                 },
 
-                // ▼▼▼ 砂場 (Sandbox) ▼▼▼
+                // ▼▼▼ 🪏砂場 (Sandbox) ▼▼▼
+
                 {
                     name: 'Sandbox',
                     path: 'models/sandbox_set.fbx',
@@ -5128,7 +5023,7 @@ const SearchGame = (() => {
                     scale: 1.4,
                     checkCollisions: true,
                     onLoad: (obj) => {
-                        console.log("🏖️ Sandbox Set Loaded");
+                        console.log("🪏 Sandbox Set Loaded");
                         let shovel = null;
                         let sandMound = null;
 
@@ -5149,7 +5044,7 @@ const SearchGame = (() => {
                                             child.userData.ignoreRaycast = true;
                                         }
                                     });
-                                    console.log("⛏️ Shovel: All original meshes set to ignoreRaycast.");
+                                    console.log("🪏 Shovel: All original meshes set to ignoreRaycast.");
 
                                     // ★HitBoxの作成 (ユーザー確定サイズ)
                                     // サイズ: 幅60cm, 高さ20cm, 奥行50cm
@@ -5176,7 +5071,7 @@ const SearchGame = (() => {
 
                                     // 最後に箱を追加
                                     shovel.add(hitBox);
-                                    console.log("⛏️ Shovel HitBox set (RED). Original mesh raycast disabled.");
+                                    console.log("🪏 Shovel HitBox set (RED). Original mesh raycast disabled.");
                                 }    // ------------------------------------------------
                                 if (name.includes('mound') || name.includes('sandpile')) sandMound = c;
 
@@ -5199,7 +5094,7 @@ const SearchGame = (() => {
                                 if (shovel.userData.hasDug) return;
                                 shovel.userData.hasDug = true;
 
-                                console.log("⛏️ Digging in the sandbox!");
+                                console.log("🪏 Digging in the sandbox!");
 
                                 // 音
                                 if (window.AudioManager) window.AudioManager.play('thud');
@@ -5228,13 +5123,10 @@ const SearchGame = (() => {
                                 obj.children.map(c => c.name));
                         }
                     }
-                }
-            ];
+                },
 
+                // ▼▼▼ 🪵切り株 (Stump) ▼▼▼
 
-            // ★追加: 新遊具アセット (切り株・ブランコ・ロケット)
-
-ASSET_CONFIG.push(
                 {
                     name: 'Stump_Center',
                     path: 'models/stump.fbx',
@@ -5248,6 +5140,8 @@ ASSET_CONFIG.push(
                     }
                 },
 
+                // ▼▼▼ ⛓️ブランコ (Swing) ▼▼▼
+
 {
                     name: 'Swing_Playground',
                     path: 'models/swing.fbx',
@@ -5257,10 +5151,11 @@ ASSET_CONFIG.push(
                     collision: false, // 支柱判定は複雑なので簡易除外エリアで対応
                     exclusionRadius: 3.0,
                     onLoad: (obj) => {
-                        console.log("🎠 Swing placed at (x: 15, z: 9)");
+                        console.log("⛓️ Swing placed at (x: 15, z: 9)");
                     }
                 },
 
+                // ▼▼▼ 🚀ロケット (Rocket) ▼▼▼
 
  {
                     name: 'Rocket_Secret',
@@ -5274,8 +5169,62 @@ ASSET_CONFIG.push(
                     onLoad: (obj) => {
                         console.log("🚀 Rocket placed at (x: 28, z: 7)");
                     }
+                },
+
+            // ==========================================
+            // 池エリア
+            // ==========================================
+
+            /**
+             * 🛠️ PROJECT POTATO: SEAMLESS ORGANIC POND
+             * [FIX] Eliminated holes and isolated blocks.
+             * [METHOD] Use smooth Sine/Cosine wave layering instead of raw random.
+             */
+
+                // ▼▼▼ 🚧バリケード (Barricade) ▼▼▼
+
+
+                {
+                    name: 'Barricade_NorthEast',
+                    path: 'models/barricade.fbx',
+                    pos: { x: 0, y: 0, z: 0 },
+                    scale: 1.0,
+                    onLoad: (master) => {
+                        // ベンチの背後（x=4, z=-4）に密着させる設定
+                        const startX = 6.0;  // ベンチからさらに後退
+                        const startZ = -6.0; // ベンチからさらに後退
+                        const count = 11;
+                        const spacing = 2.3; // 隙間を詰めた精密な間隔
+
+                        for (let i = 0; i < count; i++) {
+                            // 角の重なりを防ぐため、i=0（角の地点）は生成をスキップ
+                            if (i === 0) continue;
+                            // 横列（南側の封鎖）
+                            const bX = master.clone();
+                            bX.position.set(startX + i * spacing, 0, startZ);
+                            window.parkGroup.add(bX);
+
+                            // 縦列（西側の封鎖）
+                            const bZ = master.clone();
+                            bZ.position.set(startX, 0, startZ - i * spacing);
+                            bZ.rotation.y = Math.PI / 2;
+                            window.parkGroup.add(bZ);
+                        }
+
+                        // 全バリケードにアウトライン適用
+                        window.parkGroup.traverse(c => {
+                            if (c.name === 'Barricade_NorthEast_Clone' || (c.parent && c.parent.name === 'Barricade_NorthEast')) {
+                                if (window.applyOutlineRules) window.applyOutlineRules(c);
+                            }
+                        });
+                        master.visible = false;
+
+                        // 2. 物理封鎖の設定（createParkAssets 内）
+                        // 物理封鎖
+                        window.sgExtraObstacles.push({ minX: 5.8, maxX: 32, minZ: -32, maxZ: -5.8 });
+                    }
                 }
-            );
+];
 
             const loader = new FBXLoader();
             window.sgMixers = []; // Clear mixers
@@ -5367,8 +5316,8 @@ ASSET_CONFIG.push(
 
 
 
+                // ▼▼▼ ⛄️体当たり人形 (Seasondoll) ▼▼▼
 
-            // 雪だるま
             const snowmanPositions = [{ x: 11, z: 14 }, { x: 11, z: 16 }, { x: 11, z: 18 }]; // Old: -14, -16, -18. Inverted: 14, 16, 18
             const winnerIndex = Math.floor(Math.random() * snowmanPositions.length);
             // ==========================================
@@ -5410,7 +5359,7 @@ ASSET_CONFIG.push(
                         });
                     });
                 }
-                console.log(`🎎 SeasonDolls body color updated to: ${seasonName}`);
+                console.log(`⛄️ SeasonDolls body color updated to: ${seasonName}`);
             };
 
             // ==========================================
@@ -5573,15 +5522,7 @@ ASSET_CONFIG.push(
                 }, 16);
             };
 
-            // ==========================================
-            // 池エリア
-            // ==========================================
 
-            /**
-             * 🛠️ PROJECT POTATO: SEAMLESS ORGANIC POND
-             * [FIX] Eliminated holes and isolated blocks.
-             * [METHOD] Use smooth Sine/Cosine wave layering instead of raw random.
-             */
 
             // アニメーション監視ループ (エラー修正・安全化版)
             if (window.sgSnowmanInterval) clearInterval(window.sgSnowmanInterval);
@@ -5653,28 +5594,9 @@ ASSET_CONFIG.push(
                     });
                 }
 
-                // 2. シーソー制御
-                const seesaw = scene.getObjectByName('Seesaw');
-                // ★修正: seesaw.position の存在チェックを追加 (念のため)
-                if (seesaw && seesaw.position && seesaw.userData.movingPart) {
-                    const dx = Math.abs(playerPosition.x - seesaw.position.x);
-                    const dz = Math.abs(playerPosition.z - seesaw.position.z); // ★ここがエラーの震源地候補
 
-                    let targetRot = 0;
-                    if (dz < 2.5 && dx < 1.0) {
-                        const relativeZ = playerPosition.z - seesaw.position.z;
-                        let tilt = relativeZ * 0.15;
-                        tilt = Math.max(-0.35, Math.min(0.35, tilt));
-                        targetRot = tilt;
-                    }
+                // ▼▼▼ 🐘象さん (ElephantSprayer) ▼▼▼
 
-                    const pivot = seesaw.userData.movingPart;
-                    if (pivot) {
-                        pivot.rotation.z += (targetRot - pivot.rotation.z) * 0.1;
-                    }
-                }
-
-                // 3. 象の噴水
                 const elephant = scene.getObjectByName('ElephantSprayer');
                 // ★修正: elephant.position の存在チェックを追加
                 if (elephant && elephant.position) {
