@@ -3655,7 +3655,7 @@ const SearchGame = (() => {
                 });
 
 
-                // ▼▼▼ 🪙コインの座標・場所 (Coin) ▼▼▼
+                // ▼▼▼ 🪙コイン座標・場所 (Coin) ▼▼▼
 
                 const coinPositions = [
                     { x: 0.00, y: 0.62, z: 21.80 }, // 正面(十字路)
@@ -3663,9 +3663,9 @@ const SearchGame = (() => {
                     { x: 4.26, y: 0.60, z: -30.86 }, // 中央北(十字路)
                     { x: -30.94, y: 0.60, z: 3.84 }, // 中央西(十字路)
                     { x: 24.00, y: 0.60, z: 13.50 }, // 土管(遊具エリア)
-                    { x: 8.00, y: 1.00, z: 10.00 }, // 切り株(遊具エリア)
+                    { x: 9.00, y: 1.00, z: 7.00 }, // 切り株(遊具エリア)
                     { x: 15.00, y: 0.65, z: 9.00 }, // ブランコ(遊具エリア)
-                    { x: 28.00, y: 0.50, z: 7.00 }, // ロケット(遊具エリア)
+                    { x: 16.00, y: 0.80, z: 16.00 }, // ロケット(遊具エリア)
                     { x: 2.31, y: 1.60, z: -0.23 }, // 滑り台(遊具エリア)
                     { x: -29.00, y: 0.60, z: -20.00 }, // 自販機裏(休憩エリア)
                     { x: -23.30, y: 0.90, z: -19.45 }, // パラソル(休憩エリア)
@@ -5130,44 +5130,64 @@ const SearchGame = (() => {
                 {
                     name: 'Stump_Center',
                     path: 'models/stump.fbx',
-                    pos: { x: 8, z: 10 },
-                    rot: { y: Math.random() * 360 },
-                    scale: 0.7, // 
-                    collision: true,
+                    pos: { x: 0, y: 0, z: 0 }, // positions優先のためダミー
+                    rot: { y: 0 }, // 個別にランダム回転させるため、ベースは0にしておきます
+                    scale: 0.7,
+                    collision: false, // 頂いたコード通りfalse（通り抜け可）に設定
                     exclusionRadius: 2.0,
+                    // ★ 2箇所に配置
+                    positions: [
+                        { x: 7.5, z: 6 }, //
+                        { x: 6.5, z: 7 }, //
+                        { x: 8, z: 10 }, //
+                        { x: 10.5, z: 6 }, //
+                        { x: 11, z: 9 }, //
+                        { x: 9, z: 8.5 }, //
+                        { x: 10, z: 11 }, //
+                        { x: 9, z: 7 }  //
+                    ],
                     onLoad: (obj) => {
-                        console.log("🪵 Stump placed at (x: 8, z: 10)");
+                        // ★ここで個別にランダム回転（360度 = 2πラジアン）
+                        obj.rotation.y = Math.random() * Math.PI * 2;
+                        console.log("🪵 Stump placed (Random Rotation)");
                     }
                 },
 
                 // ▼▼▼ ⛓️ブランコ (Swing) ▼▼▼
 
-{
-                    name: 'Swing_Playground',
-                    path: 'models/swing.fbx',
-                    pos: { x: 15, z: 9 },
-                    rot: { y: 180 }, // 南向き
-                    scale: 1.0,
-                    collision: false, // 支柱判定は複雑なので簡易除外エリアで対応
-                    exclusionRadius: 3.0,
-                    onLoad: (obj) => {
-                        console.log("⛓️ Swing placed at (x: 15, z: 9)");
-                    }
+                {
+        name: 'Swing_Playground',
+        path: 'models/swing.fbx',
+        pos: { x: 0, y: 0, z: 0 }, // テンプレート座標（positionsがあるため無視されます）
+        rot: { y: 180 }, // 南向き
+        scale: 1.0,
+        collision: false,
+        exclusionRadius: 3.0,
+        // ★配列に変更して2台配置
+        positions: [
+            { x: 15, z: 9 }, // 1台目
+            { x: 17, z: 9 },   // 2台目
+            { x: 19, z: 9 }   // 3台目
+        ],
+        onLoad: (obj) => {
+            console.log("⛓️ Swing placed at (x: 15, z: 9)");
+                     }
                 },
+
 
                 // ▼▼▼ 🚀ロケット (Rocket) ▼▼▼
 
- {
+                 {
                     name: 'Rocket_Secret',
                     path: 'models/rocket.fbx',
-                    pos: { x: 28, z: 7 },
-                    rot: { y: 0 }, // 斜めに配置
-                    scale: 1.0, // 秘密基地感を出すため大きく
-                    collision: true,
+                    pos: { x: 16, z: 16 },
+                    rot: { y: 0 }, 
+                    scale: 2.0, // 秘密基地感を出すため大きく
+                    collision: false,
                     collisionType: 'cylinder', // 円柱判定
                     exclusionRadius: 2.5,
                     onLoad: (obj) => {
-                        console.log("🚀 Rocket placed at (x: 28, z: 7)");
+                        console.log("🚀 Rocket placed at (x: 16, z: 16)");
                     }
                 },
 
@@ -5175,11 +5195,6 @@ const SearchGame = (() => {
             // 池エリア
             // ==========================================
 
-            /**
-             * 🛠️ PROJECT POTATO: SEAMLESS ORGANIC POND
-             * [FIX] Eliminated holes and isolated blocks.
-             * [METHOD] Use smooth Sine/Cosine wave layering instead of raw random.
-             */
 
                 // ▼▼▼ 🚧バリケード (Barricade) ▼▼▼
 
