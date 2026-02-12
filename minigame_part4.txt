@@ -1,3 +1,141 @@
+
+                    // C. 落下物理
+                    if (coin.userData.isFalling) {
+                        coin.userData.velY -= 15.0 * dt;
+                        coin.position.x += coin.userData.velX * dt;
+                        coin.position.y += coin.userData.velY * dt;
+                        coin.position.z += coin.userData.velZ * dt;
+
+                        const targetY = coin.userData.groundY || 0.25;
+                        if (coin.position.y <= targetY) {
+                            coin.position.y = targetY;
+                            coin.userData.isFalling = false;
+                            coin.userData.hasFallen = true;
+
+                            if (coin.userData.pointLight) {
+                                coin.userData.pointLight.intensity = 0;
+                            }
+
+                            coin.traverse((child) => {
+                                if (child.isMesh && child.material) {
+                                    if (child.material.color) child.material.color.setHex(0xFFFFFF);
+                                    if (!(child.material instanceof THREE.MeshBasicMaterial)) {
+                                        const oldMat = child.material;
+                                        child.material = new THREE.MeshBasicMaterial({
+                                            map: oldMat.map,
+                                            color: 0xFFFFFF,
+                                            side: THREE.DoubleSide
+                                        });
+                                    }
+                                }
+                            });
+
+                            if (window.testTreeCollision) {
+                                window.testTreeCollision.hasCoin = false;
+                            }
+                        }
+                    }
+                    return true;
+                });
+            }
+        }
+    }
+
+
+    function updateAim() {
+        // === AIM DETECTION (Raycaster from center of screen) ===
+        const getBtn = document.getElementById('sg-get-btn');
+        const crosshair = document.getElementById('sg-crosshair');
+
+        if (getBtn && camera && crosshair) {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            // Objects to interact with: Coins + Scene Children (for Vending HitBox)
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            let targetFound = null;
+            let targetType = null; // 'coin' or 'vending'
+
+            for (const hit of intersects) {
+                let obj = hit.object;
+
+                // [Rule 1] Redirect Hitbox to Parent
+                if (obj.userData.isHitBox && obj.userData.parentItem) {
+                    obj = obj.userData.parentItem;
+                }
+
+                // 1. Vending Machine HitBox
+                if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
+                    targetFound = obj;
+                    targetType = 'vending';
+                    break; // Priority
+                }
+
+                // [Rule 2] Generic Interaction (Shovel, etc.)
+                // Traverse up to find the root interactable
+                let interactable = obj;
+                while (interactable && !interactable.userData.action && interactable !== scene) {
+                    interactable = interactable.parent;
+                }
+
+                if (interactable && interactable.userData.action) {
+                    // ★ STRICT DISTANCE CHECK ★
+                    // Calculate distance from Player's feet (XZ plane), not Camera
+                    const worldPos = new THREE.Vector3();
+                    interactable.getWorldPosition(worldPos);
+
+                    if (typeof playerPosition !== 'undefined') {
+                        const dx = playerPosition.x - worldPos.x;
+                        const dz = playerPosition.z - worldPos.z;
+                        const distSq = dx * dx + dz * dz;
+                        const THRESHOLD_SQ = 3.0 * 3.0; // 3mまで反応
+
+                        if (distSq <= THRESHOLD_SQ) {
+                            targetFound = interactable;
+                            targetType = 'action'; // Mark as generic action
+                            break; // Stop checking other objects
+                        }
+                    }
+                }
+
+                // 2. Coin (game items) - check parent group or mesh
+                let coinGroup = obj;
+                while (coinGroup.parent && !coinGroup.userData.isCoin && coinGroup !== scene) {
+                    coinGroup = coinGroup.parent;
+                }
+
+                if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
+                    targetFound = coinGroup;
+                    targetType = 'coin';
+                    break;
+                }
+            }
+
+            if (targetFound) {
+                // Target locked
+                window.sgCurrentTarget = targetFound;
+                crosshair.classList.add('target-locked');
+                getBtn.style.display = 'block';
+
+                // Position button near crosshair
+                getBtn.style.left = '50%';
+                getBtn.style.top = '60%';
+                getBtn.style.transform = 'translate(-50%, -50%)';
+
+                if (targetType === 'vending') {
+                    getBtn.innerHTML = '🍹<br>BUY';
+                } else if (targetType === 'action') {
+                    getBtn.innerHTML = '⛏️<br>DIG'; // Show Dig Icon
+                    getBtn.style.background = '#FFD700'; // Gold color
+                } else {
+                    getBtn.innerHTML = '🖐️<br>GET!';
+                    getBtn.style.background = ''; // Reset to default
+                }
+            } else {
+                // No target
+                window.sgCurrentTarget = null;
+                crosshair.classList.remove('target-locked');
                 getBtn.style.display = 'none';
             }
         }
@@ -900,7 +1038,7 @@ if (typeof initGameSystem === 'function') {
 }
 
 // ▼▼▼ ベンチ猫の「恩返し」イベント（デバッグ表示＆安全装置付き・再送） ▼▼▼
-(function() {
+(function () {
     const TRIGGER_DIST = 3.0; // 判定距離
     let isCatGone = false;
     let debugLabel = null;
@@ -924,7 +1062,7 @@ if (typeof initGameSystem === 'function') {
         // ネコがいなければ中断
         if (!window.sgBenchCat) return;
         if (isCatGone) return;
-        
+
         // プレイヤー位置取得
         let pPos = null;
         if (window.camera) pPos = window.camera.position;
@@ -961,16 +1099,16 @@ if (typeof initGameSystem === 'function') {
             // 3. コイン出現
             if (window.sgCoinMaster) {
                 const coin = window.sgCoinMaster.clone();
-                
+
                 // 座標計算
                 const offset = cat.userData.coinOffset || new THREE.Vector3(1.2, 0, 0);
                 const coinPos = cat.localToWorld(offset.clone());
-                
+
                 coin.position.copy(coinPos);
-                coin.position.y = 0.5; 
-                
+                coin.position.y = 0.5;
+
                 // サイズ補正
-                coin.scale.setScalar(0.01); 
+                coin.scale.setScalar(0.01);
                 const box = new THREE.Box3().setFromObject(coin);
                 const size = new THREE.Vector3(); box.getSize(size);
                 const maxDim = Math.max(size.x, size.y, size.z);
@@ -990,21 +1128,21 @@ if (typeof initGameSystem === 'function') {
                 const gravity = 0.02;
                 const dropAnim = setInterval(() => {
                     if (!coin.parent || coin.userData.collected) {
-                         clearInterval(dropAnim); 
-                         return;
+                        clearInterval(dropAnim);
+                        return;
                     }
                     coin.position.y += velY;
                     velY -= gravity;
                     coin.rotation.y += 0.5;
 
-                    if (coin.position.y <= 0.5) { 
+                    if (coin.position.y <= 0.5) {
                         coin.position.y = 0.5;
                         clearInterval(dropAnim);
                     }
                 }, 16);
 
                 if (window.AudioManager) window.AudioManager.play('wheeee');
-                
+
                 // 吹き出し
                 const pop = document.createElement('div');
                 pop.textContent = "🐱💭 Here!";
@@ -1022,7 +1160,7 @@ if (typeof initGameSystem === 'function') {
 
 
 // ▼▼▼ キッチンカーイベント（v7 FIX：完全自律・本番対応版） ▼▼▼
-(function() {
+(function () {
     // 1. 設定
     const TARGET_X = -9.0;   // 判定エリアの中心
     const TARGET_Z = -24.37;
@@ -1064,17 +1202,17 @@ if (typeof initGameSystem === 'function') {
         coin.visible = true;
         coin.userData.isCoin = true;
         coin.userData.collected = false;
-        
+
         // 初期位置
         coin.position.set(START_POS.x, START_POS.y, START_POS.z);
-        coin.rotation.set(0, 0, 0); 
-        
+        coin.rotation.set(0, 0, 0);
+
         window.parkGroup.add(coin);
         if (window.sgGameCoins) window.sgGameCoins.push(coin);
         generatedCoin = coin;
 
         let progress = 0;
-        const duration = 45; 
+        const duration = 45;
 
         const animInterval = setInterval(() => {
             if (!coin.parent || coin.userData.collected) {
@@ -1083,7 +1221,7 @@ if (typeof initGameSystem === 'function') {
             }
 
             progress++;
-            const t = progress / duration; 
+            const t = progress / duration;
 
             if (t >= 1.0) {
                 coin.position.set(END_POS.x, END_POS.y, END_POS.z);
@@ -1092,7 +1230,7 @@ if (typeof initGameSystem === 'function') {
                 const easeOut = 1 - Math.pow(1 - t, 2);
                 coin.position.x = START_POS.x + (END_POS.x - START_POS.x) * easeOut;
                 coin.position.z = START_POS.z + (END_POS.z - START_POS.z) * easeOut;
-                const height = Math.sin(t * Math.PI) * 0.5; 
+                const height = Math.sin(t * Math.PI) * 0.5;
                 coin.position.y = START_POS.y + (END_POS.y - START_POS.y) * t + height;
             }
         }, 16);
@@ -1124,11 +1262,11 @@ if (typeof initGameSystem === 'function') {
     // 5. 監視ループ
     setInterval(() => {
         if (isEventTriggered) {
-             if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
-                 generatedCoin.parent.remove(generatedCoin);
-                 generatedCoin = null;
-             }
-             return;
+            if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
+                generatedCoin.parent.remove(generatedCoin);
+                generatedCoin = null;
+            }
+            return;
         }
 
         // ★ここで位置を取得（本番対応）
@@ -1149,7 +1287,7 @@ if (typeof initGameSystem === 'function') {
                 updateHintLabel("🎁 for U!", true);
                 setTimeout(() => updateHintLabel("", false), 2000);
 
-                spawnFlyingCoin(); 
+                spawnFlyingCoin();
                 if (window.AudioManager) window.AudioManager.play('wheeee');
             }
         } else {

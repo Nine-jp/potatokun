@@ -3266,14 +3266,14 @@ const SearchGame = (() => {
 
 
 
-                // ★★★ ネコ耳ピクピク判定 (恩返しイベント：設定確定版) ★★★
-               if (currentState === GameState.PLAYING && window.sgBenchCat) {
+            // ★★★ ネコ耳ピクピク判定 (恩返しイベント：設定確定版) ★★★
+            if (currentState === GameState.PLAYING && window.sgBenchCat) {
                 const cat = window.sgBenchCat;
 
                 // ▼▼▼ 判定エリア設定 (Master Settings) ▼▼▼
-                
+
                 // 1. 判定の中心: ネコの前方 0.5m
-                const triggerOffset = new THREE.Vector3(0, 0, 0.5); 
+                const triggerOffset = new THREE.Vector3(0, 0, 0.5);
                 const triggerCenter = triggerOffset.applyMatrix4(cat.matrixWorld);
 
                 // 2. 判定の半径: 1.0m (これが正解です)
@@ -3296,20 +3296,20 @@ const SearchGame = (() => {
                     const particleCount = 100; // 密度を出すために増量
                     const particles = [];
                     // 極小の粒
-                    const pGeom = new THREE.BoxGeometry(0.03, 0.03, 0.03); 
-                    const pMatBase = new THREE.MeshBasicMaterial({ 
+                    const pGeom = new THREE.BoxGeometry(0.03, 0.03, 0.03);
+                    const pMatBase = new THREE.MeshBasicMaterial({
                         color: 0xFFFFFF, // 純白
-                        transparent: true, 
+                        transparent: true,
                         opacity: 0.6,    // 最初から少し透けさせる
                         depthWrite: false
                     });
 
                     for (let i = 0; i < particleCount; i++) {
-                        const mesh = new THREE.Mesh(pGeom, pMatBase.clone()); 
-                        
+                        const mesh = new THREE.Mesh(pGeom, pMatBase.clone());
+
                         // ネコの体全体から湧き出るように配置
                         mesh.position.copy(cat.position);
-                        mesh.position.y += 0.3; 
+                        mesh.position.y += 0.3;
                         // ランダムに配置（飛び散らせるのではなく、最初からそこに置く）
                         mesh.position.x += (Math.random() - 0.5) * 0.6;
                         mesh.position.z += (Math.random() - 0.5) * 0.6;
@@ -3321,10 +3321,10 @@ const SearchGame = (() => {
                             0.02 + Math.random() * 0.03,  // ゆっくり上昇
                             (Math.random() - 0.5) * 0.01  // 横揺れ程度
                         );
-                        
+
                         // 回転もゆったり
                         mesh.userData.rotSpeed = (Math.random() - 0.5) * 0.05;
-                        
+
                         // 各粒子の個別の寿命（バラバラに消えるように）
                         mesh.userData.life = 1.0 + Math.random() * 0.5;
 
@@ -3347,13 +3347,13 @@ const SearchGame = (() => {
 
                             // 移動 (ゆっくり上昇)
                             p.position.add(p.userData.velocity);
-                            
+
                             // 回転
                             p.rotation.x += p.userData.rotSpeed;
                             p.rotation.y += p.userData.rotSpeed;
-                            
+
                             // ★ここがポイント：粒がどんどん膨らむ（拡散表現）
-                            p.scale.multiplyScalar(1.05); 
+                            p.scale.multiplyScalar(1.05);
 
                             // 寿命を減らす
                             p.userData.life -= 0.03;
@@ -3379,11 +3379,11 @@ const SearchGame = (() => {
                         coin.position.y += 0.25;
 
                         // ★サイズ指定: 0.5 (50cm) 絶対厳守！
-                        coin.scale.setScalar(1.0); 
+                        coin.scale.setScalar(1.0);
                         const box = new THREE.Box3().setFromObject(coin);
                         const size = new THREE.Vector3(); box.getSize(size);
                         const maxDim = Math.max(size.x, size.y, size.z);
-                        
+
                         // 0.5メートルに設定
                         if (maxDim > 0) coin.scale.setScalar(0.5 / maxDim);
 
@@ -3707,17 +3707,24 @@ const SearchGame = (() => {
                     }
                 });
 
-                // === Game coin positions (確定版: 9箇所・高さ指定) ===
+                // === Game coin positions (確定版: 11箇所・高さ指定) ===
                 // ★収集したコイン座標（高さも指定）
                 const coinPositions = [
-                    { x: 0.00, y: 0.62, z: 21.80 },
-                    { x: 24.00, y: 3.60, z: 23.00 },
-                    { x: 24.00, y: 0.60, z: 13.50 },
-                    { x: 2.31, y: 1.80, z: -0.23 },
-                    { x: 4.26, y: 0.60, z: -30.86 },
-                    { x: -31.00, y: 0.60, z: -31.00 },
-                    { x: -30.94, y: 0.60, z: 3.84 },
-                    { x: -19.55, y: 0.60, z: 14.04 }
+                    { x: 0.00, y: 0.62, z: 21.80 }, // 正面(十字路)
+                    { x: 24.00, y: 3.60, z: 23.00 }, // 噴水(十字路)
+                    { x: 4.26, y: 0.60, z: -30.86 }, // 中央北(十字路)
+                    { x: -30.94, y: 0.60, z: 3.84 }, // 中央西(十字路)
+                    { x: 24.00, y: 0.60, z: 13.50 }, // 土管(遊具エリア)
+                    { x: 8.00, y: 1.00, z: 10.00 }, // 切り株(遊具エリア)
+                    { x: 15.00, y: 0.65, z: 9.00 }, // ブランコ(遊具エリア)
+                    { x: 28.00, y: 0.50, z: 7.00 }, // ロケット(遊具エリア)
+                    { x: 2.31, y: 1.60, z: -0.23 }, // 滑り台(遊具エリア)
+                    { x: -29.00, y: 0.60, z: -20.00 }, // 自販機裏(休憩エリア)
+                    { x: -23.30, y: 0.90, z: -19.45 }, // パラソル(休憩エリア)
+                    { x: -7.00, y: 0.85, z: -26.00 }, // トゥクトゥク(休憩エリア)
+                    { x: -9.00, y: 1.60, z: -9.20 }, // 象さん(休憩エリア)
+                    { x: -31.00, y: 0.60, z: 31.00 }, // 森林奥地(森林エリア)
+                    { x: -19.55, y: 0.60, z: 14.04 } // 森林エリア
                 ];
 
                 window.sgGameCoins = []; // For rotation animation
@@ -4881,12 +4888,12 @@ const SearchGame = (() => {
                         const heightOfBench = 0.28; // ナイン氏調整済みの座面高
                         cat.position.y += (heightOfBench - box.min.y);
 
-                    // ★追加: ネコをベンチの「左」にずらす
-                    cat.translateX(-0.6); 
+                        // ★追加: ネコをベンチの「左」にずらす
+                        cat.translateX(-0.6);
 
-                    // ★追加: 「右」のスペース（コイン出現位置）を計算して記憶
-                    // ネコから見て左へ1.2m（＝ベンチの反対側）の位置
-                    cat.userData.coinOffset = new THREE.Vector3(1.2, 0, 0);
+                        // ★追加: 「右」のスペース（コイン出現位置）を計算して記憶
+                        // ネコから見て左へ1.2m（＝ベンチの反対側）の位置
+                        cat.userData.coinOffset = new THREE.Vector3(1.2, 0, 0);
 
                         cat.traverse(child => {
                             if (child.name === 'Ears') cat.userData.ears = child;
@@ -5214,7 +5221,7 @@ const SearchGame = (() => {
 
                                 // スコップ本体も非表示にする (追加)
                                 // ヒットボックス(InteractionCollider)はスコップの子供なので、親を消せば一緒に消えます [cite: 1214]
-                               shovel.visible = false;
+                                shovel.visible = false;
                             };
                         } else {
                             console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
@@ -5223,6 +5230,52 @@ const SearchGame = (() => {
                     }
                 }
             ];
+
+
+            // ★追加: 新遊具アセット (切り株・ブランコ・ロケット)
+
+ASSET_CONFIG.push(
+                {
+                    name: 'Stump_Center',
+                    path: 'models/stump.fbx',
+                    pos: { x: 8, z: 10 },
+                    rot: { y: Math.random() * 360 },
+                    scale: 0.7, // 
+                    collision: true,
+                    exclusionRadius: 2.0,
+                    onLoad: (obj) => {
+                        console.log("🪵 Stump placed at (x: 8, z: 10)");
+                    }
+                },
+
+{
+                    name: 'Swing_Playground',
+                    path: 'models/swing.fbx',
+                    pos: { x: 15, z: 9 },
+                    rot: { y: 180 }, // 南向き
+                    scale: 1.0,
+                    collision: false, // 支柱判定は複雑なので簡易除外エリアで対応
+                    exclusionRadius: 3.0,
+                    onLoad: (obj) => {
+                        console.log("🎠 Swing placed at (x: 15, z: 9)");
+                    }
+                },
+
+
+ {
+                    name: 'Rocket_Secret',
+                    path: 'models/rocket.fbx',
+                    pos: { x: 28, z: 7 },
+                    rot: { y: 0 }, // 斜めに配置
+                    scale: 1.0, // 秘密基地感を出すため大きく
+                    collision: true,
+                    collisionType: 'cylinder', // 円柱判定
+                    exclusionRadius: 2.5,
+                    onLoad: (obj) => {
+                        console.log("🚀 Rocket placed at (x: 28, z: 7)");
+                    }
+                }
+            );
 
             const loader = new FBXLoader();
             window.sgMixers = []; // Clear mixers
@@ -6276,6 +6329,80 @@ const SearchGame = (() => {
 
         }, undefined, (error) => console.error('Error loading tree.fbx:', error));
 
+
+        // --- Helper Function for Stump ---
+        function createCoin(x, y, z) {
+            const loader = new FBXLoader();
+            loader.load('models/coin.fbx', (coin) => {
+                coin.scale.setScalar(0.015);
+                coin.position.set(x, y, z);
+
+                coin.traverse(c => {
+                    if (c.isMesh) {
+                        c.castShadow = true;
+                        const oldMat = Array.isArray(c.material) ? c.material[0] : c.material;
+                        c.material = new THREE.MeshBasicMaterial({
+                            map: oldMat ? oldMat.map : null,
+                            color: 0xFFD700,
+                            side: THREE.DoubleSide
+                        });
+                    }
+                });
+
+                coin.userData.isCoin = true;
+                coin.userData.collected = false;
+
+                // アニメーション用
+                coin.userData.spinSpeed = 0.05;
+                const animateCoin = () => {
+                    if (!coin.parent && !coin.userData.collected && coin.visible) {
+                        // シーン直下の場合も回す
+                        coin.rotation.y += coin.userData.spinSpeed;
+                        requestAnimationFrame(animateCoin);
+                    } else if (coin.parent && !coin.userData.collected) {
+                        coin.rotation.y += coin.userData.spinSpeed;
+                        requestAnimationFrame(animateCoin);
+                    }
+                };
+                animateCoin();
+
+                window.parkGroup.add(coin); // シーンに追加
+                if (window.sgGameCoins) window.sgGameCoins.push(coin);
+            });
+        }
+
+        /**
+         * 切り株を生成し、指定座標に配置する
+         * @param {number} x - X座標
+         * @param {number} z - Z座標
+         */
+        function createStump(x, z) {
+            // 既存のloaderを利用
+            const loader = new FBXLoader();
+            loader.load('models/stump.fbx', (fbx) => {
+                fbx.position.set(x, 0, z);
+                fbx.scale.set(0.015, 0.015, 0.015); // 公園のスケールに合わせ調整
+                fbx.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                window.parkGroup.add(fbx); // sceneではなくparkGroupに追加推奨
+
+                // 納得感（アフォーダンス）のあるコイン配置：切り株の天面
+                // モデルの高さに合わせてy座標を調整してください
+                createCoin(x, 1.0, z); // Y座標調整 (0.015scaleならこのくらい?)
+
+                console.log(`Stump and coin created at X:${x} Z:${z}`);
+            }, undefined, (error) => {
+                console.error('切り株のロードに失敗しました:', error);
+            });
+        }
+
+        // createPark関数内（minigame_part2.txt）の最後の方に以下を追記
+        createStump(13, 6);
+
         // --- 隠しコイン生成関数 (木を直接受け取る) ---
         function setupHiddenCoin(targetTree) {
             if (!targetTree) {
@@ -6900,7 +7027,7 @@ if (typeof initGameSystem === 'function') {
 }
 
 // ▼▼▼ ベンチ猫の「恩返し」イベント（デバッグ表示＆安全装置付き・再送） ▼▼▼
-(function() {
+(function () {
     const TRIGGER_DIST = 3.0; // 判定距離
     let isCatGone = false;
     let debugLabel = null;
@@ -6924,7 +7051,7 @@ if (typeof initGameSystem === 'function') {
         // ネコがいなければ中断
         if (!window.sgBenchCat) return;
         if (isCatGone) return;
-        
+
         // プレイヤー位置取得
         let pPos = null;
         if (window.camera) pPos = window.camera.position;
@@ -6961,16 +7088,16 @@ if (typeof initGameSystem === 'function') {
             // 3. コイン出現
             if (window.sgCoinMaster) {
                 const coin = window.sgCoinMaster.clone();
-                
+
                 // 座標計算
                 const offset = cat.userData.coinOffset || new THREE.Vector3(1.2, 0, 0);
                 const coinPos = cat.localToWorld(offset.clone());
-                
+
                 coin.position.copy(coinPos);
-                coin.position.y = 0.5; 
-                
+                coin.position.y = 0.5;
+
                 // サイズ補正
-                coin.scale.setScalar(0.01); 
+                coin.scale.setScalar(0.01);
                 const box = new THREE.Box3().setFromObject(coin);
                 const size = new THREE.Vector3(); box.getSize(size);
                 const maxDim = Math.max(size.x, size.y, size.z);
@@ -6990,21 +7117,21 @@ if (typeof initGameSystem === 'function') {
                 const gravity = 0.02;
                 const dropAnim = setInterval(() => {
                     if (!coin.parent || coin.userData.collected) {
-                         clearInterval(dropAnim); 
-                         return;
+                        clearInterval(dropAnim);
+                        return;
                     }
                     coin.position.y += velY;
                     velY -= gravity;
                     coin.rotation.y += 0.5;
 
-                    if (coin.position.y <= 0.5) { 
+                    if (coin.position.y <= 0.5) {
                         coin.position.y = 0.5;
                         clearInterval(dropAnim);
                     }
                 }, 16);
 
                 if (window.AudioManager) window.AudioManager.play('wheeee');
-                
+
                 // 吹き出し
                 const pop = document.createElement('div');
                 pop.textContent = "🐱💭 Here!";
@@ -7022,7 +7149,7 @@ if (typeof initGameSystem === 'function') {
 
 
 // ▼▼▼ キッチンカーイベント（v7 FIX：完全自律・本番対応版） ▼▼▼
-(function() {
+(function () {
     // 1. 設定
     const TARGET_X = -9.0;   // 判定エリアの中心
     const TARGET_Z = -24.37;
@@ -7064,17 +7191,17 @@ if (typeof initGameSystem === 'function') {
         coin.visible = true;
         coin.userData.isCoin = true;
         coin.userData.collected = false;
-        
+
         // 初期位置
         coin.position.set(START_POS.x, START_POS.y, START_POS.z);
-        coin.rotation.set(0, 0, 0); 
-        
+        coin.rotation.set(0, 0, 0);
+
         window.parkGroup.add(coin);
         if (window.sgGameCoins) window.sgGameCoins.push(coin);
         generatedCoin = coin;
 
         let progress = 0;
-        const duration = 45; 
+        const duration = 45;
 
         const animInterval = setInterval(() => {
             if (!coin.parent || coin.userData.collected) {
@@ -7083,7 +7210,7 @@ if (typeof initGameSystem === 'function') {
             }
 
             progress++;
-            const t = progress / duration; 
+            const t = progress / duration;
 
             if (t >= 1.0) {
                 coin.position.set(END_POS.x, END_POS.y, END_POS.z);
@@ -7092,7 +7219,7 @@ if (typeof initGameSystem === 'function') {
                 const easeOut = 1 - Math.pow(1 - t, 2);
                 coin.position.x = START_POS.x + (END_POS.x - START_POS.x) * easeOut;
                 coin.position.z = START_POS.z + (END_POS.z - START_POS.z) * easeOut;
-                const height = Math.sin(t * Math.PI) * 0.5; 
+                const height = Math.sin(t * Math.PI) * 0.5;
                 coin.position.y = START_POS.y + (END_POS.y - START_POS.y) * t + height;
             }
         }, 16);
@@ -7124,11 +7251,11 @@ if (typeof initGameSystem === 'function') {
     // 5. 監視ループ
     setInterval(() => {
         if (isEventTriggered) {
-             if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
-                 generatedCoin.parent.remove(generatedCoin);
-                 generatedCoin = null;
-             }
-             return;
+            if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
+                generatedCoin.parent.remove(generatedCoin);
+                generatedCoin = null;
+            }
+            return;
         }
 
         // ★ここで位置を取得（本番対応）
@@ -7149,7 +7276,7 @@ if (typeof initGameSystem === 'function') {
                 updateHintLabel("🎁 for U!", true);
                 setTimeout(() => updateHintLabel("", false), 2000);
 
-                spawnFlyingCoin(); 
+                spawnFlyingCoin();
                 if (window.AudioManager) window.AudioManager.play('wheeee');
             }
         } else {
