@@ -3665,7 +3665,7 @@ const SearchGame = (() => {
                     { x: 24.00, y: 0.60, z: 13.50 }, // 土管(遊具エリア)
                     { x: 9.00, y: 1.00, z: 7.00 }, // 切り株(遊具エリア)
                     { x: 15.00, y: 0.65, z: 9.00 }, // ブランコ(遊具エリア)
-                    { x: 16.00, y: 0.80, z: 16.00 }, // ロケット(遊具エリア)
+                    { x: 16.00, y: 1.00, z: 16.00 }, // ロケット(遊具エリア)
                     { x: 2.31, y: 1.60, z: -0.23 }, // 滑り台(遊具エリア)
                     { x: -29.00, y: 0.60, z: -20.00 }, // 自販機裏(休憩エリア)
                     { x: -23.30, y: 0.90, z: -19.45 }, // パラソル(休憩エリア)
@@ -5177,19 +5177,60 @@ const SearchGame = (() => {
 
                 // ▼▼▼ 🚀ロケット (Rocket) ▼▼▼
 
-                 {
+{
                     name: 'Rocket_Secret',
                     path: 'models/rocket.fbx',
-                    pos: { x: 16, z: 16 },
+                    pos: { x: 16, z: 16 }, // ★注意: 場所変更はここと下2箇所
                     rot: { y: 0 }, 
-                    scale: 2.0, // 秘密基地感を出すため大きく
-                    collision: false,
-                    collisionType: 'cylinder', // 円柱判定
+                    scale: 1.65,
+                    collision: false, 
                     exclusionRadius: 2.5,
-                    onLoad: (obj) => {
-                        console.log("🚀 Rocket placed at (x: 16, z: 16)");
+                    onLoad: (rocket) => {
+                        console.log("🚀 Rocket Logic Started...");
+                        rocket.position.set(16, 0, 16); // ★注意: 場所変更はここと上2箇所
+                        rocket.scale.setScalar(2.0);
+                        rocket.updateMatrixWorld(true); 
+
+                        // ▼ 1. マテリアル強制修復（透け防止）
+                        rocket.traverse((c) => {
+                            if (c.isMesh) {
+                                c.material.transparent = false;
+                                c.material.opacity = 1.0;
+                                c.material.depthWrite = true;
+                                c.material.side = THREE.DoubleSide;
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                            }
+                        });
+
+                        // ▼ 2. 透明壁(COL_WALL)の処理 & 赤枠デバッグ
+                        rocket.traverse((child) => {
+                            if (child.isMesh && child.name.includes('COL_WALL')) {
+                                
+                                // 親が移動したので、子の座標もこれで正しくなります
+                                child.updateMatrixWorld(true);
+                                const box = new THREE.Box3().setFromObject(child);
+
+                                // 障害物リストに追加
+                                if (window.sgExtraObstacles) {
+                                    window.sgExtraObstacles.push({
+                                        minX: box.min.x,
+                                        maxX: box.max.x,
+                                        minZ: box.min.z,
+                                        maxZ: box.max.z
+                                    });
+                                }
+
+                                
+                                // 壁自体は見えなくする
+                                child.visible = false; 
+                                child.userData.ignoreRaycast = true; 
+                            }
+                        });
                     }
                 },
+
+
 
             // ==========================================
             // 池エリア
