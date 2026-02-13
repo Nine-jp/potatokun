@@ -1,0 +1,2000 @@
+            roadNS.position.set(0, 0.02, 0);
+            roadNS.receiveShadow = true;
+            window.parkGroup.add(roadNS);
+
+            // 東西の道 (X軸) 幅10m -> 6m
+            // 変更点: (100, 10) を (100, 6) にする
+            const roadEW = new THREE.Mesh(new THREE.PlaneGeometry(100, 6), roadMat);
+            roadEW.rotation.x = -Math.PI / 2;
+            roadEW.position.set(0, 0.025, 0);
+            roadEW.receiveShadow = true;
+            window.parkGroup.add(roadEW);
+
+            // ★コインテクスチャ生成
+            const createCoinTextures = () => {
+                const size = 128;
+                const cFace = '#ffae00'; const cBorder = '#f05e1c'; const cEye = '#ffffff';
+                const cPupil = '#000000'; const cMouth = '#e83015'; const cPText = '#86c166';
+                const borderThickness = 14;
+                const canvasFace = document.createElement('canvas'); canvasFace.width = size; canvasFace.height = size;
+                const ctx1 = canvasFace.getContext('2d');
+                ctx1.translate(64, 64); ctx1.rotate(-Math.PI / 2); ctx1.translate(-64, -64);
+                ctx1.fillStyle = cBorder; ctx1.fillRect(0, 0, size, size);
+                ctx1.beginPath(); ctx1.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx1.fillStyle = cFace; ctx1.fill();
+                ctx1.fillStyle = cEye; ctx1.fillRect(35, 32, 20, 45); ctx1.fillRect(73, 32, 20, 45);
+                ctx1.fillStyle = cPupil; ctx1.fillRect(40, 44, 10, 22); ctx1.fillRect(78, 44, 10, 22);
+                ctx1.fillStyle = cMouth; ctx1.fillRect(42, 92, 44, 10);
+                const texFace = new THREE.CanvasTexture(canvasFace);
+                texFace.minFilter = THREE.NearestFilter; texFace.magFilter = THREE.NearestFilter;
+                const canvasBack = document.createElement('canvas'); canvasBack.width = size; canvasBack.height = size;
+                const ctx2 = canvasBack.getContext('2d');
+                ctx2.translate(64, 64); ctx2.rotate(-Math.PI / 2); ctx2.translate(-64, -64);
+                ctx2.fillStyle = cBorder; ctx2.fillRect(0, 0, size, size);
+                ctx2.beginPath(); ctx2.arc(64, 64, 64 - borderThickness, 0, Math.PI * 2); ctx2.fillStyle = cFace; ctx2.fill();
+                ctx2.fillStyle = cPText; ctx2.font = 'bold 80px sans-serif';
+                ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('P', 64, 68);
+                const texBack = new THREE.CanvasTexture(canvasBack);
+                texBack.minFilter = THREE.NearestFilter; texBack.magFilter = THREE.NearestFilter;
+                const canvasSide = document.createElement('canvas'); canvasSide.width = 2; canvasSide.height = 2;
+                const ctxSide = canvasSide.getContext('2d'); ctxSide.fillStyle = cBorder; ctxSide.fillRect(0, 0, 2, 2);
+                const texSide = new THREE.CanvasTexture(canvasSide);
+                texSide.minFilter = THREE.NearestFilter; texSide.magFilter = THREE.NearestFilter;
+                return { face: texFace, back: texBack, side: texSide };
+            };
+            const coinTex = createCoinTextures();
+
+            // --- 共通テクスチャ生成ロジック (Shared) ---
+            const getOrCreateCircleTexture = () => {
+                if (window.particleCircleTexture) return window.particleCircleTexture;
+
+                const size = 64;
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+
+                // 円形の描画
+                ctx.beginPath();
+                ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+
+                const texture = new THREE.CanvasTexture(canvas);
+                window.particleCircleTexture = texture;
+                // console.log("⚪ Created Shared Circle Texture Asset.");
+                return texture;
+            };
+
+            const spawnSnowExplosion = (pos) => {
+                // 関数が呼ばれる直前にテクスチャを確保
+                getOrCreateCircleTexture();
+
+                const particleCount = 15;
+                // MeshではなくSpriteを使用（コインと同じ仕様にする）
+                const material = new THREE.SpriteMaterial({
+                    map: window.particleCircleTexture,
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.8,
+                    depthWrite: false
+                });
+
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = new THREE.Sprite(material.clone()); // 個別にopacity制御するためclone
+                    particle.position.set(
+                        pos.x + (Math.random() - 0.5) * 1.0, // 範囲も少し狭める
+                        pos.y + Math.random() * 1.0,
+                        pos.z + (Math.random() - 0.5) * 1.0
+                    );
+
+                    // サイズ: コインは0.13なので、雪もそれに近づける (0.15〜0.2)
+                    const s = 0.15 + Math.random() * 0.1;
+                    particle.scale.set(s, s, s);
+
+                    scene.add(particle);
+
+                    // 速度ベクトル (コイン取得時と同じパラメータ)
+                    const velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.08,
+                        Math.random() * 0.08,
+                        (Math.random() - 0.5) * 0.08
+                    );
+
+                    let lastTime = performance.now();
+
+                    const animate = () => {
+                        // Delta Time計算
+                        const now = performance.now();
+                        const dt = Math.min((now - lastTime) / 1000, 0.1);
+                        lastTime = now;
+
+                        // 60FPS基準のタイムスケール
+                        const timeScale = dt * 60;
+
+                        // 移動
+                        particle.position.x += velocity.x * timeScale;
+                        particle.position.y += velocity.y * timeScale;
+                        particle.position.z += velocity.z * timeScale;
+
+                        // 減速 (空気抵抗)
+                        velocity.multiplyScalar(Math.pow(0.95, timeScale));
+
+                        // フェードアウト
+                        particle.material.opacity -= 0.03 * timeScale;
+
+                        if (particle.material.opacity <= 0) {
+                            scene.remove(particle);
+                            particle.material.dispose();
+                        } else {
+                            requestAnimationFrame(animate);
+                        }
+                    };
+                    animate();
+                }
+                // console.log("❄️ Snow Explosion: Round Sprites deployed.");
+            };
+
+            // 砂場の飛散エフェクト (createSandSplash)
+            window.createSandSplash = (pos) => {
+                getOrCreateCircleTexture();
+                const particleCount = 12;
+                const material = new THREE.SpriteMaterial({
+                    map: window.particleCircleTexture,
+                    color: 0xf4a460, // 砂の色 (Sandy Brown)
+                    transparent: true,
+                    opacity: 0.9,
+                    depthWrite: false
+                });
+
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = new THREE.Sprite(material.clone());
+                    particle.position.set(
+                        pos.x + (Math.random() - 0.5) * 0.8,
+                        pos.y + Math.random() * 0.5,
+                        pos.z + (Math.random() - 0.5) * 0.8
+                    );
+                    const s = 0.1 + Math.random() * 0.15;
+                    particle.scale.set(s, s, s);
+                    scene.add(particle);
+
+                    const velocity = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.15,
+                        0.1 + Math.random() * 0.1,
+                        (Math.random() - 0.5) * 0.15
+                    );
+                    let lastTime = performance.now();
+                    const animateSplash = () => {
+                        const now = performance.now();
+                        const dt = Math.min((now - lastTime) / 1000, 0.1);
+                        lastTime = now;
+                        const timeScale = dt * 60;
+
+                        particle.position.add(velocity.clone().multiplyScalar(timeScale));
+                        velocity.y -= 0.008 * timeScale; // 重力
+
+                        particle.material.opacity -= 0.02 * timeScale;
+                        if (particle.material.opacity <= 0) {
+                            scene.remove(particle);
+                            particle.material.dispose();
+                        } else {
+                            requestAnimationFrame(animateSplash);
+                        }
+                    };
+                    animateSplash();
+                }
+            };
+
+            // ★修正: North = -Z Coordinate System (Inverted Z)
+
+            // ★ 3Dパーティクルシステム (window.spawnSparkles用 - 最適化版)
+            window.spawnParticles = (x, y, z, colors, className) => {
+                if (!scene) return;
+
+                // 【最適化1】テクスチャのキャッシュ利用
+                const texture = getOrCreateCircleTexture();
+                const count = 5;
+
+                for (let i = 0; i < count; i++) {
+                    // 【最適化2】色の適用方法の変更 (SpriteMaterial.colorプロパティを使用)
+                    const colorValue = (colors && colors.length > 0)
+                        ? colors[Math.floor(Math.random() * colors.length)]
+                        : 0xffffff;
+
+                    const material = new THREE.SpriteMaterial({
+                        map: texture,
+                        color: new THREE.Color(colorValue),
+                        transparent: true,
+                        opacity: 1.0,
+                        depthWrite: false,
+                        blending: THREE.AdditiveBlending // 加算合成で光を表現
+                    });
+
+                    const sprite = new THREE.Sprite(material);
+
+                    // 初期位置のランダム拡散
+                    const spread = 0.5;
+                    sprite.position.set(
+                        x + (Math.random() - 0.5) * spread,
+                        y + (Math.random() - 0.5) * spread,
+                        z + (Math.random() - 0.5) * spread
+                    );
+
+                    // サイズのランダム化
+                    const scale = 0.1 + Math.random() * 0.1;
+                    sprite.scale.set(scale, scale, 1.0);
+
+                    scene.add(sprite);
+
+                    // 【最適化3】Vanilla JSによるアニメーション処理
+                    let velocityY = 0.01 + Math.random() * 0.01;
+                    let velocityX = (Math.random() - 0.5) * 0.01;
+                    let velocityZ = (Math.random() - 0.5) * 0.01;
+                    let opacity = 1.0;
+
+                    const animate = () => {
+                        opacity -= 0.02;
+                        if (opacity <= 0) {
+                            scene.remove(sprite);
+                            material.dispose();
+                            return;
+                        }
+
+                        // 位置更新
+                        sprite.position.x += velocityX;
+                        sprite.position.y += velocityY;
+                        sprite.position.z += velocityZ;
+
+                        // わずかな減速
+                        velocityY *= 0.98;
+
+                        // 不透明度反映
+                        sprite.material.opacity = opacity;
+
+                        requestAnimationFrame(animate);
+                    };
+                    animate();
+                }
+            };
+
+
+            // 1. spawnSparkles の修正（キラキラ仕様）
+            window.spawnSparkles = (x, y, z) => {
+                if (typeof window.spawnParticles === 'function') {
+                    // 白と金の小さな粒、かつ少しだけ上に浮く設定
+                    window.spawnParticles(x, y, z, ['#FFFFFF', '#FFD700'], 'pa-particle');
+                }
+            };
+
+            // 1. カラーパレットの変更
+            // 1. 関数の書き換え（透明度・速度・寿命を最適化）
+            window.spawnFountainSparkles = (x, y, z, isWaterColor = true, isBack = false) => {
+                // ★修正: 共通テクスチャ生成ロジックを使用
+                getOrCreateCircleTexture();
+
+                const count = isBack ? 2 : 3;
+                const waterPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
+                const goldPalette = [0xFFFFFF, 0x87CEFA, 0xB8EEF7];
+
+                for (let i = 0; i < count; i++) {
+                    const color = isWaterColor
+                        ? waterPalette[Math.floor(Math.random() * waterPalette.length)]
+                        : goldPalette[Math.floor(Math.random() * goldPalette.length)];
+
+                    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                        map: window.particleCircleTexture,
+                        color: color,
+                        transparent: true,
+                        opacity: 0.6,
+                        depthWrite: false
+                    }));
+
+                    sprite.position.set(x + (Math.random() - 0.5) * 0.1, y, z + (Math.random() - 0.5) * 0.1);
+                    sprite.scale.setScalar(isBack ? 0.07 : 0.06);
+                    scene.add(sprite);
+
+                    let velY = isBack ? (0.01 + Math.random() * 0.01) : (0.02 + Math.random() * 0.02);
+                    let velX = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
+                    let velZ = (Math.random() - 0.5) * (isBack ? 0.02 : 0.01);
+                    let life = 1.0;
+
+                    const anim = () => {
+                        life -= 0.03;
+                        if (life <= 0) { scene.remove(sprite); return; }
+                        sprite.position.x += velX;
+                        sprite.position.y += velY;
+                        sprite.position.z += velZ;
+
+                        velY -= isBack ? 0.0003 : 0.002;
+
+                        sprite.material.opacity = life;
+                        requestAnimationFrame(anim);
+                    };
+                    anim();
+                }
+            };
+
+            // ▼▼▼ 🪑🪑🪑ベンチ (Bench) ▼▼▼
+            // --- ランダムベンチ選択ロジック ---
+
+            const getTargetBench = () => {
+                const benches = [];
+                const START = 10.0, END = 30.0, STEP = 4.0;
+                for (let d = START; d <= END; d += STEP) {
+                    const b = d - 2.0;
+                    // 4方向、合計8つの座標と向きを追加
+                    benches.push({ x: b, z: 4, r: 180 }, { x: -b, z: 4, r: 180 });
+                    benches.push({ x: b, z: -4, r: 0 }, { x: -b, z: -4, r: 0 });
+                    benches.push({ x: 4, z: b, r: -90 }, { x: 4, z: -b, r: -90 });
+                    benches.push({ x: -4, z: b, r: 90 }, { x: -4, z: -b, r: 90 });
+                }
+                // 遊具エリア入口(x:4, z:16)のベンチを除外（全47個にする）
+                const validBenches = benches.filter(p => !(Math.abs(p.x - 4) < 0.1 && Math.abs(p.z - 16) < 0.1));
+                return validBenches[Math.floor(Math.random() * validBenches.length)];
+            };
+            const selectedBench = getTargetBench();
+
+            const ASSET_CONFIG = [
+                {
+                    name: 'MainFountain',
+                    path: 'models/fountain.fbx',
+                    pos: { x: 0, y: 0, z: 0 },
+                    scale: 3.0,
+                    rot: { y: 0 },
+                    collision: false,
+                    exclusionRadius: 8.0,
+                    onLoad: (obj) => {
+                        obj.traverse(c => {
+                            // メッシュかつ名前に'water'が含まれる場合（大文字小文字無視）
+                            if (c.isMesh && c.name.toLowerCase().includes('water')) {
+                                // マテリアル配列対応
+                                const materials = Array.isArray(c.material) ? c.material : [c.material];
+                                materials.forEach(mat => {
+                                    mat.transparent = true;
+                                    mat.opacity = 0.5; // 半透明
+                                    mat.depthWrite = false; // 前後関係の描画崩れ防止
+                                });
+
+                                c.castShadow = false; // 影を落とさない（影なし）
+                                c.receiveShadow = true; // 影は受ける
+                                c.userData.skipOutline = true; // アウトラインなし
+                            }
+                        });
+                    }
+                },
+
+
+
+                // ▼▼▼ 🛝滑り台 (Slide) ▼▼▼
+
+                {
+                    name: 'Slide',
+                    path: 'models/slide.fbx',
+                    pos: { x: 24, z: 23 },
+                    rot: { y: 270 },
+                    scale: 3.0,
+                    collision: false,
+                    exclusionRadius: 8.0,
+                    onLoad: (obj) => {
+                        console.log("🛝 Slide placed at (x: 24, z: 23)");
+                    }
+                },
+
+                // ▼▼▼ ⚖️シーソー (Seesaw) - 静的オブジェクト版 ▼▼▼
+
+                {
+                    name: 'Seesaw',
+                    path: 'models/seesaw.fbx',
+                    pos: { x: 18, y: 0.6, z: 25 }, // 地面(y=0)に設置。浮いている場合は微調整してください
+                    rot: { y: 0 },
+                    scale: 1.0,
+                    collision: false,
+                    exclusionRadius: 3.0,
+                    onLoad: (obj) => {
+                        // 余計なPivot作成などは行わず、影の設定のみを適用
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                            }
+                        });
+                        console.log("Seesaw loaded as a static object.");
+                    }
+                },
+
+                // ▼▼▼ 🐘象さん (ElephantSprayer) ▼▼▼
+
+                {
+                    name: 'ElephantSprayer',
+                    path: 'models/elephant_sprayer.fbx',
+                    pos: { x: -9, y: 0, z: -8.5 },
+                    rot: { y: 0 }, // ★向きを0度に完全固定
+                    scale: 0.8, // 必要に応じて微調整
+                    collision: true,
+                    collisionType: 'cylinder',
+                    collisionSize: { radius: 1.35, height: 3 },
+                    onLoad: (obj) => {
+                        // ストリームメッシュの初期化と分別
+                        const streams = [];
+                        obj.traverse((c) => {
+                            if (c.isMesh && c.name.toLowerCase().includes('stream')) {
+                                c.material = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
+                                c.material.transparent = true;
+                                c.material.opacity = 0.6;
+                                c.material.depthWrite = false;
+                                c.visible = false;
+
+                                // ★修正: 水流メッシュにはアウトラインを付けない
+                                c.userData.skipOutline = true;
+
+                                streams.push(c);
+                            }
+                            c.castShadow = true;
+                        });
+
+                        // ★名前による分別ロジック (より確実)
+                        obj.userData.noseStreams = [];
+                        obj.userData.backStreams = [];
+
+                        streams.forEach(s => {
+                            if (s.name.toLowerCase().includes('nose')) {
+                                obj.userData.noseStreams.push(s);
+                            } else {
+                                obj.userData.backStreams.push(s);
+                            }
+                        });
+
+                        // フォールバック: 名前でnoseが見つからなかった場合のみZソート
+                        if (obj.userData.noseStreams.length === 0 && streams.length > 0) {
+                            console.warn("Elephant: No 'nose' stream found by name. Falling back to Z-sort.");
+                            streams.sort((a, b) => b.position.z - a.position.z);
+                            obj.userData.noseStreams.push(streams[0]);
+
+                            // backStreamsから重複削除
+                            const idx = obj.userData.backStreams.indexOf(streams[0]);
+                            if (idx > -1) obj.userData.backStreams.splice(idx, 1);
+                        }
+
+                        console.log(`Elephant Streams Sorted: Nose=${obj.userData.noseStreams.length}, Back=${obj.userData.backStreams.length}`);
+
+                        if (window.applyOutlineRules) window.applyOutlineRules(obj);
+                    }
+                },
+
+                // ▼▼▼ 🪧看板 (Signboard) ▼▼▼
+
+                {
+                    name: 'InfoBoard',
+                    path: 'models/signboard.fbx',
+                    pos: { x: -28.63, y: 0, z: -12.62 },
+                    rot: { y: 90 },
+                    scale: 1.0,
+                    collision: false,
+                    userData: {
+                        title: "インフォメーション",
+                        description: "ポテトくんの公園へようこそ！"
+                    },
+                    onLoad: (obj) => {
+                        // 1. ポスター貼り付け & URL設定
+                        const textureLoader = new THREE.TextureLoader();
+                        const posterTexture = textureLoader.load('assets/testposter.png');
+                        posterTexture.colorSpace = THREE.SRGBColorSpace;
+                        posterTexture.flipY = true;
+
+                        const targetUrl = 'https://www.instagram.com/nine.jp.4nft/';
+
+                        obj.traverse((c) => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+
+                                if (c.name.includes('Face')) {
+                                    const mat = (Array.isArray(c.material) ? c.material[0] : c.material).clone();
+                                    mat.map = posterTexture;
+                                    mat.color.setHex(0xffffff);
+                                    c.material = mat;
+
+                                    c.userData.url = targetUrl;
+                                    c.userData.isLink = true;
+                                }
+                            }
+                        });
+
+                        // 2. 柱の衝突判定（股下通過用）
+                        obj.updateMatrixWorld(true);
+                        const box = new THREE.Box3().setFromObject(obj);
+                        const legThickness = 0.3;
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.min.z, maxZ: box.min.z + legThickness
+                        });
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.max.z - legThickness, maxZ: box.max.z
+                        });
+
+                        window.sgExtraObstacles.push({
+                            minX: box.min.x, maxX: box.max.x,
+                            minZ: box.max.z - legThickness, maxZ: box.max.z
+                        });
+
+                        // 3. クリックイベントは handleInputInteraction で統合管理するため削除
+                    }
+                },
+
+                // ▼▼▼ 🎰自動販売機 (VendingMachine) ▼▼▼
+
+                {
+                    name: 'VendingMachine',
+                    path: 'models/vending_machine.fbx',
+                    pos: { x: 0, y: 0, z: 0 }, // Template pos
+                    rot: { y: 90 },
+                    scale: 1.0,
+                    // positions: Defined here for the loader to clone
+                    positions: [
+                        { x: -28, z: -18.0 },
+                        { x: -28, z: -19.3 },
+                        { x: -28, z: -20.6 },
+                        { x: -28, z: -21.9 }
+                    ],
+                    collision: false, // Handle manually in onLoad
+                    onLoad: (vm, index) => {
+                        // This callback runs for EACH clone
+                        vm.visible = true;
+
+                        // ★商品パネル (Decal) の追加
+                        const texLoader = new THREE.TextureLoader();
+                        const panelTex = texLoader.load(`assets/vending_panel_${index + 1}.png`);
+                        // Planeはデフォルトで+Z向き。自販機のFrontが+Zならそのまま見手側に向く。
+                        // 暗所でも見えるように BasicMaterial + Transparent
+                        const panelMat = new THREE.MeshBasicMaterial({ map: panelTex, transparent: true });
+                        const panelGeo = new THREE.PlaneGeometry(1.0, 1.6);
+                        const panel = new THREE.Mesh(panelGeo, panelMat);
+
+                        // 位置合わせ (Y:1.15, Z:0.28) -> (Y:1.38, Z:0.285)
+                        panel.position.set(0, 1.05, 0.285);
+
+                        vm.add(panel);
+
+                        // Apply materials logic
+                        vm.traverse(c => {
+                            if (c.isMesh) {
+                                const name = c.name.toLowerCase();
+                                if (name.includes('body')) {
+                                    c.castShadow = true; c.receiveShadow = true;
+                                } else if (name.includes('light')) {
+                                    c.castShadow = false; c.receiveShadow = false;
+                                    if (c.material) {
+                                        c.material = c.material.clone();
+                                        c.material.emissive = new THREE.Color(0xFFBF00);
+                                    }
+                                } else if (name.includes('water')) {
+                                    c.castShadow = false; c.receiveShadow = true;
+                                    if (c.material) {
+                                        c.material = c.material.clone();
+                                        c.material.transparent = true;
+                                        c.material.opacity = 0.5;
+                                        c.material.depthWrite = false;
+                                    }
+                                } else {
+                                    c.castShadow = true; c.receiveShadow = true;
+                                }
+                            }
+                        });
+
+
+                        vm.updateMatrixWorld(true);
+                        const box = new THREE.Box3().setFromObject(vm);
+                        const legThickness = 0.3;
+                        window.sgExtraObstacles.push(
+                            { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.min.z + legThickness },
+                            { minX: box.min.x, maxX: box.max.x, minZ: box.max.z - legThickness, maxZ: box.max.z }
+                        );
+                    }
+                },
+
+                // ▼▼▼ 🗑️ゴミ箱 (TrashCan) ▼▼▼
+
+                {
+                    name: 'TrashCan',
+                    path: 'models/recyclebin.fbx',
+                    pos: { x: 0, y: 0, z: 0 },
+                    rot: { y: 90 },
+                    scale: 1.0,
+                    positions: [
+                        { x: -28, z: -23.2 },
+                        { x: -28, z: -23.9 }
+                    ],
+                    collision: true,
+                    exclusionRadius: 1.0,
+                    onLoad: (obj) => {
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                            }
+                        });
+                    }
+                },
+
+                {
+                    name: 'Dokan', path: 'models/ceramic_pipe.fbx', pos: { x: 24, y: 0, z: 14 }, rot: { y: 90 }, scale: 2.0, exclusionRadius: 3.5, // Old z: -14
+                    onLoad: (obj) => {
+                        try {
+                            obj.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(obj); obj.position.y -= box.min.y;
+                            obj.traverse(c => { if (c.isMesh) c.userData.ignoreGround = true; });
+                            const roof = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 3.2), new THREE.MeshBasicMaterial({ visible: false }));
+                            roof.position.copy(obj.position); roof.position.y += 2.0; roof.rotation.y = obj.rotation.y; window.parkGroup.add(roof);
+                            const gap = 0.55; const thick = 0.1;
+                            window.sgExtraObstacles.push({ minX: obj.position.x - gap - thick, maxX: obj.position.x - gap, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 }, { minX: obj.position.x + gap, maxX: obj.position.x + gap + thick, minZ: obj.position.z - 1.6, maxZ: obj.position.z + 1.6 });
+                        } catch (e) { console.error("Error in Dokan onLoad:", e); }
+                    }
+                },
+
+
+                // ▼▼▼ 🪑🐱ベンチねこ (BenchCat) ▼▼▼
+
+                {
+                    name: 'BenchCat',
+                    path: 'models/cat.fbx',
+                    pos: { x: selectedBench.x, y: 0.45, z: selectedBench.z },
+                    rot: { y: selectedBench.r },
+                    scale: 1.0,
+                    onLoad: (cat) => {
+                        const box = new THREE.Box3().setFromObject(cat);
+                        const heightOfBench = 0.28; // ナイン氏調整済みの座面高
+                        cat.position.y += (heightOfBench - box.min.y);
+
+                        // ★追加: ネコをベンチの「左」にずらす
+                        cat.translateX(-0.6);
+
+                        // ★追加: 「右」のスペース（コイン出現位置）を計算して記憶
+                        // ネコから見て左へ1.2m（＝ベンチの反対側）の位置
+                        cat.userData.coinOffset = new THREE.Vector3(1.2, 0, 0);
+
+                        cat.traverse(child => {
+                            if (child.name === 'Ears') cat.userData.ears = child;
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                                child.userData.entityType = 'npc';
+                            }
+                        });
+                        if (window.applyOutlineRules) window.applyOutlineRules(cat);
+                        window.sgBenchCat = cat;
+                        cat.userData.hasReacted = false;
+                        cat.userData.isReacting = false;
+                        cat.userData.reactionTimer = 0;
+                        console.log(`🐱 Bench Cat Spawned at (x:${selectedBench.x}, z:${selectedBench.z})`);
+                    }
+                },
+
+                // ▼▼▼ 🛞タイヤ (Tire) ▼▼▼
+
+                {
+                    name: 'Tire',
+                    path: 'models/tire.fbx',
+                    pos: { x: 0, y: -10, z: 0 },
+                    rot: { y: 0 },
+                    scale: 1.0,
+                    collision: false,
+                    onLoad: (baseTire) => {
+                        console.log("🛞 Tire FBX Loaded. Configuring Layout...");
+
+                        // 1. 自動スケール調整 (Auto-Scale to 1.0m)
+                        baseTire.updateMatrixWorld(true);
+                        const box = new THREE.Box3().setFromObject(baseTire);
+                        const size = new THREE.Vector3();
+                        box.getSize(size);
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        const scaleFactor = 1.0 / (maxDim > 0 ? maxDim : 1.0);
+                        baseTire.scale.setScalar(scaleFactor);
+
+                        // テンプレートは隠す
+                        baseTire.visible = false;
+
+                        // 2. 配置座標の生成（合計8個：入口からの導線用）
+                        const tirePositions = [];
+
+                        // 左側（北側）の4つ: Z = 14.5
+                        for (let i = 0; i < 4; i++) {
+                            tirePositions.push({
+                                x: 5.5 + (i * 1.2),
+                                z: 14.5
+                            });
+                        }
+
+                        // 右側（南側）の4つ: Z = 17.5
+                        for (let i = 0; i < 4; i++) {
+                            tirePositions.push({
+                                x: 5.5 + (i * 1.2),
+                                z: 17.5
+                            });
+                        }
+
+                        // 3. カラーパレット (赤・青・黄)
+                        const tireColors = [0xFF0000, 0x0000FF, 0xFFFF00];
+
+                        // 4. 生成ループ
+                        tirePositions.forEach((pos, index) => {
+                            const tire = baseTire.clone();
+                            tire.visible = true;
+
+                            // 配置 (原点中心なのでY=0で半分埋まる)
+                            tire.position.set(pos.x, 0, pos.z);
+
+                            // 色の適用 (順番にサイクル)
+                            const colorHex = tireColors[index % 3];
+
+                            tire.traverse(child => {
+                                if (child.isMesh) {
+                                    child.castShadow = true;
+                                    child.receiveShadow = true;
+
+                                    if (child.material) {
+                                        child.material = child.material.clone();
+                                        child.material.color.setHex(colorHex);
+                                        child.material.transparent = false;
+                                        child.material.opacity = 1.0;
+                                    }
+                                }
+                            });
+
+                            window.parkGroup.add(tire);
+
+                            // ★衝突判定 (ExclusionManager) は削除しました
+                            // これでタイヤの上を歩けます
+                        });
+
+                        console.log(`Placed ${tirePositions.length} tires (Walkable).`);
+                    }
+                },
+
+                // ▼▼▼ ⛱️パラソル (Parasol) ▼▼▼
+
+                {
+                    name: 'Parasol',
+                    path: 'models/parasol.fbx',
+                    pos: { x: 0, y: 0, z: 0 },
+                    scale: 0.8,
+                    // positions: Moved here
+                    positions: [
+                        // 1. 西側列 (Near Vending Line X:-23)
+                        { x: -23, z: -9.0 }, { x: -22, z: -14.0 }, { x: -23, z: -19.0 },
+                        { x: -22, z: -24.0 }, { x: -23, z: -27.5 },
+
+                        // 2. 中央列 (Mid Area X:-18 ~ -13)
+                        { x: -18, z: -11.0 }, { x: -17, z: -16.0 }, { x: -18, z: -21.0 }, { x: -17, z: -26.0 },
+                        { x: -13, z: -9.0 }, { x: -13, z: -13.0 }, { x: -12, z: -18.0 }, { x: -13, z: -23.0 }, { x: -12, z: -27.0 },
+
+                        // 3. 東側列 (Near East Line X:-7) - Avoid Elephant (-9, -8.5)
+                        { x: -8, z: -15.0 }
+                    ],
+                    collision: false,
+                    onLoad: (parasol) => {
+                        // Runs for EACH clone
+                        parasol.visible = true;
+                        parasol.rotation.y = Math.random() * Math.PI * 2; // Random rot
+
+                        // Register canopy for season updates
+                        parasol.traverse(c => {
+                            if (c.isMesh && c.name.toLowerCase().includes('canopy')) {
+                                c.material = c.material.clone(); // Clone mat for independence
+                                window.sgParasolCanopies.push(c);
+                            }
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                            }
+                        });
+
+                        // ★追加: 円柱衝突判定 (半径0.6)
+                        if (window.sgFountainCollision) {
+                            window.sgFountainCollision.push({ x: parasol.position.x, z: parasol.position.z, radius: 0.6 });
+                        }
+                    }
+                },
+
+                // ▼▼▼ 🚙キッチンカー (KitchenCar) ▼▼▼
+
+                {
+                    name: 'KitchenCar_Tuktuk',
+                    path: 'models/tuktuk.fbx',
+                    pos: { x: -7, y: 0, z: -25 },
+                    rot: { y: 180 }, // 南向き
+                    scale: 1.0,
+                    collision: false, // カスタム衝突判定を使用するためfalse
+                    exclusionRadius: 3.5,
+                    onLoad: (tuktuk) => {
+                        console.log("🚙 TukTuk KitchenCar: Ground-level Deployment (South Facing)");
+
+                        // 影とマテリアルの基本設定 & 詳細チューニング
+                        tuktuk.traverse(c => {
+                            if (c.isMesh) {
+                                // 0. ベース設定
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                                if (c.material) {
+                                    const mats = Array.isArray(c.material) ? c.material : [c.material];
+                                    mats.forEach(m => {
+                                        m.shadowSide = THREE.BackSide;
+                                    });
+                                }
+
+                                const name = c.name.toLowerCase();
+
+                                // 1. ライトの控えめな発光
+                                if (name.includes('light')) {
+                                    if (!Array.isArray(c.material)) {
+                                        c.material = c.material.clone();
+                                        c.material.emissive = new THREE.Color(0xFFFFCC); // 暖かみのある白
+                                        c.material.emissiveIntensity = 0.4; // ★光量少なめ
+                                        c.castShadow = false; // ライト自体は影を落とさない
+                                    }
+                                }
+
+                                // 2. ガラスの透過設定
+                                if (name.includes('glass')) {
+                                    if (!Array.isArray(c.material)) {
+                                        c.material = c.material.clone();
+                                        c.material.transparent = true;
+                                        c.material.opacity = 0.3; // ★しっかり透過
+                                        c.material.depthWrite = false; // 描画順のバグ防止
+                                        c.castShadow = false; // ガラスは影を落とさない
+                                    }
+                                }
+
+                                // 3. ポスター面 (画像適用)
+                                if (name.includes('kitchencar_face')) {
+                                    if (!Array.isArray(c.material)) {
+                                        c.material = c.material.clone();
+
+                                        // テクスチャの非同期ロード
+                                        const textureLoader = new THREE.TextureLoader();
+                                        textureLoader.load('assets/kitchencar_ad1.png', (tex) => {
+                                            tex.colorSpace = THREE.SRGBColorSpace;
+                                            tex.colorSpace = THREE.SRGBColorSpace;
+                                            tex.flipY = true; // 反転
+
+                                            // 画像を時計回りに270度回転 (さらに180度追加)
+                                            tex.center.set(0.5, 0.5);
+                                            tex.rotation = -Math.PI * 1.5;
+
+                                            c.material.map = tex;
+                                            c.material.color.setHex(0xFFFFFF); // 画像の色を出すため白
+                                            c.material.emissive = new THREE.Color(0xFFFFFF);
+                                            c.material.emissiveMap = tex;
+                                            c.material.emissiveIntensity = 0.2; // ほんのり自発光
+                                            c.material.needsUpdate = true;
+
+                                            console.log("🖼️ KitchenCar Poster applied to:", name);
+                                        });
+                                    }
+                                }
+                            }
+                        });
+
+                        // 「いい感じ」の物理判定登録
+                        // 車体の中心から前後左右にバリアを張る
+                        if (window.sgExtraObstacles) {
+                            window.sgExtraObstacles.push({
+                                minX: -7 - 1.3, maxX: -7 + 1.3,
+                                minZ: -25 - 3.5, maxZ: -25 + 3.5
+                            });
+                        }
+                    }
+                },
+
+                // ▼▼▼ 🪏砂場 (Sandbox) ▼▼▼
+
+                {
+                    name: 'Sandbox',
+                    path: 'models/sandbox_set.fbx',
+                    pos: { x: 10, y: 0, z: 25 },
+                    rot: { y: 0 },
+                    scale: 1.4,
+                    checkCollisions: true,
+                    onLoad: (obj) => {
+                        console.log("🪏 Sandbox Set Loaded");
+                        let shovel = null;
+                        let sandMound = null;
+
+                        obj.traverse(c => {
+                            if (c.isMesh) {
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+
+                                const name = c.name.toLowerCase();
+                                // メッシュ名の特定 (Shovel / SandMound)
+                                if (name.includes('shovel')) {
+                                    shovel = c;
+
+                                    // ★根本治療: スコップに含まれる「全てのメッシュ」を走査して無効化する
+                                    // これにより、見えないゴースト判定も全て無効化されます
+                                    shovel.traverse((child) => {
+                                        if (child.isMesh) {
+                                            child.userData.ignoreRaycast = true;
+                                        }
+                                    });
+                                    console.log("🪏 Shovel: All original meshes set to ignoreRaycast.");
+
+                                    // ★HitBoxの作成 (ユーザー確定サイズ)
+                                    // サイズ: 幅60cm, 高さ20cm, 奥行50cm
+                                    const hitGeo = new THREE.BoxGeometry(0.6, 0.2, 0.5);
+
+                                    // ★修正: 本番用に「透明」に戻す (visible: false)
+                                    const hitMat = new THREE.MeshBasicMaterial({
+                                        visible: false, // 透明化！
+                                        side: THREE.DoubleSide
+                                    });
+
+                                    const hitBox = new THREE.Mesh(hitGeo, hitMat);
+                                    hitBox.userData.parentItem = shovel;
+                                    hitBox.userData.isHitBox = true;
+                                    hitBox.userData.skipOutline = true;
+                                    hitBox.userData.ignoreHighlight = true;
+                                    // hitBoxには ignoreRaycast を設定しない（デフォルトfalse = 反応する）
+
+                                    // 位置合わせ
+                                    shovel.geometry.computeBoundingBox();
+                                    const center = new THREE.Vector3();
+                                    shovel.geometry.boundingBox.getCenter(center);
+                                    hitBox.position.copy(center);
+
+                                    // 最後に箱を追加
+                                    shovel.add(hitBox);
+                                    console.log("🪏 Shovel HitBox set (RED). Original mesh raycast disabled.");
+                                }    // ------------------------------------------------
+                                if (name.includes('mound') || name.includes('sandpile')) sandMound = c;
+
+                                // Register walkable mesh
+                                if (c.name.includes('SandboxMain')) {
+                                    if (window.sgWalkableMeshes) window.sgWalkableMeshes.push(c);
+                                }
+                            }
+                        });
+
+                        // --- ギミック設定 ---
+                        if (shovel && sandMound) {
+                            console.log("✨ Sandbox Shovel & Mound identified. Setting up interaction.");
+
+                            // クリック対象として登録
+                            if (window.sgInteractables) window.sgInteractables.push(shovel);
+
+                            shovel.userData.hasDug = false;
+                            shovel.userData.action = () => {
+                                if (shovel.userData.hasDug) return;
+                                shovel.userData.hasDug = true;
+
+                                console.log("🪏 Digging in the sandbox!");
+
+                                // 音
+                                if (window.AudioManager) window.AudioManager.play('thud');
+
+                                // 演出: 砂山を消してパーティクル
+                                sandMound.visible = false;
+                                if (window.createSandSplash) {
+                                    const worldPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(worldPos);
+                                    window.createSandSplash(worldPos);
+                                }
+
+                                // 報酬: コイン出現
+                                if (typeof spawnDropCoin === 'function') {
+                                    const coinPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(coinPos);
+                                    spawnDropCoin(coinPos);
+                                }
+
+                                // スコップ本体も非表示にする (追加)
+                                // ヒットボックス(InteractionCollider)はスコップの子供なので、親を消せば一緒に消えます [cite: 1214]
+                                shovel.visible = false;
+                            };
+                        } else {
+                            console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
+                                obj.children.map(c => c.name));
+                        }
+                    }
+                },
+
+                // ▼▼▼ 🪵切り株 (Stump) ▼▼▼
+
+                {
+                    name: 'Stump_Center',
+                    path: 'models/stump.fbx',
+                    pos: { x: 0, y: 0, z: 0 }, // positions優先のためダミー
+                    rot: { y: 0 }, // 個別にランダム回転させるため、ベースは0にしておきます
+                    scale: 0.7,
+                    collision: false, // 頂いたコード通りfalse（通り抜け可）に設定
+                    exclusionRadius: 2.0,
+                    // ★ 2箇所に配置
+                    positions: [
+                        { x: 7.5, z: 6 }, //
+                        { x: 6.5, z: 7 }, //
+                        { x: 8, z: 10 }, //
+                        { x: 10.5, z: 6 }, //
+                        { x: 11, z: 9 }, //
+                        { x: 9, z: 8.5 }, //
+                        { x: 10, z: 11 }, //
+                        { x: 9, z: 7 }  //
+                    ],
+                    onLoad: (obj) => {
+                        // ★ここで個別にランダム回転（360度 = 2πラジアン）
+                        obj.rotation.y = Math.random() * Math.PI * 2;
+                        console.log("🪵 Stump placed (Random Rotation)");
+                    }
+                },
+
+                // ▼▼▼ ⛓️ブランコ (Swing) ▼▼▼
+
+                {
+                    name: 'Swing_Playground',
+                    path: 'models/swing.fbx',
+                    pos: { x: 0, y: 0, z: 0 }, // テンプレート座標（positionsがあるため無視されます）
+                    rot: { y: 180 }, // 南向き
+                    scale: 1.0,
+                    collision: false,
+                    exclusionRadius: 3.0,
+                    // ★配列に変更して2台配置
+                    positions: [
+                        { x: 15, z: 9 }, // 1台目
+                        { x: 17, z: 9 },   // 2台目
+                        { x: 19, z: 9 }   // 3台目
+                    ],
+                    onLoad: (obj) => {
+                        console.log("⛓️ Swing placed at (x: 15, z: 9)");
+                    }
+                },
+
+
+                // ▼▼▼ 🚀ロケット (Rocket) ▼▼▼
+
+                {
+                    name: 'Rocket_Secret',
+                    path: 'models/rocket.fbx',
+                    pos: { x: 16, z: 16 }, // ★注意: 場所変更はここと下2箇所
+                    rot: { y: 0 },
+                    scale: 1.65,
+                    collision: false,
+                    exclusionRadius: 2.5,
+                    onLoad: (rocket) => {
+                        console.log("🚀 Rocket Logic Started...");
+                        rocket.position.set(16, 0, 16); // ★注意: 場所変更はここと上2箇所
+                        rocket.scale.setScalar(2.0);
+                        rocket.updateMatrixWorld(true);
+
+                        // ▼ 1. マテリアル強制修復（透け防止）
+                        rocket.traverse((c) => {
+                            if (c.isMesh) {
+                                c.material.transparent = false;
+                                c.material.opacity = 1.0;
+                                c.material.depthWrite = true;
+                                c.material.side = THREE.DoubleSide;
+                                c.castShadow = true;
+                                c.receiveShadow = true;
+                            }
+                        });
+
+                        // ▼ 2. 透明壁(COL_WALL)の処理 & 赤枠デバッグ
+                        rocket.traverse((child) => {
+                            if (child.isMesh && child.name.includes('COL_WALL')) {
+
+                                // 親が移動したので、子の座標もこれで正しくなります
+                                child.updateMatrixWorld(true);
+                                const box = new THREE.Box3().setFromObject(child);
+
+                                // 障害物リストに追加
+                                if (window.sgExtraObstacles) {
+                                    window.sgExtraObstacles.push({
+                                        minX: box.min.x,
+                                        maxX: box.max.x,
+                                        minZ: box.min.z,
+                                        maxZ: box.max.z
+                                    });
+                                }
+
+
+                                // 壁自体は見えなくする
+                                child.visible = false;
+                                child.userData.ignoreRaycast = true;
+                            }
+                        });
+                    }
+                },
+
+
+
+                // ==========================================
+                // 池エリア
+                // ==========================================
+
+
+                // ▼▼▼ 🚧バリケード (Barricade) ▼▼▼
+
+
+                {
+                    name: 'Barricade_NorthEast',
+                    path: 'models/barricade.fbx',
+                    pos: { x: 0, y: 0, z: 0 },
+                    scale: 1.0,
+                    onLoad: (master) => {
+                        // ベンチの背後（x=4, z=-4）に密着させる設定
+                        const startX = 6.0;  // ベンチからさらに後退
+                        const startZ = -6.0; // ベンチからさらに後退
+                        const count = 11;
+                        const spacing = 2.3; // 隙間を詰めた精密な間隔
+
+                        for (let i = 0; i < count; i++) {
+                            // 角の重なりを防ぐため、i=0（角の地点）は生成をスキップ
+                            if (i === 0) continue;
+                            // 横列（南側の封鎖）
+                            const bX = master.clone();
+                            bX.position.set(startX + i * spacing, 0, startZ);
+                            window.parkGroup.add(bX);
+
+                            // 縦列（西側の封鎖）
+                            const bZ = master.clone();
+                            bZ.position.set(startX, 0, startZ - i * spacing);
+                            bZ.rotation.y = Math.PI / 2;
+                            window.parkGroup.add(bZ);
+                        }
+
+                        // 全バリケードにアウトライン適用
+                        window.parkGroup.traverse(c => {
+                            if (c.name === 'Barricade_NorthEast_Clone' || (c.parent && c.parent.name === 'Barricade_NorthEast')) {
+                                if (window.applyOutlineRules) window.applyOutlineRules(c);
+                            }
+                        });
+                        master.visible = false;
+
+                        // 2. 物理封鎖の設定（createParkAssets 内）
+                        // 物理封鎖
+                        window.sgExtraObstacles.push({ minX: 5.8, maxX: 32, minZ: -32, maxZ: -5.8 });
+                    }
+                }
+            ];
+
+            const loader = new FBXLoader();
+            window.sgMixers = []; // Clear mixers
+
+            ASSET_CONFIG.forEach(config => {
+                // Pre-register exclusions if positions are defined
+                if (typeof ExclusionManager !== 'undefined' && ExclusionManager.addCircle) {
+                    if (config.positions) {
+                        config.positions.forEach(p => ExclusionManager.addCircle(p.x, p.z, config.exclusionRadius || 2.0));
+                    } else {
+                        ExclusionManager.addCircle(config.pos.x, config.pos.z, config.exclusionRadius || 2.0);
+                    }
+                }
+
+                loader.load(config.path, (masterFBX) => {
+                    try {
+                        const targets = config.positions ? config.positions : [config.pos];
+
+                        targets.forEach((pos, i) => {
+                            let fbx;
+                            if (typeof SkeletonUtils !== 'undefined') {
+                                fbx = SkeletonUtils.clone(masterFBX);
+                            } else {
+                                fbx = masterFBX.clone(); // Fallback
+                            }
+
+                            fbx.name = config.name + (config.positions ? `_${i}` : '');
+                            fbx.position.set(pos.x, config.pos.y || 0, pos.z);
+
+                            if (config.rot && config.rot.y !== undefined) {
+                                fbx.rotation.y = config.rot.y * (Math.PI / 180);
+                            }
+
+                            // Scale
+                            fbx.scale.setScalar(config.scale || 1.0);
+
+                            // ★徹底洗浄: マテリアルを標準状態にリセット
+                            fbx.traverse(c => {
+                                if (c.isMesh) {
+                                    c.castShadow = true;
+                                    c.receiveShadow = true;
+
+                                    if (c.material) {
+                                        // 配列マテリアル対応
+                                        const materials = Array.isArray(c.material) ? c.material : [c.material];
+
+                                        materials.forEach(mat => {
+                                            // ★アクネ対策（影計算のみ裏面で行う）は全モデルに適用
+                                            mat.shadowSide = THREE.BackSide;
+                                        });
+                                    }
+                                }
+                            });
+
+                            // ★ Animation Handling
+                            if (fbx.animations && fbx.animations.length > 0) {
+                                const mixer = new THREE.AnimationMixer(fbx);
+                                const action = mixer.clipAction(fbx.animations[0]);
+                                action.play();
+                                if (window.sgMixers) window.sgMixers.push(mixer);
+                            }
+
+                            if (config.onLoad) config.onLoad(fbx, i); // Pass index i here
+
+                            if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(fbx);
+
+                            if (config.collision) {
+                                fbx.updateMatrixWorld(true);
+                                const box = new THREE.Box3().setFromObject(fbx);
+                                if (config.collisionType === 'cylinder') {
+                                    const sizeX = box.max.x - box.min.x; const sizeZ = box.max.z - box.min.z;
+                                    const radius = Math.max(sizeX, sizeZ) / 2 * 0.9;
+                                    window.sgFountainCollision.push({ x: pos.x, z: pos.z, radius: radius });
+                                } else {
+                                    window.sgExtraObstacles.push({ minX: box.min.x + 0.1, maxX: box.max.x - 0.1, minZ: box.min.z + 0.1, maxZ: box.max.z - 0.1 });
+                                }
+                            }
+                            window.parkGroup.add(fbx);
+                        });
+
+                        // Re-apply seasons after cloning (e.g. Parasol initial color)
+                        if (config.name === 'Parasol' && window.setParasolSeason && typeof GameConfig !== 'undefined') {
+                            window.setParasolSeason(GameConfig.currentSeason);
+                        }
+
+                    } catch (e) { console.error(`Error loading asset ${config.name}:`, e); }
+                }, undefined, e => console.warn(`Failed to load ${config.name}:`, e));
+            });
+
+
+
+            // ▼▼▼ ⛄️体当たり人形 (Seasondoll) ▼▼▼
+
+            const snowmanPositions = [{ x: 11, z: 14 }, { x: 11, z: 16 }, { x: 11, z: 18 }]; // Old: -14, -16, -18. Inverted: 14, 16, 18
+            const winnerIndex = Math.floor(Math.random() * snowmanPositions.length);
+            // ==========================================
+            // 1. マスターモデル管理 & 季節カラー定義
+            // ==========================================
+            window.seasonDollMaster = null; // キャッシュ用
+            window.pendingDollRequests = []; // ロード待ちキュー
+
+            const SEASON_DOLL_COLORS = {
+                spring: 0xFFB7C5, // 桜色
+                summer: 0x4FC3F7, // 水色
+                autumn: 0xFFAE00, // オレンジ
+                winter: 0xb8eef7  // 薄氷色
+            };
+
+            // ==========================================
+            // 2. 季節更新関数の定義
+            // ==========================================
+            window.updateSeasonDollColor = (seasonName) => {
+                const targetColor = new THREE.Color(SEASON_DOLL_COLORS[seasonName] || SEASON_DOLL_COLORS.winter);
+
+                if (window.sgSnowmen) {
+                    window.sgSnowmen.forEach(doll => {
+                        doll.traverse(child => {
+                            if (child.isMesh) {
+                                // ★bodyのみ色変更
+                                const name = child.name.toLowerCase();
+                                if (name.includes('body')) {
+                                    if (child.material) {
+                                        // 配列マテリアル対応
+                                        if (Array.isArray(child.material)) {
+                                            child.material.forEach(m => m.color.copy(targetColor));
+                                        } else {
+                                            child.material.color.copy(targetColor);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    });
+                }
+                console.log(`⛄️ SeasonDolls body color updated to: ${seasonName}`);
+            };
+
+            // ==========================================
+            // 3. createSnowman 関数の上書き (FBX版)
+            // ==========================================
+            // 既存の createSnowman を完全に置き換えます。
+            // 呼び出し元のロジック(座標configなど)はそのまま利用されます。
+
+            const createSnowman = (config, isWinner, hasPaid = false) => {
+                // 実際にシーンに配置する内部関数
+                const placeDoll = (master, conf, winnerFlag, paidFlag) => {
+                    const doll = master.clone();
+
+                    // 座標適用 (既存ロジック準拠)
+                    doll.position.set(conf.x, 0, conf.z);
+
+                    // ランダム回転 (お好みで調整可能。今はランダム)
+                    doll.rotation.y = Math.random() * Math.PI * 2;
+
+                    // ★スケール設定 (標準化)
+                    // ここを書き換えることで、後で「0.9 + Math.random() * 0.2」のように個体差を出せます。
+                    // 現時点では指示通り「基準 1.0」とします。
+                    const baseScale = 0.8;
+                    doll.scale.setScalar(baseScale);
+
+                    // ギミック移植
+                    doll.userData.isWinner = winnerFlag;
+                    doll.userData.hasPaid = paidFlag;
+                    doll.userData.isDead = false;
+
+                    // アニメーションミキサー初期化 (もし将来アニメさせるなら)
+                    // doll.mixer = new THREE.AnimationMixer(doll);
+
+                    // 管理リスト登録
+                    window.parkGroup.add(doll);
+                    window.sgSnowmen.push(doll);
+
+                    // 衝突判定 (既存維持)
+                    if (typeof ExclusionManager !== 'undefined') {
+                        ExclusionManager.addCircle(conf.x, conf.z, 1.0);
+                    }
+
+                    // 現在の季節色を適用
+                    if (typeof GameConfig !== 'undefined') {
+                        const currentSeason = GameConfig.currentSeason || 'winter';
+                        const color = new THREE.Color(SEASON_DOLL_COLORS[currentSeason]);
+
+                        doll.traverse(c => {
+                            if (c.isMesh && c.name.toLowerCase().includes('body')) {
+                                if (c.material) {
+                                    if (Array.isArray(c.material)) c.material.forEach(m => m.color.copy(color));
+                                    else c.material.color.copy(color);
+                                }
+                            }
+                        });
+                    }
+                };
+
+                // --- ロード制御ロジック ---
+
+                if (window.seasonDollMaster) {
+                    // A. ロード済みなら即配置
+                    placeDoll(window.seasonDollMaster, config, isWinner, hasPaid);
+                } else {
+                    // B. 未ロードならキューに追加してロード開始
+                    window.pendingDollRequests.push({ config, isWinner, hasPaid });
+
+                    // 初回のみローダー起動
+                    if (window.pendingDollRequests.length === 1) {
+                        const loader = new FBXLoader();
+                        loader.load('models/seasondoll.fbx', (fbx) => {
+                            console.log("📥 SeasonDoll Master Loaded.");
+
+                            // マスターモデルの初期設定
+                            fbx.traverse(c => {
+                                if (c.isMesh) {
+                                    c.castShadow = true;
+                                    c.receiveShadow = true;
+                                    // マテリアル独立化
+                                    if (c.material) {
+                                        c.material = Array.isArray(c.material)
+                                            ? c.material.map(m => m.clone())
+                                            : c.material.clone();
+                                    }
+                                }
+                            });
+                            fbx.animations = []; // 干渉防止
+
+                            window.seasonDollMaster = fbx;
+
+                            // 待機していた配置リクエストを一気に処理
+                            window.pendingDollRequests.forEach(req => {
+                                placeDoll(fbx, req.config, req.isWinner, req.hasPaid);
+                            });
+                            window.pendingDollRequests = []; // キューを空に
+
+                        }, undefined, (err) => console.error("❌ Failed to load seasondoll.fbx", err));
+                    }
+                }
+            };
+            snowmanPositions.forEach((config, index) => createSnowman(config, index === winnerIndex));
+
+            // コイン出現演出 (FBX版)
+            const spawnDropCoin = (startPos) => {
+                // マスターモデルが準備できていない場合は安全に中止
+                if (!window.sgCoinMaster) {
+                    console.warn("⚠️ Coin Master not ready. Using fallback or skipping.");
+                    return;
+                }
+
+                // 本物のコインモデルをクローン
+                const coin = window.sgCoinMaster.clone();
+
+                // 座標・サイズ調整
+                coin.position.copy(startPos);
+                coin.position.y += 0.5;
+                // coin.fbxはロード時にサイズ調整済みだが、cloneでリセットされる場合があるため念のため再適用
+                // (ロード時のスケールロジックに依存しますが、ここでは安全策として0.5倍前後を目安に)
+                // もしロード処理側で masterCoin.scale をセットしているなら、clone にも引き継がれます。
+
+                // 影の設定
+                coin.traverse(c => {
+                    if (c.isMesh) {
+                        c.castShadow = true;
+                        c.receiveShadow = true;
+                    }
+                });
+
+                coin.userData.isCoin = true;
+                coin.userData.collected = false;
+
+                scene.add(coin);
+                if (window.sgGameCoins) window.sgGameCoins.push(coin);
+
+                // 飛び出しアニメーション (物理挙動風)
+                let velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.2,
+                    0.4, // 上への跳ね上がり
+                    (Math.random() - 0.5) * 0.2
+                );
+                let gravity = 0.02;
+
+                const dropAnim = setInterval(() => {
+                    // 親から削除されたら終了
+                    if (!coin.parent || coin.userData.collected) {
+                        clearInterval(dropAnim);
+                        return;
+                    }
+
+                    // 移動と回転
+                    coin.position.add(velocity);
+                    coin.rotation.y += 0.3; // クルクル回る
+                    velocity.y -= gravity;
+
+                    // 地面に着地
+                    if (coin.position.y <= 0.5) {
+                        coin.position.y = 0.5;
+                        clearInterval(dropAnim);
+                    }
+                }, 16);
+            };
+
+
+
+            // アニメーション監視ループ (エラー修正・安全化版)
+            if (window.sgSnowmanInterval) clearInterval(window.sgSnowmanInterval);
+
+            window.sgSnowmanInterval = setInterval(() => {
+                // 【安全装置1】プレイヤー座標やシーンが未ロードなら何もせずリターン
+                // これで "reading 'z'" エラーの9割を防ぎます
+                if (!playerPosition || !scene) return;
+
+                // 1. 雪だるま判定
+                if (window.sgSnowmen) {
+                    window.sgSnowmen.forEach(snowman => {
+                        // 【安全装置2】親から外れた(削除された)雪だるまは無視
+                        if (!snowman || !snowman.parent || snowman.userData.isDead || !snowman.visible) return;
+
+                        const worldPos = new THREE.Vector3();
+                        snowman.getWorldPosition(worldPos);
+
+                        // 距離チェック
+                        if (playerPosition.distanceTo(worldPos) < 2.0) {
+
+                            // ▼▼▼ 今回の追加箇所 (boing) ▼▼▼
+                            window.AudioManager.play('boing', 1.0);
+                            // ▲▲▲ 追加ここまで ▲▲▲
+
+                            snowman.visible = false;
+                            snowman.userData.isDead = true;
+
+                            if (typeof spawnSnowExplosion === 'function') spawnSnowExplosion(worldPos);
+
+                            if (snowman.userData.isWinner && !snowman.userData.hasPaid) {
+                                snowman.userData.hasPaid = true;
+                                if (typeof spawnDropCoin === 'function') spawnDropCoin(worldPos);
+
+                                // ▼ 追加：コイン出現音 ▼
+                                window.AudioManager.play('wheeee', 1.0);
+
+                                const div = document.createElement('div');
+                                div.textContent = "🎉POP!";
+                                div.style.position = 'fixed'; div.style.left = '50%'; div.style.top = '50%'; div.style.color = '#FFD700';
+                                div.style.fontSize = '40px'; div.style.fontWeight = 'bold'; div.style.textShadow = '0 0 10px black';
+                                div.style.transform = 'translate(-50%, -50%)'; div.style.zIndex = 3000;
+                                div.style.animation = 'floatUp 1s forwards';
+                                document.body.appendChild(div); setTimeout(() => div.remove(), 1000);
+                            }
+
+                            setTimeout(() => {
+                                // ★修正: 古いオブジェクトを完全削除
+                                const oldX = snowman.position.x;
+                                const oldZ = snowman.position.z;
+                                const wasWinner = snowman.userData.isWinner;
+                                const wasPaid = snowman.userData.hasPaid; // ★ 支払い履歴を継承
+
+                                if (snowman.parent) {
+                                    snowman.parent.remove(snowman);
+                                }
+
+                                // 配列からも削除 (安全のため)
+                                const idx = window.sgSnowmen.indexOf(snowman);
+                                if (idx > -1) window.sgSnowmen.splice(idx, 1);
+
+                                // ★修正: 新しい関数経由で、新品をリスポーンさせる
+                                // これならスケールも季節カラーも最新ルールが適用される！
+                                if (typeof createSnowman === 'function') {
+                                    createSnowman({ x: oldX, z: oldZ }, wasWinner, wasPaid);
+                                }
+                            }, 5000); // 復活時間 (3秒に変更指示があればここ)
+                        }
+                    });
+                }
+
+
+                // ▼▼▼ 🐘象さん (ElephantSprayer) ▼▼▼
+
+                const elephant = scene.getObjectByName('ElephantSprayer');
+                // ★修正: elephant.position の存在チェックを追加
+                if (elephant && elephant.position) {
+                    const pPos = playerPosition;
+
+                    // 鼻先
+                    const noseOffset = new THREE.Vector3(0, 0, 0.8).applyQuaternion(elephant.quaternion);
+                    const noseWorldPos = elephant.position.clone().add(noseOffset);
+
+                    const isNoseActive = pPos.distanceTo(noseWorldPos) < 1.6;
+                    if (elephant.userData.noseStreams) {
+                        elephant.userData.noseStreams.forEach(s => s.visible = isNoseActive);
+                    }
+                    if (isNoseActive) {
+                        if (typeof window.spawnFountainSparkles === 'function')
+                            window.spawnFountainSparkles(noseWorldPos.x, 0.1, noseWorldPos.z, true, false);
+
+                        // ▼▼▼ LOOP ON ▼▼▼
+                        window.AudioManager.playLoop('splash', 0.8);
+                    } else {
+                        // ▲▲▲ LOOP OFF ▲▲▲
+                        window.AudioManager.stopLoop('splash');
+                    }
+
+                    // 背中
+                    const backSensorOffset = new THREE.Vector3(0, 0.6, -0.8).applyQuaternion(elephant.quaternion);
+                    const backSensorPos = elephant.position.clone().add(backSensorOffset);
+                    const backFaucetOffset = new THREE.Vector3(0, 1.0, -0.65).applyQuaternion(elephant.quaternion);
+                    const backFaucetPos = elephant.position.clone().add(backFaucetOffset);
+
+                    const isBackActive = pPos.distanceTo(backSensorPos) < 1.4;
+                    if (elephant.userData.backStreams) {
+                        elephant.userData.backStreams.forEach(s => s.visible = isBackActive);
+                    }
+                    if (isBackActive) {
+                        if (typeof window.spawnFountainSparkles === 'function')
+                            window.spawnFountainSparkles(backFaucetPos.x, backFaucetPos.y, backFaucetPos.z, false, true);
+
+                        // ▼▼▼ LOOP ON ▼▼▼
+                        window.AudioManager.playLoop('psshhh', 0.8);
+                    } else {
+                        // ▲▲▲ LOOP OFF ▲▲▲
+                        window.AudioManager.stopLoop('psshhh');
+                    }
+                }
+
+            }, 30);
+
+
+        } catch (error) { console.error("CRITICAL ERROR in createParkAssets:", error); }
+    }
+
+
+    function showTapText(x, y, text, color) {
+        const el = document.createElement('div');
+        el.className = 'sg-tap-text';
+        el.textContent = text;
+        el.style.position = 'fixed'; // Changed from implicit static
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.transform = 'translate(-50%, -50%)'; // Center alignment
+        el.style.color = color;
+        el.style.zIndex = '2000'; // High z-index to show above UI
+        el.style.fontWeight = 'bold';
+        el.style.fontSize = '1.5rem';
+        el.style.textShadow = '0 0 5px black';
+        el.style.pointerEvents = 'none';
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 1500); // Slightly longer display
+    }
+
+
+    function handleInteraction() {
+        // Ignore if not playing or no target
+        if (!isPlaying || !window.sgCurrentTarget) return;
+
+        const target = window.sgCurrentTarget;
+
+        // Get current coins
+        const currentCoins = window.sgItemData ? window.sgItemData.collected : 0;
+
+        // --- Case A: Vending Machine (BUY) ---
+        if (target.userData.isVendingMachine) {
+
+            if (currentCoins >= 10) {
+                // === Game Clear! ===
+                console.log("Juice Purchased! Game Clear!");
+
+                // Start Ending Cinematic
+                transitionToEnding();
+
+            } else {
+                // === Not Enough Coins ===
+                const missing = 10 - currentCoins;
+                showTapText(window.innerWidth / 2, window.innerHeight / 2, `あと ${missing} 枚足りないよ！`, '#FF4500');
+            }
+            return;
+        }
+
+        // --- Case B: Coin (GET) ---
+        if (target.userData.isCoin || target.userData.isTargetItem) {
+            // Coin collection
+            const parentGroup = target.parent && target.parent.type === 'Group' ? target.parent : target;
+            scene.remove(parentGroup); // Remove from scene
+            if (parentGroup !== target) scene.remove(target); // Ensure self is removed if not group
+
+            // Update coins
+            if (window.sgItemData) {
+                window.sgItemData.collected++;
+                const counter = document.getElementById('sg-coin-counter');
+                if (counter) counter.textContent = window.sgItemData.collected;
+
+                // Play sound (Beep)
+                const audio = new AudioContext(); // Simple beep
+                const osc = audio.createOscillator();
+                const gain = audio.createGain();
+                osc.connect(gain);
+                gain.connect(audio.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audio.currentTime); // A5
+                gain.gain.setValueAtTime(0.1, audio.currentTime);
+                osc.start();
+                osc.stop(audio.currentTime + 0.1);
+            }
+
+            // Hide button
+            window.sgCurrentTarget = null;
+            const getBtn = document.getElementById('sg-get-btn');
+            if (getBtn) getBtn.style.display = 'none';
+        }
+    }
+
+    // === Pro Game Loop ===
+    function gameLoop(now) {
+        if (!isPlaying && currentState !== GameState.ENDING) return; // Only stop if not ENDING (ENDING uses loop for animation)
+
+        // DeltaTime Calculation
+        let dt = (now - lastTime) / 1000;
+        lastTime = now;
+
+        // Cap dt to prevent spiral of death (max 0.1s)
+        if (dt > 0.1) dt = 0.1;
+
+        accumulator += dt;
+
+        while (accumulator >= FIXED_STEP) {
+            update(FIXED_STEP);
+            accumulator -= FIXED_STEP;
+        }
+
+        render();
+        animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function update(dt) {
+        if (mixer) mixer.update(dt);
+
+        // Update interaction lights/hints
+        if (window.updateInteractionHints) window.updateInteractionHints(dt);
+
+        if (currentState === GameState.ENDING) {
+            updateEndingAnimation(dt);
+            return;
+        }
+
+        if (currentState === GameState.OPENING) {
+            return;
+        }
+
+        if (currentState === GameState.PLAYING) {
+            if (window.sgUpdateMovement) window.sgUpdateMovement(dt);
+
+            updateUI(); // 最適化された updateUI を呼ぶ
+
+            // Coin Rotation
+            if (window.sgGameCoins) {
+                window.sgGameCoins.forEach(coin => {
+                    if (coin.visible) coin.rotation.y += 3.0 * dt;
+                });
+            }
+
+            updateGameplayShiver(dt);
+
+            // ■ 独立したコイン更新ループ（メモリ最適化版）
+            if (window.sgActiveCoins) {
+                // ★最適化: ループ外で一時変数を確保（GC対策）
+                const tempVec = new THREE.Vector3();
+
+                window.sgActiveCoins = window.sgActiveCoins.filter(coin => {
+                    if (coin.userData.collected) return false;
+
+                    const parentTree = coin.userData.parentTree;
+                    coin.rotation.y += 5.0 * dt;
+
+                    // A. トリガー判定
+                    if (!coin.userData.isFalling && !coin.userData.hasFallen) {
+                        const treePos = parentTree ? parentTree.position : coin.position;
+
+                        // ★最適化: distanceToSquared を使用し、高さ(y)を無視した距離計算を軽量化
+                        const dx = playerPosition.x - treePos.x;
+                        const dz = playerPosition.z - treePos.z;
+                        const distSq = dx * dx + dz * dz;
+
+                        // 2.0m * 2.0m = 4.0
+                        if (distSq < 4.0) {
+                            coin.userData.isFalling = true;
+                            scene.attach(coin);
+
+                            // ★最適化: Box3.setFromObject を初回のみ実行し、結果をキャッシュ
+                            if (typeof coin.userData.groundY === 'undefined') {
+                                const box = new THREE.Box3().setFromObject(coin);
+                                coin.userData.groundY = (box.max.y - box.min.y) / 2;
+                            }
+
+                            // プレイヤー方向へ弾く計算
+                            tempVec.subVectors(playerPosition, coin.position).normalize();
+                            const angleOffset = (Math.random() - 0.5) * Math.PI;
+                            const cos = Math.cos(angleOffset);
+                            const sin = Math.sin(angleOffset);
+
+                            coin.userData.velX = (tempVec.x * cos - tempVec.z * sin) * 1.5;
+                            coin.userData.velZ = (tempVec.x * sin + tempVec.z * cos) * 1.5;
+                            coin.userData.velY = 4.0;
+
+                            if (parentTree) parentTree.userData.shakeTimer = 0.5;
+                        }
+                    }
+
+                    // B. 木の揺れ
+                    if (parentTree && parentTree.userData.shakeTimer > 0) {
+                        parentTree.userData.shakeTimer -= dt;
+                        const s = parentTree.userData.shakeTimer;
+                        parentTree.rotation.z = Math.sin(s * 80) * 0.1 * s;
+                        parentTree.rotation.x = Math.cos(s * 80) * 0.1 * s;
+                    } else if (parentTree) {
+                        parentTree.rotation.z = 0;
+                        parentTree.rotation.x = 0;
+                    }
+
+                    // C. 落下物理
+                    if (coin.userData.isFalling) {
+                        coin.userData.velY -= 15.0 * dt;
+                        coin.position.x += coin.userData.velX * dt;
+                        coin.position.y += coin.userData.velY * dt;
+                        coin.position.z += coin.userData.velZ * dt;
+
+                        const targetY = coin.userData.groundY || 0.25;
+                        if (coin.position.y <= targetY) {
+                            coin.position.y = targetY;
+                            coin.userData.isFalling = false;
+                            coin.userData.hasFallen = true;
+
+                            if (coin.userData.pointLight) {
+                                coin.userData.pointLight.intensity = 0;
+                            }
+
+                            coin.traverse((child) => {
+                                if (child.isMesh && child.material) {
+                                    if (child.material.color) child.material.color.setHex(0xFFFFFF);
+                                    if (!(child.material instanceof THREE.MeshBasicMaterial)) {
+                                        const oldMat = child.material;
+                                        child.material = new THREE.MeshBasicMaterial({
+                                            map: oldMat.map,
+                                            color: 0xFFFFFF,
+                                            side: THREE.DoubleSide
+                                        });
+                                    }
+                                }
+                            });
+
+                            if (window.testTreeCollision) {
+                                window.testTreeCollision.hasCoin = false;
+                            }
+                        }
+                    }
+                    return true;
+                });
+            }
+        }
+    }
+
+
+    function updateAim() {
+        // === AIM DETECTION (Raycaster from center of screen) ===
+        const getBtn = document.getElementById('sg-get-btn');
+        const crosshair = document.getElementById('sg-crosshair');
+
+        if (getBtn && camera && crosshair) {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            // Objects to interact with: Coins + Scene Children (for Vending HitBox)
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            let targetFound = null;
+            let targetType = null; // 'coin' or 'vending'
+
+            for (const hit of intersects) {
+                let obj = hit.object;
+
+                // [Rule 1] Redirect Hitbox to Parent
+                if (obj.userData.isHitBox && obj.userData.parentItem) {
+                    obj = obj.userData.parentItem;
+                }
+
+                // 1. Vending Machine HitBox
+                if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
+                    targetFound = obj;
+                    targetType = 'vending';
+                    break; // Priority
+                }
+
+                // [Rule 2] Generic Interaction (Shovel, etc.)
+                // Traverse up to find the root interactable
+                let interactable = obj;
+                while (interactable && !interactable.userData.action && interactable !== scene) {
+                    interactable = interactable.parent;
+                }
+
+                if (interactable && interactable.userData.action) {
+                    // ★ STRICT DISTANCE CHECK ★
+                    // Calculate distance from Player's feet (XZ plane), not Camera
+                    const worldPos = new THREE.Vector3();
+                    interactable.getWorldPosition(worldPos);
+
+                    if (typeof playerPosition !== 'undefined') {
+                        const dx = playerPosition.x - worldPos.x;
+                        const dz = playerPosition.z - worldPos.z;
+                        const distSq = dx * dx + dz * dz;
+                        const THRESHOLD_SQ = 3.0 * 3.0; // 3mまで反応
+
+                        if (distSq <= THRESHOLD_SQ) {
+                            targetFound = interactable;
+                            targetType = 'action'; // Mark as generic action
+                            break; // Stop checking other objects
+                        }
+                    }
+                }
+
+                // 2. Coin (game items) - check parent group or mesh
+                let coinGroup = obj;
+                while (coinGroup.parent && !coinGroup.userData.isCoin && coinGroup !== scene) {
+                    coinGroup = coinGroup.parent;
+                }
+
+                if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
+                    targetFound = coinGroup;
+                    targetType = 'coin';
+                    break;
+                }
+            }
+
+            if (targetFound) {
+                // Target locked
+                window.sgCurrentTarget = targetFound;
+                crosshair.classList.add('target-locked');
+                getBtn.style.display = 'block';
+
+                // Position button near crosshair
+                getBtn.style.left = '50%';
+                getBtn.style.top = '60%';
+                getBtn.style.transform = 'translate(-50%, -50%)';
+
+                if (targetType === 'vending') {
+                    getBtn.innerHTML = '🍹<br>BUY';
+                } else if (targetType === 'action') {
+                    getBtn.innerHTML = '⛏️<br>DIG'; // Show Dig Icon
+                    getBtn.style.background = '#FFD700'; // Gold color
+                } else {
+                    getBtn.innerHTML = '🖐️<br>GET!';
+                    getBtn.style.background = ''; // Reset to default
+                }
+            } else {
+                // No target
+                window.sgCurrentTarget = null;
+                crosshair.classList.remove('target-locked');
+                getBtn.style.display = 'none';
+            }
+        }
+    }
+
+    function render() {
+        // Init mix clock if needed
+        if (!window.sgClock) window.sgClock = new THREE.Clock();
+        const delta = window.sgClock.getDelta();
+
+        // Update Mixers
+        if (window.sgMixers && window.sgMixers.length > 0) {
+            window.sgMixers.forEach(mixer => mixer.update(delta));
+        }
+
+        if (renderer && scene && camera) {
+            // Debug Log for Ending Camera
+            if (currentState === GameState.ENDING) {
+                // Throttle log to once per second approx? No, user asked for it. 
+                // But let's simple throttle to avoid console flood 60fps
+                if (Math.random() < 0.01) {
+                    console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
+                }
+            }
+
+            // DEBUG: 座標情報の更新
+            if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                const panel = document.getElementById('debug-pos-panel');
+                if (panel && camera) {
+                    const x = camera.position.x.toFixed(2);
+                    const z = camera.position.z.toFixed(2);
+                    const y = camera.position.y.toFixed(2);
+                    panel.innerText = `POS X:${x} Z:${z} H:${y}`;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    }
+
+
+
+
+
+
+    // ==========================================
+    // 木 (Tree) と ベンチ (Bench) の配置（品質維持・最適化版）
+    // ==========================================
+    function spawnTrees() {
+        console.log("--- spawnTrees CALLED (Time Slicing Mode) ---");
+
+        // ★ 葉っぱ専用カラーパレット
+        const TREE_PALETTES = {
+            spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
+            summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+            autumn: [0xFF4500, 0xD2691E, 0xFF8C00, 0xFFD700],
+            winter: [0xE6E6FA, 0xF8F8FF, 0xD8BFD8]
+        };
+        window.sgTreeObjects = [];
+        window.sgTreeCollisions = [];
+
+        // ★ 季節切り替え関数
+        window.setTreeSeason = (seasonName) => {
+            // (この中身は変更なし)
+            console.log(`Setting Tree Season to: ${seasonName}`);
+            const palette = TREE_PALETTES[seasonName] || TREE_PALETTES.summer;
+            window.sgTreeObjects.forEach((tree, index) => {
+                const colorHex = palette[index % palette.length];
+                const leafColorObj = new THREE.Color(colorHex);
+                const trunkColorObj = new THREE.Color(0xFFFFFF);
+                tree.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        const name = child.name.toLowerCase();
+                        const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
+                        if (child.material.color) {
+                            child.material.color.copy(isLeaves ? leafColorObj : trunkColorObj);
+                        }
+                    }
+                });
+            });
+        };
+
+        // 並木設定
+        const AVENUE_OFFSET = 4.0;
+        const AVENUE_START = 10.0;
+        const AVENUE_END = 30.0;
+        const AVENUE_STEP = 4.0;
+
+        // ===================================
+        // 1. ベンチの配置 (Benches) - 変更なし
+        // ===================================
+        const benchLoader = new FBXLoader();
+        benchLoader.load('models/bench.fbx', (masterBench) => {
+            masterBench.scale.setScalar(1.0);
+            if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(masterBench);
+            masterBench.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+
+            const addBench = (x, z, rotY) => {

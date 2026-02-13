@@ -3876,50 +3876,11 @@ const SearchGame = (() => {
             });
         }
 
-        function spawnTrees() {
-            console.log("spawnTrees Phase 2");
-            window.sgTreeObjects = [];
-            window.sgTreeCollisions = [];
 
-            window.setTreeSeason = (s) => {
-                if (window.TreeInstanceManager) window.TreeInstanceManager.updateSeason(s);
-            };
 
-            const benchLoader = new FBXLoader();
-            benchLoader.load('models/bench.fbx', (mb) => {
-                mb.scale.setScalar(1.0);
-                if (window.applyOutlineRules) window.applyOutlineRules(mb);
-                mb.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-                const addB = (x, z, r) => { if (Math.abs(x - 4) < 0.1 && Math.abs(z - 16) < 0.1) return; const b = mb.clone(); b.position.set(x, 0, z); b.rotation.y = r * (Math.PI / 180); scene.add(b); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5); };
-                for (let d = 10; d <= 30; d += 4) { const b = d - 2; addB(b, 4, 180); addB(-b, 4, 180); addB(b, -4, 0); addB(-b, -4, 0); addB(4, b, -90); addB(4, -b, -90); addB(-4, b, 90); addB(-4, -b, 90); }
-            });
-
-            const exec = (mt) => {
-                window.sgMasterTree = mt;
-                const all = [];
-                const addA = (x, z) => { all.push({ x, z, type: 'avenue', scale: 0.8 + Math.random() * 0.4 }); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 2.0); };
-                for (let d = 10; d <= 30; d += 4) { addA(d, 4); addA(d, -4); addA(-d, 4); addA(-d, -4); addA(4, d); addA(-4, d); addA(4, -d); addA(-4, -d); }
-                const fq = []; let att = 0;
-                while (fq.length < 184 && att < 10000) { att++; const x = (Math.random() - 0.5) * 62, z = (Math.random() - 0.5) * 62; if ([...all, ...fq].some(p => (p.x - x) ** 2 + (p.z - z) ** 2 < 4)) continue; if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue; fq.push({ x, z, type: 'forest', scale: 0.8 + Math.random() * 0.4 }); if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2); }
-                all.push(...fq);
-                for (let i = 0; i < 70; i++) { const a = Math.random() * Math.PI * 2, r = 45 + Math.random() * 35; all.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, type: 'exterior', scale: 1.2 + Math.random() * 0.8 }); }
-                const cands = all.map((p, i) => p.type === 'forest' && p.x < -10 && p.z > 10 ? i : -1).filter(i => i >= 0);
-                const cti = cands.length > 0 ? cands[Math.floor(Math.random() * cands.length)] : all.findIndex(p => p.type === 'forest');
-                const iq = [];
-                all.forEach((d, i) => {
-                    if (d.type !== 'exterior') window.sgTreeCollisions.push({ x: d.x, z: d.z, radius: 0.3 * d.scale });
-                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); if (window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); setupHiddenCoin(t); }
-                    else { iq.push({ x: d.x, z: d.z, scale: d.scale, rot: Math.random() * Math.PI * 2 }); }
-                });
-                if (window.TreeInstanceManager) { window.TreeInstanceManager.init(mt, iq.length); const dm = new THREE.Object3D(); iq.forEach((p, i) => { dm.position.set(p.x, 0, p.z); dm.rotation.y = p.rot; dm.scale.setScalar(p.scale); window.TreeInstanceManager.setTransform(i, dm); }); window.TreeInstanceManager.finalize(); console.log('Instanced ' + iq.length + ' trees.'); }
-                window.setTreeSeason(GameConfig.currentSeason);
-            };
-            if (window.sgMasterTree) exec(window.sgMasterTree); else new FBXLoader().load('models/tree.fbx', exec, undefined, console.error);
-        }
-
-        // =================================================================
+        // =============================================
         // 🛠️ PROJECT POTATO: GRASS INSTANCED (InstancedMesh Mode)
-        // =================================================================
+        // =============================================
         const GRASS_PALETTES = {
             spring: [0x90EE90, 0x98FB98, 0xADFF2F],
             summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
@@ -3941,71 +3902,7 @@ const SearchGame = (() => {
             }
         };
 
-        function spawnGrass() {
-            if (window.hasSpawnedGrass) return;
-            window.hasSpawnedGrass = true;
-            console.log("--- spawnGrass (InstancedMesh Mode) ---");
-
-            // クリーンアップ
-            const existing = scene.getObjectByName('InstancedGrassField');
-            if (existing) {
-                existing.geometry?.dispose();
-                scene.remove(existing);
-            }
-
-            new FBXLoader().load('models/grass.fbx', (masterGrass) => {
-                // 1. メッシュの抽出
-                let grassMesh = null;
-                masterGrass.traverse(c => { if (c.isMesh) grassMesh = c; });
-                if (!grassMesh) return;
-
-                // 2. 【形状補正】-90度で起こす
-                grassMesh.geometry.rotateX(-Math.PI / 2);
-
-                // 3. マテリアル準備
-                let mat = grassMesh.material;
-                mat = (Array.isArray(mat) ? mat[0] : mat).clone();
-                mat.transparent = true;
-                mat.alphaTest = 0.5;
-                mat.side = THREE.DoubleSide;
-
-                // 4. InstancedMesh 作成
-                const grassCount = 800;
-                const iMesh = new THREE.InstancedMesh(grassMesh.geometry, mat, grassCount);
-                iMesh.name = 'InstancedGrassField';
-                iMesh.castShadow = false;
-                iMesh.receiveShadow = true;
-                iMesh.userData.ignoreGround = true;
-
-                const dummy = new THREE.Object3D();
-                let placed = 0;
-                let attempts = 0;
-
-                // 5. 配置ループ
-                while (placed < grassCount && attempts < 5000) {
-                    attempts++;
-                    const x = (Math.random() - 0.5) * 62;
-                    const z = (Math.random() - 0.5) * 62;
-                    if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
-
-                    dummy.position.set(x, 0, z);
-                    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-                    const s = 3.5 + Math.random() * 2.0;
-                    dummy.scale.set(s, s, s);
-                    dummy.updateMatrix();
-
-                    iMesh.setMatrixAt(placed, dummy.matrix);
-                    placed++;
-                }
-
-                iMesh.instanceMatrix.needsUpdate = true;
-                scene.add(iMesh);
-                window.sgGrassInstancedMesh = iMesh;
-
-                console.log(`✅ ${placed} grass patches (InstancedMesh Fix Mode).`);
-                if (typeof GameConfig !== 'undefined') window.setGrassSeason(GameConfig.currentSeason);
-            }, undefined, console.error);
-        }
+ 
 
         // ★ GLOBAL SEASON MANAGER (Comms Tower)
         window.setGameSeason = (seasonName) => {
@@ -6254,11 +6151,22 @@ const SearchGame = (() => {
                 if (plantingQueue.length === 0) {
                     console.log("🌲 All trees planted.");
                     // 隠しコインのセットアップ（木が生え終わった後に実行）
-                    setupHiddenCoin();
+                    // ★修正：エラー回避のため、直接ターゲットを探して関数を呼び出す
+                    if (window.sgTreeObjects && window.sgTreeObjects.length > 0) {
+                         const targetTree = window.sgTreeObjects.find(t => t.name === 'Tree_CoinHolder');
+                         // もし上のほうの setupHiddenCoin が生きているなら、このように呼ばないと届かない
+                         if (targetTree && typeof setupHiddenCoin === 'function') {
+                             setupHiddenCoin(targetTree);
+                         } else {
+                             console.warn("setupHiddenCoin func or targetTree not found in scope.");
+                         }
+                    }
                     // 色の最終適用
                     if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
                     return;
                 }
+
+
 
                 // バッチサイズ分だけ処理
                 const batch = plantingQueue.splice(0, BATCH_SIZE);
@@ -6307,135 +6215,7 @@ const SearchGame = (() => {
 
         }, undefined, (error) => console.error('Error loading tree.fbx:', error));
 
-
-        // --- Helper Function for Stump ---
-        function createCoin(x, y, z) {
-            const loader = new FBXLoader();
-            loader.load('models/coin.fbx', (coin) => {
-                coin.scale.setScalar(0.015);
-                coin.position.set(x, y, z);
-
-                coin.traverse(c => {
-                    if (c.isMesh) {
-                        c.castShadow = true;
-                        const oldMat = Array.isArray(c.material) ? c.material[0] : c.material;
-                        c.material = new THREE.MeshBasicMaterial({
-                            map: oldMat ? oldMat.map : null,
-                            color: 0xFFD700,
-                            side: THREE.DoubleSide
-                        });
-                    }
-                });
-
-                coin.userData.isCoin = true;
-                coin.userData.collected = false;
-
-                // アニメーション用
-                coin.userData.spinSpeed = 0.05;
-                const animateCoin = () => {
-                    if (!coin.parent && !coin.userData.collected && coin.visible) {
-                        // シーン直下の場合も回す
-                        coin.rotation.y += coin.userData.spinSpeed;
-                        requestAnimationFrame(animateCoin);
-                    } else if (coin.parent && !coin.userData.collected) {
-                        coin.rotation.y += coin.userData.spinSpeed;
-                        requestAnimationFrame(animateCoin);
-                    }
-                };
-                animateCoin();
-
-                window.parkGroup.add(coin); // シーンに追加
-                if (window.sgGameCoins) window.sgGameCoins.push(coin);
-            });
-        }
-
-        /**
-         * 切り株を生成し、指定座標に配置する
-         * @param {number} x - X座標
-         * @param {number} z - Z座標
-         */
-        function createStump(x, z) {
-            // 既存のloaderを利用
-            const loader = new FBXLoader();
-            loader.load('models/stump.fbx', (fbx) => {
-                fbx.position.set(x, 0, z);
-                fbx.scale.set(0.015, 0.015, 0.015); // 公園のスケールに合わせ調整
-                fbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
-                window.parkGroup.add(fbx); // sceneではなくparkGroupに追加推奨
-
-                // 納得感（アフォーダンス）のあるコイン配置：切り株の天面
-                // モデルの高さに合わせてy座標を調整してください
-                createCoin(x, 1.0, z); // Y座標調整 (0.015scaleならこのくらい?)
-
-                console.log(`Stump and coin created at X:${x} Z:${z}`);
-            }, undefined, (error) => {
-                console.error('切り株のロードに失敗しました:', error);
-            });
-        }
-
-        // createPark関数内（minigame_part2.txt）の最後の方に以下を追記
-        createStump(13, 6);
-
-        // --- 隠しコイン生成関数 (木を直接受け取る) ---
-        function setupHiddenCoin(targetTree) {
-            if (!targetTree) {
-                console.warn('setupHiddenCoin: No target tree provided!');
-                return;
-            }
-            if (!window.sgActiveCoins) window.sgActiveCoins = [];
-            window.testTree = targetTree;
-            console.log('setupHiddenCoin: Attaching coin to', targetTree.name, 'at', targetTree.position.x.toFixed(1), targetTree.position.z.toFixed(1));
-
-            const loader = new FBXLoader();
-            loader.load('models/coin.fbx', (object) => {
-                const coin = object;
-                const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
-                const currentSeason = (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) ? GameConfig.currentSeason : 'summer';
-                const targetColor = seasonColors[currentSeason] || 0xFFFFFF;
-
-                coin.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = false;
-                        if (child.material) {
-                            const oldMat = Array.isArray(child.material) ? child.material[0] : child.material;
-                            const newMat = new THREE.MeshBasicMaterial({
-                                map: oldMat.map, color: targetColor, transparent: false, opacity: 1.0, side: THREE.DoubleSide
-                            });
-                            child.material = newMat;
-                        }
-                    }
-                });
-                const box = new THREE.Box3().setFromObject(coin);
-                const size = new THREE.Vector3(); box.getSize(size);
-                coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
-                const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
-                coin.add(coinLight);
-                coin.position.set(0, 2.2, 0);
-                coin.userData = { isCoin: true, isFalling: false, hasFallen: false, pointLight: coinLight };
-
-                targetTree.add(coin);
-                targetTree.userData.hasCoin = true;
-                targetTree.userData.targetCoin = coin;
-                window.sgActiveCoins.push(coin);
-                coin.userData.parentTree = targetTree;
-
-                const collisionObj = window.sgTreeCollisions.find(c =>
-                    Math.abs(c.x - targetTree.position.x) < 0.1 && Math.abs(c.z - targetTree.position.z) < 0.1
-                );
-                if (collisionObj) {
-                    collisionObj.hasCoin = true;
-                    window.testTreeCollision = collisionObj;
-                }
-            });
-            console.log('✨ Hidden Coin ready in tree:', targetTree.name);
-        }
-    }
+ }
 
     // ==========================================
     // 雲 (Cloud) の配置と季節カラー管理
@@ -6896,10 +6676,7 @@ const SearchGame = (() => {
     // 池を生成
     spawnPond();
 
-    /**
-     * 💡 Interaction Hint System V2
-     * Adds a PointLight and pulses emissive material when player is near interactable objects.
-     */
+
     // ★インタラクション誘導システム (完全安全版)
     window.updateInteractionHints = function (dt) {
         if (!window.sgInteractables || typeof playerPosition === 'undefined') return;
