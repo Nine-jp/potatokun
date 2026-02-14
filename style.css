@@ -1385,7 +1385,7 @@ body.modal-open {
     #controls-left-container {
         top: auto;
         /* 上の指定を解除 */
-        bottom: 30px;
+        bottom: calc(90px + env(safe-area-inset-bottom));
         /* 下からの位置 */
         left: 30px;
         /* 左からの位置 */
@@ -1401,7 +1401,7 @@ body.modal-open {
         /* 上の指定を解除 */
         left: auto;
         /* 左の指定を解除 */
-        bottom: 30px;
+        bottom: calc(90px + env(safe-area-inset-bottom));
         /* 下からの位置 */
         right: 30px;
         /* 右からの位置 */
@@ -1488,8 +1488,8 @@ body.modal-open {
 /* --- 2. 左下エリア (移動) --- */
 #controls-bottom-left {
     position: absolute;
-    bottom: 30px;
-    left: 30px;
+    bottom: calc(15vmin + env(safe-area-inset-bottom));
+    left: 5vmin;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1505,13 +1505,13 @@ body.modal-open {
 
 .dpad-middle {
     display: flex;
-    gap: 50px;
+    gap: 13vmin;
     /* 十字キーの真ん中を空ける */
 }
 
 #dpad button {
-    width: 60px;
-    height: 60px;
+    width: 15vmin;
+    height: 15vmin;
     background: rgba(255, 255, 255, 0.2);
     border: 2px solid rgba(255, 255, 255, 0.5);
     border-radius: 10px;
@@ -1541,18 +1541,18 @@ body.modal-open {
 /* --- 3. 右下エリア (アクション) --- */
 #controls-bottom-right {
     position: absolute;
-    bottom: 40px;
-    right: 40px;
+    bottom: calc(18vmin + env(safe-area-inset-bottom));
+    right: 5vmin;
     display: flex;
-    gap: 20px;
+    gap: 4vmin;
     align-items: flex-end;
 }
 
 /* Action Buttons */
 #jump-btn,
 #sg-get-btn {
-    width: 80px;
-    height: 80px;
+    width: 18vmin;
+    height: 18vmin;
     border-radius: 50%;
     border: 3px solid white;
     font-weight: bold;

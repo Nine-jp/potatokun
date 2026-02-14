@@ -2,15 +2,15 @@ import os
 import math
 
 # --- 設定 ---
-TARGET_FILE = 'minigame.js'
+TARGET_FILE = 'potecoin.js'
 LINES_PER_FILE = 2000
 
 def split_file():
-    print("=== 📂 minigame.js 分割ツール ===")
+    print(f"=== 📂 {TARGET_FILE} 分割ツール ===")
     
     if not os.path.exists(TARGET_FILE):
         print(f"❌ エラー: {TARGET_FILE} が見つかりません。")
-        print("このスクリプトを minigame.js と同じフォルダに置いてください。")
+        print(f"このスクリプトを {TARGET_FILE} と同じフォルダに置いてください。")
         return
 
     try:
@@ -30,7 +30,7 @@ def split_file():
             chunk = lines[start_index:end_index]
             
             part_num = i + 1
-            output_filename = f"minigame_part{part_num}.txt"
+            output_filename = f"potecoin_part{part_num}.txt"
             
             with open(output_filename, 'w', encoding='utf-8') as out:
                 out.writelines(chunk)

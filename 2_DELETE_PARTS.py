@@ -4,12 +4,12 @@ import glob
 def clean_files():
     print("=== 🗑️ 分割ファイルお掃除ツール ===")
     
-    # 削除対象のパターン (minigame_partX.txt)
-    pattern = "minigame_part*.txt"
+    # 削除対象のパターン (potecoin_partX.txt)
+    pattern = "potecoin_part*.txt"
     files_to_delete = glob.glob(pattern)
 
     if not files_to_delete:
-        print("info: 削除対象のファイル (minigame_part*.txt) は見つかりませんでした。")
+        print("info: 削除対象のファイル (potecoin_part*.txt) は見つかりませんでした。")
         return
 
     print(f"🔍 {len(files_to_delete)} 個のファイルが見つかりました。削除します...")
