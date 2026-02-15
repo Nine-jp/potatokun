@@ -1,0 +1,244 @@
+<!DOCTYPE html><html lang="ja"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="robots" content="noindex, nofollow">
+    <title data-i18n="title">ポテトくん VRM無料配布中！</title>
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <meta name="description" data-i18n-attr="content:description" content="Clusterで使えるオリジナルアバター「ポテトくん」の無料配布ページです。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="theme-newyear modal-open" style="cursor: default;">
+    <!-- Animated Effects Background -->
+    <div class="page-effect" aria-hidden="true">
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+        <div class="effect-item"></div>
+    </div>
+
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">PotatoKun</h1>
+            <nav>
+                <ul>
+
+                    <li class="lang-selector">
+                        <button class="lang-btn" aria-label="Select Language">
+                            <svg class="globe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                                </path>
+                            </svg>
+                        </button>
+                        <ul class="lang-dropdown">
+                            <li><a href="#" data-lang="ja">日本語</a></li>
+                            <li><a href="#" data-lang="en">English</a></li>
+                            <li><a href="#" data-lang="es">Español</a></li>
+                            <li><a href="#" data-lang="zh">简体中文</a></li>
+                            <li><a href="#" data-lang="ko">한국어</a></li>
+                        </ul>
+                    </li>
+                    <li class="social-item">
+                        <a href="https://x.com/Nine_jp_4NFT" target="_blank" rel="noopener" class="social-link" aria-label="X (Twitter)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="social-icon">
+                                <path d="m4 4 11.733 16h4.267l-11.733-16z"></path>
+                                <path d="m4 20 6.768-6.768m2.46-2.46 6.772-6.772"></path>
+                            </svg>
+                        </a>
+                    </li>
+                    <li class="social-item">
+                        <a href="https://www.instagram.com/nine.jp.4nft/" target="_blank" rel="noopener" class="social-link" aria-label="Instagram">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="social-icon">
+                                <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+                                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                                <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line>
+                            </svg>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container hero-content">
+                <div class="hero-text">
+                    <h2 data-i18n="hero-title">ポテトの妖精<br>「ポテトくん」</h2>
+                    <p data-i18n="hero-desc">Clusterで使えるオリジナルVRMアバターを無料配布中！<br>🐴 今年の干支「午」の着ぐるみを着たポテトくんを配布中！</p>
+                    <p class="mini-game-guide" data-i18n="mini-game-guide">右下の🎮️ボタンからミニゲームで遊べるよ！</p>
+                </div>
+                <div class="hero-image" id="canvas-container">
+                    <!-- 3D Model will be rendered here -->
+                    <div class="model-switcher-wrap">
+                        <select id="model-select" class="model-select-ui" aria-label="Select Avatar">
+                            <!-- Options will be populated by JS -->
+                        <option value="0">ノーマルポテトくん</option><option value="1">午年ポテトくん</option></select>
+                    </div>
+                <canvas data-engine="three.js r160" width="462" height="392" style="display: block; width: 462px; height: 392px; touch-action: none;"></canvas></div>
+                <div class="hero-action">
+                    <a href="#download" class="btn btn-primary" data-i18n="hero-btn">今すぐダウンロード</a>
+                </div>
+            </div>
+        </section>
+
+
+
+        <section id="details" class="section details">
+            <div class="container">
+                <h2 class="section-title" data-i18n="details-title">🎁 配布データについて</h2>
+                <div class="details-card">
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label" data-i18n="details-format">形式</span>
+                            <span class="detail-value price">VRM</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label" data-i18n="details-price">価格</span>
+                            <span class="detail-value price" data-i18n="details-free">無料</span>
+                        </div>
+                        <div class="detail-item detail-item-wide">
+                            <span class="detail-label" data-i18n="details-usage">利用想定</span>
+                            <span class="detail-value" data-i18n="details-platform">ClusterなどのVRM対応プラットフォーム</span>
+                        </div>
+                    </div>
+                    <div class="license-info">
+                        <h3 data-i18n="license-title">利用規約</h3>
+                        <ul>
+                            <li data-i18n="license-item1">個人利用OK</li>
+
+                            <li data-i18n="license-item3">再配布NG</li>
+                            <li data-i18n="license-item4">公序良俗に反する利用NG</li>
+                        </ul>
+                    </div>
+                    <div id="download" class="download-area">
+                        <a href="https://drive.google.com/file/d/1aCOSdKp_398Cfhfl84JzhEScdX0vSTb_/view?usp=drive_link" class="btn btn-large" target="_blank" data-i18n="download-btn">VRMをダウンロード</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>© 2025 StaffOnly Project</p>
+        </div>
+    </footer>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <!-- Mini Game Portal Overlay -->
+    <div id="minigame-container" class="">
+        <button id="portal-close-btn" aria-label="Close Portal">✕</button>
+
+        <!-- 1. Game Selection Menu -->
+        <div id="game-menu" class="hidden">
+            <h2 class="portal-title">Mini Games</h2>
+            <div id="game-grid"><button type="button" class="game-card " style="z-index: 11000;">
+            <img src="assets/potatokun-action.png" class="game-icon-img" alt="ポテトくんパクパク">
+            <div class="game-title">ポテトくんパクパク</div>
+            <div class="beta-badge">β版</div>
+            
+        </button><button type="button" class="game-card disabled" style="z-index: 11000;">
+            <div class="game-icon">👆</div>
+            <div class="game-title">ポテトくんゲーム②</div>
+            
+            <div class="coming-soon-badge">Coming Soon</div>
+        </button><button type="button" class="game-card " style="z-index: 11000;">
+            <img src="assets/coin_pic.png" class="game-icon-img" style="transform: scale(0.7);" alt="ポテトくんコイン">
+            <div class="game-title">ポテトくんコイン</div>
+            <div class="beta-badge">β版</div>
+            
+        </button></div>
+        </div>
+
+        <!-- 2. Game Intro/Description Screen -->
+        <div id="game-intro" class="hidden">
+            <div class="intro-content">
+                <div id="intro-icon" class="large-icon"></div>
+                <h2 id="intro-title"></h2>
+                <p id="intro-desc"></p>
+                <div class="intro-buttons">
+                    <button id="intro-back-btn" class="secondary-btn">Back</button>
+                    <button id="intro-start-btn" class="primary-btn">START</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Active Game Container -->
+        <div id="active-game-container" class="" style="width: 100%; height: 100%; overflow: hidden;">
+            <div id="sg-loading-overlay" style="position: absolute; inset: 0px; background: rgb(135, 206, 235); z-index: 2000; display: none; justify-content: center; align-items: center; color: white; font-family: monospace; font-size: 24px; font-weight: bold;">
+                Now Loading...
+            </div>
+            
+            <div id="sg-canvas-container" style="position:absolute; inset:0; background:#1a1a1a; z-index:0;"><canvas data-engine="three.js r160" width="1249" height="1277" style="display: block; width: 1249px; height: 1277px; touch-action: none;"></canvas></div>
+
+            <div id="sg-skip-btn" style="position:absolute; top:80px; right:20px; z-index:1500; color:white; font-weight:bold; border:2px solid white; background:rgba(0,0,0,0.5); padding:8px 16px; border-radius:6px; cursor:pointer; display:none;">
+                SKIP ▶
+            </div>
+
+            <div id="ui-container" style="position:absolute; inset:0; pointer-events:none; z-index:1000;">
+                
+                <div id="hud-top-left" style="pointer-events: auto; touch-action: none; opacity: 1;">
+                    <h1>ポテトコイン</h1>
+                    <div id="score">コイン: <span id="sg-coin-counter">2</span>/10</div>
+                    <div id="tutorial-hint" style="display:none;">🎮 移動: D-Pad / 🦅 視点切替</div>
+                </div>
+
+                <div id="controls-bottom-left" style="pointer-events: auto; touch-action: none; opacity: 1;">
+                    <div id="dpad-cross">
+                        <div class="dpad-empty"></div> <button id="dpad-up">▲</button> <div class="dpad-empty"></div> 
+                        <button id="dpad-left">◀</button> <div id="dpad-center"></div> <button id="dpad-right">▶</button>
+                        <div class="dpad-empty"></div> <button id="dpad-down">▼</button> <div class="dpad-empty"></div> 
+                    </div>
+                </div>
+
+                <div id="controls-bottom-right" style="pointer-events: auto; touch-action: none; opacity: 1;">
+                    <button id="btn-action-pickup" class="action-btn pickup-btn" style="display: none; animation: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0s 1 normal none running popIn;">
+                        <img src="assets/horseshoe_magnet.png" alt="GET">
+                    </button>
+                    <button id="toggle-view-btn" class="action-btn view-btn">🦅</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Common Game Over Screen -->
+        <div id="common-game-over" class="hidden">
+            <div class="game-over-content">
+                <h2>GAME OVER</h2>
+                <p>Score: <span id="final-score-value">0</span></p>
+                <div id="prize-container" class="hidden">
+                    <p class="prize-msg">🎉 UNLOCK SPECIAL PRIZE! 🎉</p>
+                    <a href="https://drive.google.com/file/d/1nz9HWyO4Q3sMbPDmTLRZcGWkF6k1OjZf/view?usp=sharing" id="prize-link" class="primary-btn" target="_blank" rel="noopener noreferrer">Download Special
+                        VRM</a>
+                    <p id="prize-status"></p>
+                </div>
+                <div class="game-over-buttons">
+                    <button id="game-over-menu-btn" class="secondary-btn">Menu</button>
+                    <button id="game-over-retry-btn" class="primary-btn">Retry</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Play Button -->
+    <button id="fab-play-game" aria-label="Play Mini Game">🎮️</button>
+
+    <script type="module" src="script.js"></script>
+    <script src="potepaku.js"></script>
+    <script type="module" src="potecoin.js"></script>
+
+
+<div id="debug-pos-panel" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background-color: rgba(0, 0, 0, 0.6); color: rgb(0, 255, 0); padding: 8px 16px; font-family: monospace; font-size: 16px; font-weight: bold; border-radius: 4px; z-index: 10000; pointer-events: none;">POS X:24.83 Z:22.25 H:3.60</div><div style="position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%); color: rgb(255, 255, 255); font-family: sans-serif; font-size: 32px; font-weight: 900; text-shadow: rgb(0, 0, 0) 2px 2px 0px, rgb(0, 0, 0) -1px -1px 0px, rgb(0, 0, 0) 1px -1px 0px, rgb(0, 0, 0) -1px 1px 0px, rgb(0, 0, 0) 1px 1px 0px; pointer-events: none; z-index: 2147483647; display: none; white-space: nowrap; background: rgba(0, 0, 0, 0.5); padding: 10px 20px; border-radius: 10px; border: 2px solid white;"></div></body></html>

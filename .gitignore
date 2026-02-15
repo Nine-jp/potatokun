@@ -18,3 +18,10 @@ npm-debug.log*
 PotatoKun.fbx
 yeahhhhh.fbx
 script_potatokun_wave.js
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
