@@ -149,7 +149,7 @@ window.AudioManager = AudioManager;
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'winter', // 冬仕様に変更
+    currentSeason: 'summer', // 夏仕様に変更
     debugMode: true          // デバッグモードは維持
 };
 
@@ -2195,6 +2195,14 @@ const SearchGame = (() => {
                 SKIP ▶
             </div>
 
+            <div id="floating-message" style="
+                position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%);
+                color: #FFFFFF; font-family: sans-serif; font-size: 24px; font-weight: bold;
+                background: rgba(0, 0, 0, 0.8); border: 2px solid white; border-radius: 20px; padding: 15px 30px;
+                text-shadow: none;
+                pointer-events: none; z-index: 2147483647; display: none; white-space: nowrap;
+            "></div>
+
             <div id="ui-container" style="position:absolute; inset:0; pointer-events:none; z-index:1000;">
                 
                 <div id="hud-top-left" style="pointer-events: auto; touch-action: none;">
@@ -2377,6 +2385,20 @@ const SearchGame = (() => {
             window.sgItemData.collected++;
             const counter = document.getElementById('sg-coin-counter');
             if (counter) counter.textContent = window.sgItemData.collected;
+
+            // ★ 10枚達成メッセージ
+            if (window.sgItemData.collected === 10) {
+                if (window.showFloatingMessage) {
+                    window.showFloatingMessage("ジュース、ポテトくんよろこんでくれたね～💕");
+                }
+            }
+
+            // ★ 20枚達成メッセージ (追加)
+            if (window.sgItemData.collected === 20) {
+                if (window.showFloatingMessage) {
+                    window.showFloatingMessage("すごい！20枚達成！ポテトくんからプレゼントがあるみたいだよ🎁（仮）");
+                }
+            }
         }
 
         // 3. 効果音
@@ -5688,6 +5710,34 @@ const SearchGame = (() => {
 
         } catch (error) { console.error("CRITICAL ERROR in createParkAssets:", error); }
     }
+
+
+    window.showFloatingMessage = function (text) {
+        const el = document.getElementById('floating-message');
+        if (el) {
+            el.textContent = text;
+            el.style.display = 'block';
+            el.style.opacity = '1';
+            el.style.transition = 'none';
+
+            // アニメーション (Pop In)
+            el.style.transform = 'translate(-50%, -50%) scale(0.5)';
+            setTimeout(() => {
+                el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                el.style.transform = 'translate(-50%, -50%) scale(1.0)';
+            }, 10);
+
+            if (window.floatingMessageTimeout) clearTimeout(window.floatingMessageTimeout);
+
+            window.floatingMessageTimeout = setTimeout(() => {
+                el.style.transition = 'opacity 1s';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    if (el.style.opacity === '0') el.style.display = 'none';
+                }, 1000);
+            }, 3000);
+        }
+    };
 
 
     function showTapText(x, y, text, color) {
