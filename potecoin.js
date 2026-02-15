@@ -3361,6 +3361,10 @@ const SearchGame = (() => {
 
                         coin.userData.isCoin = true;
                         coin.userData.collected = false;
+
+                        // ★アウトライン追加
+                        if (window.addEdgesOutline) window.addEdgesOutline(coin, 15, 0x000000);
+
                         scene.add(coin);
                         if (window.sgGameCoins) window.sgGameCoins.push(coin);
                     }
@@ -3831,6 +3835,9 @@ const SearchGame = (() => {
                     pointLight: coinLight,
                     parentTree: targetTree
                 };
+
+                // アウトライン追加
+                if (window.addEdgesOutline) window.addEdgesOutline(coin, 15, 0x000000);
 
                 targetTree.add(coin);
                 targetTree.userData.hasCoin = true;
@@ -5521,6 +5528,9 @@ const SearchGame = (() => {
                 coin.userData.isCoin = true;
                 coin.userData.collected = false;
 
+                // アウトライン追加
+                if (window.addEdgesOutline) window.addEdgesOutline(coin, 15, 0x000000);
+
                 scene.add(coin);
                 if (window.sgGameCoins) window.sgGameCoins.push(coin);
 
@@ -6977,6 +6987,9 @@ if (typeof initGameSystem === 'function') {
                 coin.userData.collected = false;
                 coin.visible = true;
 
+                // ★アウトライン追加
+                if (window.addEdgesOutline) window.addEdgesOutline(coin, 15, 0x000000);
+
                 if (window.parkGroup) window.parkGroup.add(coin);
                 else window.scene.add(coin);
 
@@ -7065,6 +7078,9 @@ if (typeof initGameSystem === 'function') {
         // 初期位置
         coin.position.set(START_POS.x, START_POS.y, START_POS.z);
         coin.rotation.set(0, 0, 0);
+
+        // ★アウトライン追加
+        if (window.addEdgesOutline) window.addEdgesOutline(coin, 15, 0x000000);
 
         window.parkGroup.add(coin);
         if (window.sgGameCoins) window.sgGameCoins.push(coin);
