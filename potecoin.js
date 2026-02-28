@@ -149,7 +149,7 @@ window.AudioManager = AudioManager;
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'summer', // 夏仕様に変更
+    currentSeason: 'winter', // 冬仕様に変更
     debugMode: true          // デバッグモードは維持
 };
 
@@ -2220,7 +2220,7 @@ const SearchGame = (() => {
                 </div>
 
                 <div id="controls-bottom-right" style="pointer-events: auto; touch-action: none;">
-                    <button id="btn-action-pickup" class="action-btn pickup-btn" style="display: none;">
+                    <button id="btn-action-pickup" class="action-btn pickup-btn" style="visibility: hidden; display: flex; pointer-events: none;">
                         <img src="assets/horseshoe_magnet.png" alt="GET">
                     </button>
                     <button id="toggle-view-btn" class="action-btn view-btn">🦅</button>
@@ -2351,15 +2351,17 @@ const SearchGame = (() => {
 
         // Toggle Display
         if (nearCoinFound) {
-            if (pickupBtn.style.display !== 'flex') {
-                pickupBtn.style.display = 'flex';
+            if (pickupBtn.style.visibility !== 'visible') {
+                pickupBtn.style.visibility = 'visible';
+                pickupBtn.style.pointerEvents = 'auto'; // ensure click works
                 pickupBtn.style.animation = 'none';
                 void pickupBtn.offsetWidth;
                 pickupBtn.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
             }
         } else {
-            if (pickupBtn.style.display !== 'none') {
-                pickupBtn.style.display = 'none';
+            if (pickupBtn.style.visibility !== 'hidden') {
+                pickupBtn.style.visibility = 'hidden';
+                pickupBtn.style.pointerEvents = 'none';
             }
         }
     }

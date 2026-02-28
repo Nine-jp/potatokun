@@ -41,7 +41,9 @@ const init3DViewer = () => {
     // Camera setup
     let camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.set(0, 2.3, 4); // Y: 1.5 -> 2.3 (Shift Up to lower model)
+    // Y: 0.8 -> 0.3 (Lower lookAt target to raise ground visual)
     camera.lookAt(0, 0.8, 0); // Y: 0 -> 0.8
+    window.appCamera = camera; // Expose globally for browser automation
 
     // Renderer setup
     let renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -58,6 +60,7 @@ const init3DViewer = () => {
     controls.minDistance = 2;
     controls.maxDistance = 6;
     controls.enablePan = false;
+    window.appControls = controls; // Expose globally
     controls.maxPolarAngle = Math.PI / 1.5;
     controls.target.set(0, 0.8, 0); // Shift target UP
     controls.update();
