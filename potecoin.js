@@ -3262,7 +3262,7 @@ const SearchGame = (() => {
 
 
             // ★★★ ネコ耳ピクピク判定 (恩返しイベント：設定確定版) ★★★
-            if (currentState === GameState.PLAYING && window.sgBenchCat) {
+            if (false && currentState === GameState.PLAYING && window.sgBenchCat) { // ★これを追加：イベント判定を無効化
                 const cat = window.sgBenchCat;
 
                 // ▼▼▼ 判定エリア設定 (Master Settings) ▼▼▼
@@ -3918,7 +3918,7 @@ const SearchGame = (() => {
                 const iq = [];
                 all.forEach((d, i) => {
                     if (d.type !== 'exterior') window.sgTreeCollisions.push({ x: d.x, z: d.z, radius: 0.3 * d.scale });
-                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); if (window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); setupHiddenCoin(t); }
+                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); if (window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); /* setupHiddenCoin(t); */ }
                     else { iq.push({ x: d.x, z: d.z, scale: d.scale, rot: Math.random() * Math.PI * 2 }); }
                 });
                 if (window.TreeInstanceManager) { window.TreeInstanceManager.init(mt, iq.length); const dm = new THREE.Object3D(); iq.forEach((p, i) => { dm.position.set(p.x, 0, p.z); dm.rotation.y = p.rot; dm.scale.setScalar(p.scale); window.TreeInstanceManager.setTransform(i, dm); }); window.TreeInstanceManager.finalize(); console.log('Instanced ' + iq.length + ' trees.'); }
@@ -4615,7 +4615,7 @@ const SearchGame = (() => {
                     onLoad: (obj) => {
                         // 1. ポスター貼り付け & URL設定
                         const textureLoader = new THREE.TextureLoader();
-                        const posterTexture = textureLoader.load('assets/testposter.png');
+                        const posterTexture = textureLoader.load('assets/NewCollection.png');
                         posterTexture.colorSpace = THREE.SRGBColorSpace;
                         posterTexture.flipY = true;
 
@@ -4989,7 +4989,7 @@ const SearchGame = (() => {
 
                                         // テクスチャの非同期ロード
                                         const textureLoader = new THREE.TextureLoader();
-                                        textureLoader.load('assets/kitchencar_ad1.png', (tex) => {
+                                        textureLoader.load('assets/kitchencar_ad2.png', (tex) => {
                                             tex.colorSpace = THREE.SRGBColorSpace;
                                             tex.colorSpace = THREE.SRGBColorSpace;
                                             tex.flipY = true; // 反転
@@ -5097,10 +5097,11 @@ const SearchGame = (() => {
                             console.log("✨ Sandbox Shovel & Mound identified. Setting up interaction.");
 
                             // クリック対象として登録
-                            if (window.sgInteractables) window.sgInteractables.push(shovel);
+                            // if (window.sgInteractables) window.sgInteractables.push(shovel); // ★これをコメントアウト：スコップのハイライト検出を無効化
 
                             shovel.userData.hasDug = false;
                             shovel.userData.action = () => {
+                                return; // ★これを追加：砂場の掘削アクションを無効化
                                 if (shovel.userData.hasDug) return;
                                 shovel.userData.hasDug = true;
 
@@ -5624,7 +5625,7 @@ const SearchGame = (() => {
 
                             if (snowman.userData.isWinner && !snowman.userData.hasPaid) {
                                 snowman.userData.hasPaid = true;
-                                if (typeof spawnDropCoin === 'function') spawnDropCoin(worldPos);
+                                // if (typeof spawnDropCoin === 'function') spawnDropCoin(worldPos); // ★コイン生成のみ停止
 
                                 // ▼ 追加：コイン出現音 ▼
                                 window.AudioManager.play('wheeee', 1.0);
@@ -6985,6 +6986,7 @@ if (typeof initGameSystem === 'function') {
     }
 
     setInterval(() => {
+        return; // ★これを追加：イベント監視を直ちに終了
         // ネコがいなければ中断
         if (!window.sgBenchCat) return;
         if (isCatGone) return;
@@ -7193,6 +7195,7 @@ if (typeof initGameSystem === 'function') {
 
     // 5. 監視ループ
     setInterval(() => {
+        return; // ★これを追加：プレイヤーの立ち止まり判定を無効化
         if (isEventTriggered) {
             if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
                 generatedCoin.parent.remove(generatedCoin);
@@ -7228,3 +7231,27 @@ if (typeof initGameSystem === 'function') {
         }
     }, 100);
 })();
+
+// ▼▼▼ 幽霊コイン特定用デバッグスクリプト ▼▼▼
+setInterval(() => {
+    if (window.scene) {
+        window.scene.traverse((obj) => {
+            if (obj.userData && obj.userData.isCoin) {
+                // ワールド座標ではなくローカル座標が(0,0,0)かどうかも念のためチェック
+                if (obj.position.x === 0 && obj.position.y === 0 && obj.position.z === 0) {
+                    if (!obj.userData._ghostLogged) {
+                        console.warn("👻 GHOST COIN DETECTED at (0,0,0)! Name:", obj.name, "Parent:", obj.parent ? obj.parent.name : "None", "UserData:", obj.userData);
+
+                        // 画面状にも表示しておく
+                        const div = document.createElement('div');
+                        div.textContent = `👻 Ghost Coin found: ${obj.name} (Parent: ${obj.parent ? obj.parent.name : 'None'})`;
+                        div.style.cssText = "position:fixed; top:10px; right:10px; color:red; font-weight:bold; background:black; padding:10px; z-index:9999;";
+                        document.body.appendChild(div);
+
+                        obj.userData._ghostLogged = true; //何度も出ないように
+                    }
+                }
+            }
+        });
+    }
+}, 2000);
