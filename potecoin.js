@@ -4631,7 +4631,7 @@ const SearchGame = (() => {
                         posterTexture.colorSpace = THREE.SRGBColorSpace;
                         posterTexture.flipY = true;
 
-                        const targetUrl = 'https://www.instagram.com/nine.jp.4nft/';
+                        const targetUrl = 'https://potatokun.base.shop/';
 
                         obj.traverse((c) => {
                             if (c.isMesh) {
@@ -4965,8 +4965,10 @@ const SearchGame = (() => {
                                 c.castShadow = true;
                                 c.receiveShadow = true;
                                 if (c.material) {
-                                    const mats = Array.isArray(c.material) ? c.material : [c.material];
-                                    mats.forEach(m => {
+                                    // 配列マテリアル対応
+                                    const materials = Array.isArray(c.material) ? c.material : [c.material];
+
+                                    materials.forEach(m => {
                                         m.shadowSide = THREE.BackSide;
                                     });
                                 }
@@ -4994,7 +4996,7 @@ const SearchGame = (() => {
                                     }
                                 }
 
-                                // 3. ポスター面 (画像適用)
+                                // 3. ポスター面 (画像適用) ★URL追加
                                 if (name.includes('kitchencar_face')) {
                                     if (!Array.isArray(c.material)) {
                                         c.material = c.material.clone();
@@ -5003,29 +5005,31 @@ const SearchGame = (() => {
                                         const textureLoader = new THREE.TextureLoader();
                                         textureLoader.load('assets/kitchencar_ad2.png', (tex) => {
                                             tex.colorSpace = THREE.SRGBColorSpace;
-                                            tex.colorSpace = THREE.SRGBColorSpace;
-                                            tex.flipY = true; // 反転
+                                            tex.flipY = true;
 
-                                            // 画像を時計回りに270度回転 (さらに180度追加)
+                                            // 画像を時計回りに270度回転
                                             tex.center.set(0.5, 0.5);
                                             tex.rotation = -Math.PI * 1.5;
 
                                             c.material.map = tex;
-                                            c.material.color.setHex(0xFFFFFF); // 画像の色を出すため白
+                                            c.material.color.setHex(0xFFFFFF);
                                             c.material.emissive = new THREE.Color(0xFFFFFF);
                                             c.material.emissiveMap = tex;
-                                            c.material.emissiveIntensity = 0.2; // ほんのり自発光
+                                            c.material.emissiveIntensity = 0.2;
                                             c.material.needsUpdate = true;
 
                                             console.log("🖼️ KitchenCar Poster applied to:", name);
                                         });
+
+                                        // ★リンク設定
+                                        c.userData.url = 'https://x.com/potato_kun_junk';
+                                        c.userData.isLink = true;
                                     }
                                 }
                             }
                         });
 
                         // 「いい感じ」の物理判定登録
-                        // 車体の中心から前後左右にバリアを張る
                         if (window.sgExtraObstacles) {
                             window.sgExtraObstacles.push({
                                 minX: -7 - 1.3, maxX: -7 + 1.3,
@@ -5043,7 +5047,6 @@ const SearchGame = (() => {
                     pos: { x: 10, y: 0, z: 25 },
                     rot: { y: 0 },
                     scale: 1.4,
-                    checkCollisions: true,
                     onLoad: (obj) => {
                         console.log("🪏 Sandbox Set Loaded");
                         let shovel = null;
@@ -5055,26 +5058,17 @@ const SearchGame = (() => {
                                 c.receiveShadow = true;
 
                                 const name = c.name.toLowerCase();
-                                // メッシュ名の特定 (Shovel / SandMound)
                                 if (name.includes('shovel')) {
                                     shovel = c;
-
-                                    // ★根本治療: スコップに含まれる「全てのメッシュ」を走査して無効化する
-                                    // これにより、見えないゴースト判定も全て無効化されます
                                     shovel.traverse((child) => {
                                         if (child.isMesh) {
                                             child.userData.ignoreRaycast = true;
                                         }
                                     });
-                                    console.log("🪏 Shovel: All original meshes set to ignoreRaycast.");
 
-                                    // ★HitBoxの作成 (ユーザー確定サイズ)
-                                    // サイズ: 幅60cm, 高さ20cm, 奥行50cm
                                     const hitGeo = new THREE.BoxGeometry(0.6, 0.2, 0.5);
-
-                                    // ★修正: 本番用に「透明」に戻す (visible: false)
                                     const hitMat = new THREE.MeshBasicMaterial({
-                                        visible: false, // 透明化！
+                                        visible: false,
                                         side: THREE.DoubleSide
                                     });
 
@@ -5083,67 +5077,27 @@ const SearchGame = (() => {
                                     hitBox.userData.isHitBox = true;
                                     hitBox.userData.skipOutline = true;
                                     hitBox.userData.ignoreHighlight = true;
-                                    // hitBoxには ignoreRaycast を設定しない（デフォルトfalse = 反応する）
 
-                                    // 位置合わせ
                                     shovel.geometry.computeBoundingBox();
                                     const center = new THREE.Vector3();
                                     shovel.geometry.boundingBox.getCenter(center);
                                     hitBox.position.copy(center);
 
-                                    // 最後に箱を追加
                                     shovel.add(hitBox);
-                                    console.log("🪏 Shovel HitBox set (RED). Original mesh raycast disabled.");
-                                }    // ------------------------------------------------
+                                }
                                 if (name.includes('mound') || name.includes('sandpile')) sandMound = c;
 
-                                // Register walkable mesh
                                 if (c.name.includes('SandboxMain')) {
                                     if (window.sgWalkableMeshes) window.sgWalkableMeshes.push(c);
                                 }
                             }
                         });
 
-                        // --- ギミック設定 ---
                         if (shovel && sandMound) {
-                            console.log("✨ Sandbox Shovel & Mound identified. Setting up interaction.");
-
-                            // クリック対象として登録
-                            // if (window.sgInteractables) window.sgInteractables.push(shovel); // ★これをコメントアウト：スコップのハイライト検出を無効化
-
                             shovel.userData.hasDug = false;
                             shovel.userData.action = () => {
-                                return; // ★これを追加：砂場の掘削アクションを無効化
-                                if (shovel.userData.hasDug) return;
-                                shovel.userData.hasDug = true;
-
-                                console.log("🪏 Digging in the sandbox!");
-
-                                // 音
-                                if (window.AudioManager) window.AudioManager.play('thud');
-
-                                // 演出: 砂山を消してパーティクル
-                                sandMound.visible = false;
-                                if (window.createSandSplash) {
-                                    const worldPos = new THREE.Vector3();
-                                    sandMound.getWorldPosition(worldPos);
-                                    window.createSandSplash(worldPos);
-                                }
-
-                                // 報酬: コイン出現
-                                if (typeof spawnDropCoin === 'function') {
-                                    const coinPos = new THREE.Vector3();
-                                    sandMound.getWorldPosition(coinPos);
-                                    spawnDropCoin(coinPos);
-                                }
-
-                                // スコップ本体も非表示にする (追加)
-                                // ヒットボックス(InteractionCollider)はスコップの子供なので、親を消せば一緒に消えます [cite: 1214]
-                                shovel.visible = false;
+                                return;
                             };
-                        } else {
-                            console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
-                                obj.children.map(c => c.name));
                         }
                     }
                 },
@@ -5153,24 +5107,17 @@ const SearchGame = (() => {
                 {
                     name: 'Stump_Center',
                     path: 'models/stump.fbx',
-                    pos: { x: 0, y: 0, z: 0 }, // positions優先のためダミー
-                    rot: { y: 0 }, // 個別にランダム回転させるため、ベースは0にしておきます
+                    pos: { x: 0, y: 0, z: 0 },
+                    rot: { y: 0 },
                     scale: 0.7,
-                    collision: false, // 頂いたコード通りfalse（通り抜け可）に設定
+                    collision: false,
                     exclusionRadius: 2.0,
-                    // ★ 2箇所に配置
                     positions: [
-                        { x: 7.5, z: 6 }, //
-                        { x: 6.5, z: 7 }, //
-                        { x: 8, z: 10 }, //
-                        { x: 10.5, z: 6 }, //
-                        { x: 11, z: 9 }, //
-                        { x: 9, z: 8.5 }, //
-                        { x: 10, z: 11 }, //
-                        { x: 9, z: 7 }  //
+                        { x: 7.5, z: 6 }, { x: 6.5, z: 7 }, { x: 8, z: 10 },
+                        { x: 10.5, z: 6 }, { x: 11, z: 9 }, { x: 9, z: 8.5 },
+                        { x: 10, z: 11 }, { x: 9, z: 7 }
                     ],
                     onLoad: (obj) => {
-                        // ★ここで個別にランダム回転（360度 = 2πラジアン）
                         obj.rotation.y = Math.random() * Math.PI * 2;
                         console.log("🪵 Stump placed (Random Rotation)");
                     }
@@ -5181,40 +5128,35 @@ const SearchGame = (() => {
                 {
                     name: 'Swing_Playground',
                     path: 'models/swing.fbx',
-                    pos: { x: 0, y: 0, z: 0 }, // テンプレート座標（positionsがあるため無視されます）
-                    rot: { y: 180 }, // 南向き
+                    pos: { x: 0, y: 0, z: 0 },
+                    rot: { y: 180 },
                     scale: 1.0,
                     collision: false,
                     exclusionRadius: 3.0,
-                    // ★配列に変更して2台配置
                     positions: [
-                        { x: 15, z: 9 }, // 1台目
-                        { x: 17, z: 9 },   // 2台目
-                        { x: 19, z: 9 }   // 3台目
+                        { x: 15, z: 9 }, { x: 17, z: 9 }, { x: 19, z: 9 }
                     ],
                     onLoad: (obj) => {
                         console.log("⛓️ Swing placed at (x: 15, z: 9)");
                     }
                 },
 
-
                 // ▼▼▼ 🚀ロケット (Rocket) ▼▼▼
 
                 {
                     name: 'Rocket_Secret',
                     path: 'models/rocket.fbx',
-                    pos: { x: 16, z: 16 }, // ★注意: 場所変更はここと下2箇所
+                    pos: { x: 16, z: 16 },
                     rot: { y: 0 },
                     scale: 1.65,
                     collision: false,
                     exclusionRadius: 2.5,
                     onLoad: (rocket) => {
                         console.log("🚀 Rocket Logic Started...");
-                        rocket.position.set(16, 0, 16); // ★注意: 場所変更はここと上2箇所
+                        rocket.position.set(16, 0, 16);
                         rocket.scale.setScalar(2.0);
                         rocket.updateMatrixWorld(true);
 
-                        // ▼ 1. マテリアル強制修復（透け防止）
                         rocket.traverse((c) => {
                             if (c.isMesh) {
                                 c.material.transparent = false;
@@ -5226,26 +5168,16 @@ const SearchGame = (() => {
                             }
                         });
 
-                        // ▼ 2. 透明壁(COL_WALL)の処理 & 赤枠デバッグ
                         rocket.traverse((child) => {
                             if (child.isMesh && child.name.includes('COL_WALL')) {
-
-                                // 親が移動したので、子の座標もこれで正しくなります
                                 child.updateMatrixWorld(true);
                                 const box = new THREE.Box3().setFromObject(child);
-
-                                // 障害物リストに追加
                                 if (window.sgExtraObstacles) {
                                     window.sgExtraObstacles.push({
-                                        minX: box.min.x,
-                                        maxX: box.max.x,
-                                        minZ: box.min.z,
-                                        maxZ: box.max.z
+                                        minX: box.min.x, maxX: box.max.x,
+                                        minZ: box.min.z, maxZ: box.max.z
                                     });
                                 }
-
-
-                                // 壁自体は見えなくする
                                 child.visible = false;
                                 child.userData.ignoreRaycast = true;
                             }
@@ -5253,15 +5185,9 @@ const SearchGame = (() => {
                     }
                 },
 
-
-
                 // ==========================================
                 // 池エリア
                 // ==========================================
-
-
-                // ▼▼▼ 🚧バリケード (Barricade) ▼▼▼
-
 
                 {
                     name: 'Barricade_NorthEast',
@@ -6135,7 +6061,7 @@ const SearchGame = (() => {
     /*
         function spawnTrees() {
             console.log("--- spawnTrees CALLED (Time Slicing Mode) ---");
-    
+     
             // ★ 葉っぱ専用カラーパレット
             const TREE_PALETTES = {
                 spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
@@ -6145,7 +6071,7 @@ const SearchGame = (() => {
             };
             window.sgTreeObjects = [];
             window.sgTreeCollisions = [];
-    
+     
             // ★ 季節切り替え関数
             window.setTreeSeason = (seasonName) => {
                 // (この中身は変更なし)
@@ -6166,13 +6092,13 @@ const SearchGame = (() => {
                     });
                 });
             };
-    
+     
             // 並木設定
             const AVENUE_OFFSET = 4.0;
             const AVENUE_START = 10.0;
             const AVENUE_END = 30.0;
             const AVENUE_STEP = 4.0;
-    
+     
             // ===================================
             // 1. ベンチの配置 (Benches) - 変更なし
             // ===================================
@@ -6181,7 +6107,7 @@ const SearchGame = (() => {
                 masterBench.scale.setScalar(1.0);
                 if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(masterBench);
                 masterBench.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-    
+     
                 const addBench = (x, z, rotY) => {
                     if (Math.abs(x - 4) < 0.1 && Math.abs(z - 16) < 0.1) return;
                     const bench = masterBench.clone();
@@ -6190,7 +6116,7 @@ const SearchGame = (() => {
                     scene.add(bench);
                     if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5);
                 };
-    
+     
                 for (let d = AVENUE_START; d <= AVENUE_END; d += AVENUE_STEP) {
                     const b = d - 2.0;
                     addBench(b, 4, 180); addBench(-b, 4, 180);
@@ -6199,7 +6125,7 @@ const SearchGame = (() => {
                     addBench(-4, b, 90); addBench(-4, -b, 90);
                 }
             });
-    
+     
             // ===================================
             // 2. 木の配置 (Trees) - ★タイムスライス実装★
             // ===================================
@@ -6207,7 +6133,7 @@ const SearchGame = (() => {
             treeLoader.load('models/tree.fbx', (masterTree) => {
                 console.log('FBX Loaded: tree.fbx (Starting Time Slicing Generation)');
                 window.sgMasterTree = masterTree;
-    
+     
                 // ★Step 1: 親玉（マスター）のセットアップ
                 masterTree.traverse((child) => {
                     if (child.isMesh) {
@@ -6217,7 +6143,7 @@ const SearchGame = (() => {
                             const mList = Array.isArray(child.material) ? child.material : [child.material];
                             const name = child.name.toLowerCase();
                             const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
-    
+     
                             mList.forEach(m => {
                                 m.emissive.setHex(0x000000);
                                 if (isLeaves) {
@@ -6238,10 +6164,10 @@ const SearchGame = (() => {
                         }
                     }
                 });
-    
+     
                 // 生成予定リスト（まだシーンには追加しない）
                 const plantingQueue = [];
-    
+     
                 // A. 並木道 (Avenue)
                 // 並木は本数が少なく、ゲームプレイに重要なので、先にリストへ
                 const addFixedTree = (x, z) => {
@@ -6255,7 +6181,7 @@ const SearchGame = (() => {
                     addFixedTree(AVENUE_OFFSET, d); addFixedTree(-AVENUE_OFFSET, d);
                     addFixedTree(AVENUE_OFFSET, -d); addFixedTree(-AVENUE_OFFSET, -d);
                 }
-    
+     
                 // B. ランダム配置 (Forest)
                 const NUM_TREES = 160;
                 let attempts = 0;
@@ -6264,7 +6190,7 @@ const SearchGame = (() => {
                 const range = 62;
                 // 既に配置が決まった座標リスト（並木含む）
                 const placedPositions = plantingQueue.map(p => ({ x: p.x, z: p.z }));
-    
+     
                 const isTooClose = (x, z) => {
                     for (const placed of placedPositions) {
                         const dx = x - placed.x;
@@ -6273,19 +6199,19 @@ const SearchGame = (() => {
                     }
                     return false;
                 };
-    
+     
                 while (plantingQueue.length < (NUM_TREES + 24) && attempts < 10000) {
                     attempts++;
                     const x = (Math.random() - 0.5) * range;
                     const z = (Math.random() - 0.5) * range;
                     if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
                     if (isTooClose(x, z)) continue;
-    
+     
                     plantingQueue.push({ x: x, z: z, type: 'forest' });
                     placedPositions.push({ x: x, z: z });
                     if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
                 }
-    
+     
                 // C. 外周の木 (Exterior)
                 const NUM_EXTERIOR = 70;
                 for (let i = 0; i < NUM_EXTERIOR; i++) {
@@ -6295,16 +6221,16 @@ const SearchGame = (() => {
                     const z = Math.sin(angle) * radius;
                     plantingQueue.push({ x: x, z: z, type: 'exterior' });
                 }
-    
+     
                 console.log(`Total Trees to Plant: ${plantingQueue.length}`);
-    
+     
                 // ★★★ タイムスライス実行ロジック ★★★
                 const masterBox = new THREE.Box3().setFromObject(masterTree);
                 const masterOffsetY = -masterBox.min.y;
-    
+     
                 // 1フレームに植える本数（PC/スマホの性能に合わせて調整可）
                 const BATCH_SIZE = 5;
-    
+     
                 const processPlanting = () => {
                     // キューが空になったら終了
                     if (plantingQueue.length === 0) {
@@ -6315,14 +6241,14 @@ const SearchGame = (() => {
                         if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
                         return;
                     }
-    
+     
                     // バッチサイズ分だけ処理
                     const batch = plantingQueue.splice(0, BATCH_SIZE);
-    
+     
                     batch.forEach((data, i) => {
                         const tree = masterTree.clone();
                         tree.userData.isTree = true;
-    
+     
                         // スケールと位置
                         let scale = 1.0;
                         if (data.type === 'exterior') {
@@ -6333,7 +6259,7 @@ const SearchGame = (() => {
                         tree.scale.setScalar(scale);
                         tree.position.set(data.x, masterOffsetY * scale, data.z);
                         tree.rotation.y = Math.random() * Math.PI * 2;
-    
+     
                         // マテリアルの独立化
                         tree.traverse(child => {
                             if (child.isMesh && child.material) {
@@ -6344,23 +6270,23 @@ const SearchGame = (() => {
                                 }
                             }
                         });
-    
+     
                         scene.add(tree);
                         window.sgTreeObjects.push(tree);
-    
+     
                         // 森の木だけ衝突判定を追加
                         if (data.type !== 'exterior') {
                             window.sgTreeCollisions.push({ x: data.x, z: data.z, radius: 0.3 * scale });
                         }
                     });
-    
+     
                     // 次のフレームで続きを実行
                     requestAnimationFrame(processPlanting);
                 };
-    
+     
                 // 植樹開始！
                 processPlanting();
-    
+     
             }, undefined, (error) => console.error('Error loading tree.fbx:', error));
     */
 
@@ -6371,7 +6297,7 @@ const SearchGame = (() => {
                 loader.load('models/coin.fbx', (coin) => {
                     coin.scale.setScalar(0.015);
                     coin.position.set(x, y, z);
-    
+     
                     coin.traverse(c => {
                         if (c.isMesh) {
                             c.castShadow = true;
@@ -6383,10 +6309,10 @@ const SearchGame = (() => {
                             });
                         }
                     });
-    
+     
                     coin.userData.isCoin = true;
                     coin.userData.collected = false;
-    
+     
                     // アニメーション用
                     coin.userData.spinSpeed = 0.05;
                     const animateCoin = () => {
@@ -6400,12 +6326,12 @@ const SearchGame = (() => {
                         }
                     };
                     animateCoin();
-    
+     
                     window.parkGroup.add(coin); // シーンに追加
                     if (window.sgGameCoins) window.sgGameCoins.push(coin);
                 });
             }
-    
+     
         }
     */
 
