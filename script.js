@@ -72,7 +72,7 @@ const init3DViewer = () => {
     const gridColorNormal = isNewYear ? 0xD4AF37 : 0x000000;
     const gridColorCenter = isNewYear ? 0xB22222 : 0xFF0000;
     const gridHelper = new THREE.GridHelper(10, 10, gridColorCenter, gridColorNormal);
-    gridHelper.position.y = -0.5;
+    gridHelper.position.y = 0; // ★修正: 0.5にしていたものを半分の0.0へ下げる
     scene.add(gridHelper);
 
     // Lighting
@@ -205,7 +205,7 @@ const init3DViewer = () => {
                 const newSize = newBox.getSize(new THREE.Vector3());
                 newBox.getCenter(center);
                 object.position.sub(center);
-                object.position.y += (newSize.y / 2) - 0.5;
+                object.position.y += (newSize.y / 2); // ★修正: グリッド(y=0)に足元をぴったり合わせるための -0.5 を削除
             }
         }, (xhr) => {
             // Progress

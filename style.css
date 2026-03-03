@@ -644,6 +644,51 @@ body.modal-open {
 
 /* ===== THEME STYLES ===== */
 
+/* Winter Specifics (Blue Theme) */
+.theme-winter {
+    --primary-color: #87CEEB;      /* Sky Blue */
+    --secondary-color: #4169E1;    /* Royal Blue */
+    --bg-color: #F0F8FF;           /* Alice Blue */
+    --theme-accent: #B0E0E6;       /* Powder Blue */
+    --hero-bg: linear-gradient(to bottom, #E0FFFF 0%, #87CEFA 50%, #4682B4 100%);
+
+    --ui-select-bg: rgba(255, 255, 255, 0.4);
+    --ui-select-text: #333333;
+    --ui-dropdown-bg: #87CEFA;
+    --ui-dropdown-text: #333333;
+}
+
+.theme-winter .page-effect {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.theme-winter .btn-primary {
+    box-shadow: 0 4px 0 #27408B, 0 0 20px rgba(65, 105, 225, 0.5);
+    animation: winterGlow 2s ease-in-out infinite;
+}
+
+.theme-winter .details-card,
+.theme-winter .hero-image {
+    border: 4px solid var(--theme-accent);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1), 0 0 30px rgba(135, 206, 235, 0.4);
+}
+
+@keyframes winterGlow {
+    0%,
+    100% {
+        box-shadow: 0 4px 0 #27408B, 0 0 20px rgba(65, 105, 225, 0.5);
+    }
+    50% {
+        box-shadow: 0 4px 0 #27408B, 0 0 30px rgba(65, 105, 225, 0.8);
+    }
+}
+
 /* Christmas Specifics */
 .theme-christmas {
     --primary-color: #FFD700;
@@ -752,8 +797,9 @@ body.modal-open {
     }
 }
 
-/* Christmas Snowflakes */
-.theme-christmas .effect-item::before {
+/* Christmas & Winter Snowflakes */
+.theme-christmas .effect-item::before,
+.theme-winter .effect-item::before {
     content: '❄';
     color: #fff;
     text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);

@@ -150,7 +150,7 @@ window.AudioManager = AudioManager;
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
     currentSeason: 'winter', // 冬仕様に変更
-    debugMode: true          // デバッグモードは維持
+    debugMode: false          // ★通常モードに変更 (一時的)
 };
 
 const GameLibrary = {
@@ -183,8 +183,8 @@ const GameLibrary = {
         iconScale: 0.7,
         isBeta: true,
         init: (container) => SearchGame.init(container),
-        // TEST MODE: Skip Opening for quick testing
-        start: () => SearchGame.start({ skipOpening: true }),
+        // 通常モード
+        start: () => SearchGame.start({ skipOpening: false }),
         stop: () => SearchGame.stop()
     }
 };
@@ -231,9 +231,21 @@ function initGameSystem() {
 
     if (!fabBtn) return;
 
-    // TEST MODE: Direct Launch for Playground Dev
+    // ★修正: メニューをバイパスして直接 3d-search を開始する
     fabBtn.addEventListener('click', () => {
-        showGameMenu();
+        // メニューを開く時と同じようにオーバレイを表示し、スクロールを固定する
+        scrollPos = window.pageYOffset;
+        overlay.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        document.body.style.top = `-${scrollPos}px`;
+
+        // 強制的にメニュー層を非表示にする
+        if (menuContainer) menuContainer.classList.add('hidden');
+        if (introContainer) introContainer.classList.add('hidden');
+
+        currentActiveGameId = '3d-search';
+        // launchGame内でactiveGameContainerが表示される
+        launchGame();
     });
 
     // Close Button (Portal Level)
@@ -1323,7 +1335,9 @@ const SearchGame = (() => {
 
             // Position Player at Start Point (Safe zone, far from all colliders)
             if (typeof playerPosition !== 'undefined') {
-                playerPosition.set(10, 0.6, 10); // Safe spawn: away from pipe(0,0) and obstacles
+                playerPosition.set(0, 0.6, 27); // ★修正: デバッグ起動時と同一の元の場所に統一
+                if (typeof playerFacing !== 'undefined') playerFacing = 0;
+                if (typeof cameraAngle !== 'undefined') cameraAngle = 0;
             }
 
             // Show D-Pad Controls
@@ -4121,13 +4135,11 @@ const SearchGame = (() => {
             }
             window.sgSnowmen = [];
 
-            if (window.parkGroup) {
-                scene.remove(window.parkGroup);
-                window.parkGroup = null;
+            if (!window.parkGroup) {
+                window.parkGroup = new THREE.Group();
+                window.parkGroup.name = "ParkAssetsContainer";
+                scene.add(window.parkGroup);
             }
-            window.parkGroup = new THREE.Group();
-            window.parkGroup.name = "ParkAssetsContainer";
-            scene.add(window.parkGroup);
 
             // ★★★ 道路 (Roads) の生成 [追加] ★★★
             // 地面(Y=0)よりわずかに浮かせて配置 (Z-fighting防止)
@@ -4137,7 +4149,7 @@ const SearchGame = (() => {
             // 変更点: (10, 100) を (6, 100) にする
             const roadNS = new THREE.Mesh(new THREE.PlaneGeometry(6, 100), roadMat);
             roadNS.rotation.x = -Math.PI / 2;
-            roadNS.position.set(0, 0.02, 0);
+            roadNS.position.set(0, -0.01, 0);
             roadNS.receiveShadow = true;
             window.parkGroup.add(roadNS);
 
@@ -4145,7 +4157,7 @@ const SearchGame = (() => {
             // 変更点: (100, 10) を (100, 6) にする
             const roadEW = new THREE.Mesh(new THREE.PlaneGeometry(100, 6), roadMat);
             roadEW.rotation.x = -Math.PI / 2;
-            roadEW.position.set(0, 0.025, 0);
+            roadEW.position.set(0, -0.01, 0);
             roadEW.receiveShadow = true;
             window.parkGroup.add(roadEW);
 
