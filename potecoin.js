@@ -2282,16 +2282,16 @@ const SearchGame = (() => {
                     return;
                 }
 
-                let nearestDist = 3.0;
+                let nearestDistSq = 3.0 * 3.0;
                 let targetCoin = null;
 
                 scene.traverse((obj) => {
                     if (obj.userData.isCoin && !obj.userData.collected) {
                         const worldPos = new THREE.Vector3();
                         obj.getWorldPosition(worldPos);
-                        const dist = playerPosition.distanceTo(worldPos);
-                        if (dist < nearestDist) {
-                            nearestDist = dist;
+                        const distSq = playerPosition.distanceToSquared(worldPos);
+                        if (distSq < nearestDistSq) {
+                            nearestDistSq = distSq;
                             targetCoin = obj;
                         }
                     }
@@ -2322,12 +2322,12 @@ const SearchGame = (() => {
         // ★最適化: scene.traverse を廃止し、管理配列のみをループさせる
 
         // 1. 通常コインのチェック
+        const tempVec = new THREE.Vector3();
         if (window.sgGameCoins) {
             for (const coin of window.sgGameCoins) {
                 if (coin.visible && !coin.userData.collected) {
-                    // worldPosition計算を省略（コインは動かない前提、もしくは親の変換が単純な場合）
-                    // 念のため position で距離チェック (高速化)
-                    if (playerPosition.distanceToSquared(coin.position) < CHECK_DIST_SQ) {
+                    coin.getWorldPosition(tempVec);
+                    if (playerPosition.distanceToSquared(tempVec) < CHECK_DIST_SQ) {
                         nearCoinFound = true;
                         break;
                     }
@@ -2339,9 +2339,8 @@ const SearchGame = (() => {
         if (!nearCoinFound && window.sgActiveCoins) {
             for (const coin of window.sgActiveCoins) {
                 if (coin.visible && !coin.userData.collected) {
-                    // 隠しコインは動く(落下する)のでワールド座標を考慮したいが、
-                    // 毎フレーム new Vector3 は重いので、簡易的に position を参照
-                    if (playerPosition.distanceToSquared(coin.position) < CHECK_DIST_SQ) {
+                    coin.getWorldPosition(tempVec);
+                    if (playerPosition.distanceToSquared(tempVec) < CHECK_DIST_SQ) {
                         nearCoinFound = true;
                         break;
                     }
@@ -3655,26 +3654,32 @@ const SearchGame = (() => {
                 });
 
 
-                // ▼▼▼ 🪙コイン座標・場所 (Coin) ▼▼▼
 
-                const coinPositions = [
-                    { x: 0.00, y: 0.62, z: 21.80 }, // 正面(十字路)
-                    { x: 24.00, y: 3.60, z: 23.00 }, // 噴水(十字路)
-                    { x: 4.26, y: 0.60, z: -30.86 }, // 中央北(十字路)
-                    { x: -30.94, y: 0.60, z: 3.84 }, // 中央西(十字路)
-                    { x: 24.00, y: 0.60, z: 13.50 }, // 土管(遊具エリア)
-                    { x: 9.00, y: 1.00, z: 7.00 }, // 切り株(遊具エリア)
-                    { x: 15.00, y: 0.65, z: 9.00 }, // ブランコ(遊具エリア)
-                    { x: 16.00, y: 1.00, z: 16.00 }, // ロケット(遊具エリア)
-                    { x: 2.31, y: 1.60, z: -0.23 }, // 滑り台(遊具エリア)
-                    { x: -29.00, y: 0.60, z: -20.00 }, // 自販機裏(休憩エリア)
-                    { x: -23.30, y: 0.90, z: -19.45 }, // パラソル(休憩エリア)
-                    { x: -7.00, y: 0.85, z: -26.00 }, // トゥクトゥク(休憩エリア)
-                    { x: -9.00, y: 1.60, z: -9.20 }, // 象さん(休憩エリア)
-                    { x: -31.00, y: 0.60, z: 31.00 }, // 森林奥地(森林エリア)
-                    { x: -19.55, y: 0.60, z: 14.04 } // 森林エリア
-                ];
+                // こうしておけば、プログラムは「コインが0枚のステージなんだな」と理解して正常に動きます
+                const coinPositions = [];
 
+
+                /*
+                                // ▼▼▼ 🪙コイン座標・場所 (Coin) ▼▼▼
+                
+                                const coinPositions = [
+                                    { x: 0.00, y: 0.62, z: 21.80 }, // 正面(十字路)
+                                    { x: 24.00, y: 3.60, z: 23.00 }, // 噴水(十字路)
+                                    { x: 4.26, y: 0.60, z: -30.86 }, // 中央北(十字路)
+                                    { x: -30.94, y: 0.60, z: 3.84 }, // 中央西(十字路)
+                                    { x: 24.00, y: 0.60, z: 13.50 }, // 土管(遊具エリア)
+                                    { x: 9.00, y: 1.00, z: 7.00 }, // 切り株(遊具エリア)
+                                    { x: 15.00, y: 0.65, z: 9.00 }, // ブランコ(遊具エリア)
+                                    { x: 16.00, y: 1.00, z: 16.00 }, // ロケット(遊具エリア)
+                                    { x: 2.31, y: 1.60, z: -0.23 }, // 滑り台(遊具エリア)
+                                    { x: -29.00, y: 0.60, z: -20.00 }, // 自販機裏(休憩エリア)
+                                    { x: -23.30, y: 0.90, z: -19.45 }, // パラソル(休憩エリア)
+                                    { x: -7.00, y: 0.85, z: -26.00 }, // トゥクトゥク(休憩エリア)
+                                    { x: -9.00, y: 1.60, z: -9.20 }, // 象さん(休憩エリア)
+                                    { x: -31.00, y: 0.60, z: 31.00 }, // 森林奥地(森林エリア)
+                                    { x: -19.55, y: 0.60, z: 14.04 } // 森林エリア
+                                ];
+                */
                 window.sgGameCoins = []; // For rotation animation
                 const gameItems = []; // For collection tracking
 
