@@ -2220,7 +2220,7 @@ const SearchGame = (() => {
             <div id="ui-container" style="position:absolute; inset:0; pointer-events:none; z-index:1000;">
                 
                 <div id="hud-top-left" style="pointer-events: auto; touch-action: none;">
-                    <h1>ポテトコイン</h1>
+                    <h1 style="display: flex; align-items: center; gap: 10px;">ポテトコイン <span class="beta-badge" style="margin: 0; font-size: 0.6em; padding: 2px 8px; line-height: 1.2;">β版</span></h1>
                     <div id="score" style="display:none;">コイン: <span id="sg-coin-counter">0</span>/10</div>
                     <div id="tutorial-hint" style="display:none;">🎮 移動: D-Pad / 🦅 視点切替</div>
                 </div>

@@ -358,7 +358,7 @@ const translations = {
         "license-item3": "再配布NG",
         "license-item4": "公序良俗に反する利用NG",
         "download-btn": "VRMをダウンロード",
-        "mini-game-guide": "右下の🎮️ボタンからミニゲームで遊べるよ！"
+        "mini-game-guide": "β版を公開中！現在はパーク内を散策できるだけですが、ぜひ遊んでみてください。バグを見つけた際は、SNSのDMで報告していただけると助かります。右下の🎮️ボタンからスタート！"
     },
     en: {
         "title": "PotatoKun VRM Free Distribution!",
@@ -378,7 +378,7 @@ const translations = {
         "license-item3": "Redistribution prohibited",
         "license-item4": "Use against public order prohibited",
         "download-btn": "Download VRM",
-        "mini-game-guide": "Play mini-games from the 🎮️ button on the bottom right!"
+        "mini-game-guide": "Beta version now live! You can explore the park for now. Please report bugs via SNS DM. Start from the 🎮️ button on the bottom right!"
     },
     es: {
         "title": "¡Distribución gratuita de PotatoKun VRM!",
@@ -398,7 +398,7 @@ const translations = {
         "license-item3": "Redistribución prohibida",
         "license-item4": "Prohibido uso contra orden público",
         "download-btn": "Descargar VRM",
-        "mini-game-guide": "¡Juega minijuegos desde el botón 🎮️ abajo a la derecha!"
+        "mini-game-guide": "¡Versión beta disponible! Puedes explorar el parque por ahora. Informa los errores por DM en redes sociales. ¡Empieza desde el botón 🎮️ abajo a la derecha!"
     },
     zh: {
         "title": "PotatoKun VRM 免费发放中！",
@@ -418,7 +418,7 @@ const translations = {
         "license-item3": "禁止二次分发",
         "license-item4": "禁止違反公共秩序和道德的使用",
         "download-btn": "下载 VRM",
-        "mini-game-guide": "点击右下角的🎮️按钮玩小游戏！"
+        "mini-game-guide": "测试版现已上线！目前只能在公园内散策。请通过社交媒体私信报告错误。点击右下角的 🎮️ 按钮开始！"
     },
     ko: {
         "title": "포테토군 VRM 무료 배포 중!",
@@ -438,7 +438,7 @@ const translations = {
         "license-item3": "재배포 금지",
         "license-item4": "공서양속에 반하는 이용 금지",
         "download-btn": "VRM 다운로드",
-        "mini-game-guide": "오른쪽 하단의 🎮️ 버튼에서 미니 게임을 즐길 수 있어요!"
+        "mini-game-guide": "베타 버전이 출시되었습니다! 현재는 파크 내를 산책할 수 있을 뿐입니다. 버그는 SNS DM으로 보고해 주시면 감사하겠습니다. 오른쪽 하단의 🎮️ 버튼에서 시작하세요!"
     }
 };
 
