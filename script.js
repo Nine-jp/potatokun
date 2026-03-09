@@ -129,9 +129,9 @@ const init3DViewer = () => {
 
     // Model Configuration
     const models = [
-        { name: "ノーマルポテトくん", file: "potatokun_normal.fbx" },
+        { name: "悪魔ポテトくん", file: "potato_devil.fbx" },
         { name: "午年ポテトくん", file: "potatokun_newyear2026.fbx" },
-        { name: "悪魔ポテトくん", file: "potato_devil.fbx" }
+        { name: "ノーマルポテトくん", file: "potatokun_normal.fbx" }
     ];
 
     // Populate dropdown
@@ -141,7 +141,7 @@ const init3DViewer = () => {
             const opt = document.createElement('option');
             opt.value = index;
             opt.textContent = m.name;
-            if (m.file === (isNewYear ? 'potatokun_newyear2026.fbx' : 'potatokun_normal.fbx')) opt.selected = true;
+            if (m.file === 'potato_devil.fbx') opt.selected = true;
             modelSelect.appendChild(opt);
         });
 
@@ -216,8 +216,8 @@ const init3DViewer = () => {
         });
     };
 
-    // Initial load based on theme
-    const defaultModelName = isNewYear ? 'potatokun_newyear2026.fbx' : 'potatokun_normal.fbx';
+    // Initial load
+    const defaultModelName = 'potato_devil.fbx';
     loadModel(`models/${encodeURIComponent(defaultModelName)}`);
 
     // Handle window resize
