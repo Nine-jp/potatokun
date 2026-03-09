@@ -110,7 +110,7 @@ body.modal-open {
 }
 
 .mini-game-guide {
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     color: orange;
     margin-top: 10px;
     margin-bottom: 0px;
@@ -890,7 +890,7 @@ body.modal-open {
 }
 
 /* Mini Game Portal Styles */
-#fab-play-game {
+#fab-download {
     position: fixed;
     bottom: 20px;
     right: 20px;
@@ -900,7 +900,7 @@ body.modal-open {
     background: var(--primary-color);
     color: white;
     border: none;
-    font-size: 30px;
+    font-size: 16px;
     cursor: pointer;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     z-index: 9000;
@@ -911,7 +911,7 @@ body.modal-open {
     font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
 }
 
-#fab-play-game:hover {
+#fab-download:hover {
     transform: scale(1.1);
     background: var(--secondary-color);
 }

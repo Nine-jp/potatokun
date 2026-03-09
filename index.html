@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=7">
 </head>
 
 <body class="theme-winter">
@@ -93,16 +93,18 @@
                 </div>
 
                 <div class="hero-text">
-                    <p data-i18n="hero-desc">Clusterで使えるVRMアバターを無料配布中!<br>冬服を着た可愛いポテトくんにも会えるよ!</p>
+                    <p class="mini-game-guide" data-i18n="mini-game-guide">
+                        β版を公開中！今はパーク内を散策できるだけですが、ぜひ遊んでみてください。バグを見つけた際は、SNSのDMで報告していただけると助かります。下の「ゲームスタート！🎮」ボタンからスタート！
+                    </p>
                 </div>
 
                 <div class="hero-action">
-                    <a href="#download" class="btn btn-primary" data-i18n="hero-btn">今すぐダウンロード</a>
+                    <button id="fab-play-game" class="btn btn-primary" aria-label="Play Mini Game"
+                        style="border: none; cursor: pointer;">🎮ゲームスタート🎮️</button>
                 </div>
 
                 <div class="hero-text">
-                    <p class="mini-game-guide" data-i18n="mini-game-guide">
-                        β版を公開中！今はパーク内を散策できるだけですが、ぜひ遊んでみてください。バグを見つけた際は、SNSのDMで報告していただけると助かります。右下の🎮️ボタンからスタート！</p>
+                    <p data-i18n="hero-desc">Clusterで使えるVRMアバターを無料配布中!<br>冬服を着た可愛いポテトくんにも会えるよ!</p>
                 </div>
             </div>
         </section>
@@ -209,10 +211,11 @@
         </div>
     </div>
 
-    <!-- Floating Play Button -->
-    <button id="fab-play-game" aria-label="Play Mini Game">🎮️</button>
+    <!-- Floating Download Button -->
+    <a href="#download" id="fab-download" aria-label="Download VRM"
+        style="display: flex; justify-content: center; align-items: center; text-decoration: none; font-weight: bold; font-size: 1.2rem;">DL<br>🎁</a>
 
-    <script type="module" src="script.js?v=2"></script>
+    <script type="module" src="script.js?v=3"></script>
     <script src="potepaku.js"></script>
     <script type="module" src="potecoin.js"></script>
 </body>

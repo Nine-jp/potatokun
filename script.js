@@ -347,7 +347,7 @@ const translations = {
         "nav-details": "配布データ",
         "hero-title": "ポテトの妖精<br>「ポテトくん」",
         "hero-desc": "Clusterで使えるオリジナルVRMアバターを無料配布中！<br>🐴 今年の干支「午」の着ぐるみを着たポテトくんを配布中！",
-        "hero-btn": "今すぐダウンロード",
+        "hero-btn": "🎮ゲームスタート🎮️",
         "details-title": "🎁 配布データについて",
         "details-format": "形式",
         "details-price": "価格",
@@ -359,7 +359,7 @@ const translations = {
         "license-item3": "再配布NG",
         "license-item4": "公序良俗に反する利用NG",
         "download-btn": "VRMをダウンロード",
-        "mini-game-guide": "β版を公開中！現在はパーク内を散策できるだけですが、ぜひ遊んでみてください。バグを見つけた際は、SNSのDMで報告していただけると助かります。右下の🎮️ボタンからスタート！"
+        "mini-game-guide": "β版を公開中！現在はパーク内を散策できるだけですが、ぜひ遊んでみてください。バグを見つけた際は、SNSのDMで報告していただけると助かります。下の「🎮ゲームスタート🎮️」ボタンからスタート！"
     },
     en: {
         "title": "PotatoKun VRM Free Distribution!",
@@ -367,7 +367,7 @@ const translations = {
         "nav-details": "Distribution Data",
         "hero-title": "Potato Fairy<br>'PotatoKun'",
         "hero-desc": "Original VRM avatar for Cluster now free!<br>🐴 Distributing Potato-kun in a Horse costume for this year's zodiac!",
-        "hero-btn": "Download Now",
+        "hero-btn": "🎮Game Start!🎮️",
         "details-title": "🎁 Distribution Data",
         "details-format": "Format",
         "details-price": "Price",
@@ -379,7 +379,7 @@ const translations = {
         "license-item3": "Redistribution prohibited",
         "license-item4": "Use against public order prohibited",
         "download-btn": "Download VRM",
-        "mini-game-guide": "Beta version now live! You can explore the park for now. Please report bugs via SNS DM. Start from the 🎮️ button on the bottom right!"
+        "mini-game-guide": "Beta version now live! You can explore the park for now. Please report bugs via SNS DM. Click the \"ゲームスタート！🎮\" button below to start!"
     },
     es: {
         "title": "¡Distribución gratuita de PotatoKun VRM!",
@@ -387,7 +387,7 @@ const translations = {
         "nav-details": "Datos de Distribución",
         "hero-title": "Hada de la Patata<br>'PotatoKun'",
         "hero-desc": "¡Avatar VRM original para Cluster gratis!<br>🐴 ¡Distribuyendo a Potato-kun con un disfraz de Caballo para el zodiaco de este año!",
-        "hero-btn": "Descargar Ahora",
+        "hero-btn": "🎮¡Empezar Juego!🎮️",
         "details-title": "🎁 Datos de Distribución",
         "details-format": "Formato",
         "details-price": "Precio",
@@ -399,7 +399,7 @@ const translations = {
         "license-item3": "Redistribución prohibida",
         "license-item4": "Prohibido uso contra orden público",
         "download-btn": "Descargar VRM",
-        "mini-game-guide": "¡Versión beta disponible! Puedes explorar el parque por ahora. Informa los errores por DM en redes sociales. ¡Empieza desde el botón 🎮️ abajo a la derecha!"
+        "mini-game-guide": "¡Versión beta disponible! Puedes explorar el parque por ahora. Informa los errores por DM en redes sociales. ¡Haz clic en el botón \"ゲームスタート！🎮\" abajo para empezar!"
     },
     zh: {
         "title": "PotatoKun VRM 免费发放中！",
@@ -407,7 +407,7 @@ const translations = {
         "nav-details": "发放数据",
         "hero-title": "土豆精灵<br>“PotatoKun”",
         "hero-desc": "Cluster 可用原创 VRM 化身免费发放中！<br>🐴 正在分发穿着今年生肖“马”玩偶服的土豆君！",
-        "hero-btn": "立即下载",
+        "hero-btn": "🎮游戏开始！🎮️",
         "details-title": "🎁 关于发放数据",
         "details-format": "格式",
         "details-price": "价格",
@@ -419,7 +419,7 @@ const translations = {
         "license-item3": "禁止二次分发",
         "license-item4": "禁止違反公共秩序和道德的使用",
         "download-btn": "下载 VRM",
-        "mini-game-guide": "测试版现已上线！目前只能在公园内散策。请通过社交媒体私信报告错误。点击右下角的 🎮️ 按钮开始！"
+        "mini-game-guide": "测试版现已上线！目前只能在公园内散策。请通过社交媒体私信报告错误。点击下方的“游戏开始！🎮”按钮开始！"
     },
     ko: {
         "title": "포테토군 VRM 무료 배포 중!",
@@ -427,7 +427,7 @@ const translations = {
         "nav-details": "배포 데이터",
         "hero-title": "감자 요정<br>'포テト군'",
         "hero-desc": "Cluster에서 쓸 수 있는 오리지널 VRM 아바타 무료 배포 중!<br>🐴 올해의 띠인 '말' 인형 옷을 입은 포테이토 군을 배포 중!",
-        "hero-btn": "지금 다운로드",
+        "hero-btn": "🎮게임 시작!🎮️",
         "details-title": "🎁 배포 데이터 정보",
         "details-format": "형식",
         "details-price": "가격",
@@ -439,7 +439,7 @@ const translations = {
         "license-item3": "재배포 금지",
         "license-item4": "공서양속에 반하는 이용 금지",
         "download-btn": "VRM 다운로드",
-        "mini-game-guide": "베타 버전이 출시되었습니다! 현재는 파크 내를 산책할 수 있을 뿐입니다. 버그는 SNS DM으로 보고해 주시면 감사하겠습니다. 오른쪽 하단의 🎮️ 버튼에서 시작하세요!"
+        "mini-game-guide": "베타 버전이 출시되었습니다! 현재는 파크 내를 산책할 수 있을 뿐입니다. 버그는 SNS DM으로 보고해 주시면 감사하겠습니다. 아래의 '게임 시작! 🎮' 버튼에서 시작하세요!"
     }
 };
 
