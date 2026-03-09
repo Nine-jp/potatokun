@@ -225,23 +225,22 @@ body.modal-open {
 }
 
 .hero-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-        "text image"
-        "action image";
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    text-align: center;
     gap: 20px;
 }
 
 .hero-text {
-    grid-area: text;
-    padding-right: 20px;
+    width: 100%;
 }
 
 .hero-action {
-    grid-area: action;
-    padding-bottom: 20px;
+    margin-bottom: 30px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
 }
 
 .hero-text h2 {
@@ -254,12 +253,13 @@ body.modal-open {
 
 .hero-text p {
     font-size: 1.2rem;
-    margin-bottom: 30px;
+    margin: 0;
     font-weight: 700;
 }
 
 .hero-image {
-    grid-area: image;
+    width: 100%;
+    max-width: 600px;
     min-width: 300px;
     text-align: center;
     height: 400px;
@@ -646,10 +646,14 @@ body.modal-open {
 
 /* Winter Specifics (Blue Theme) */
 .theme-winter {
-    --primary-color: #87CEEB;      /* Sky Blue */
-    --secondary-color: #4169E1;    /* Royal Blue */
-    --bg-color: #F0F8FF;           /* Alice Blue */
-    --theme-accent: #B0E0E6;       /* Powder Blue */
+    --primary-color: #87CEEB;
+    /* Sky Blue */
+    --secondary-color: #4169E1;
+    /* Royal Blue */
+    --bg-color: #F0F8FF;
+    /* Alice Blue */
+    --theme-accent: #B0E0E6;
+    /* Powder Blue */
     --hero-bg: linear-gradient(to bottom, #E0FFFF 0%, #87CEFA 50%, #4682B4 100%);
 
     --ui-select-bg: rgba(255, 255, 255, 0.4);
@@ -680,10 +684,12 @@ body.modal-open {
 }
 
 @keyframes winterGlow {
+
     0%,
     100% {
         box-shadow: 0 4px 0 #27408B, 0 0 20px rgba(65, 105, 225, 0.5);
     }
+
     50% {
         box-shadow: 0 4px 0 #27408B, 0 0 30px rgba(65, 105, 225, 0.8);
     }
