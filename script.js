@@ -130,7 +130,8 @@ const init3DViewer = () => {
     // Model Configuration
     const models = [
         { name: "ノーマルポテトくん", file: "potatokun_normal.fbx" },
-        { name: "午年ポテトくん", file: "potatokun_newyear2026.fbx" }
+        { name: "午年ポテトくん", file: "potatokun_newyear2026.fbx" },
+        { name: "悪魔ポテトくん", file: "potato_devil.fbx" }
     ];
 
     // Populate dropdown
