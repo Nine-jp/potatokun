@@ -1874,8 +1874,8 @@ const SearchGame = (() => {
                 0,
                 NPC_CONFIG.vending_machine.z
             );
-            // 自販機の方角（-X方向）を向かせる
-            npc.rotation.y = -Math.PI / 2;
+            // 自販機の方角（-X方向）を背にする（カメラ側を向く）ように変更
+            npc.rotation.y = Math.PI / 2;
         }
         npc.visible = true;
         createSeasonEffects(npc);
