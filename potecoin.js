@@ -1320,36 +1320,7 @@ const SearchGame = (() => {
                 return; // Skip startOpeningSequence
             }
 
-            // ★★★ PLAYGROUND DEV: Opening Disabled ★★★
-            // Original: startOpeningSequence();
-            // Now: Directly set game to PLAYING state
-            console.log("[PLAYGROUND DEV] Opening Sequence DISABLED - Direct Start");
-
-            // Hide Loading Overlay
-            const loadingOverlay = document.getElementById('sg-loading-overlay');
-            if (loadingOverlay) loadingOverlay.style.display = 'none';
-
-            // Set State to PLAYING
-            isCinematic = false;
-            currentState = GameState.PLAYING;
-
-            // Position Player at Start Point (Safe zone, far from all colliders)
-            if (typeof playerPosition !== 'undefined') {
-                playerPosition.set(0, 0.6, 27); // ★修正: デバッグ起動時と同一の元の場所に統一
-                if (typeof playerFacing !== 'undefined') playerFacing = 0;
-                if (typeof cameraAngle !== 'undefined') cameraAngle = 0;
-            }
-
-            // Show D-Pad Controls
-            const dpad = document.getElementById('sg-dpad');
-            if (dpad) dpad.style.display = 'grid';
-
-            // Hide Skip Button (not needed)
-            const skipBtn = document.getElementById('sg-skip-btn');
-            if (skipBtn) skipBtn.style.display = 'none';
-
-            // Show START message
-            showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+            startOpeningSequence();
         }, 100);
     }
 
