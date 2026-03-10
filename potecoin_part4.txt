@@ -1,107 +1,3 @@
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-
-            // Objects to interact with: Coins + Scene Children (for Vending HitBox)
-            const intersects = raycaster.intersectObjects(scene.children, true);
-
-            let targetFound = null;
-            let targetType = null; // 'coin' or 'vending'
-
-            for (const hit of intersects) {
-                let obj = hit.object;
-
-                // [Rule 1] Redirect Hitbox to Parent
-                if (obj.userData.isHitBox && obj.userData.parentItem) {
-                    obj = obj.userData.parentItem;
-                }
-
-                // 1. Vending Machine HitBox
-                if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
-                    targetFound = obj;
-                    targetType = 'vending';
-                    break; // Priority
-                }
-
-                // [Rule 2] Generic Interaction (Shovel, etc.)
-                // Traverse up to find the root interactable
-                let interactable = obj;
-                while (interactable && !interactable.userData.action && interactable !== scene) {
-                    interactable = interactable.parent;
-                }
-
-                if (interactable && interactable.userData.action) {
-                    // ★ STRICT DISTANCE CHECK ★
-                    // Calculate distance from Player's feet (XZ plane), not Camera
-                    const worldPos = new THREE.Vector3();
-                    interactable.getWorldPosition(worldPos);
-
-                    if (typeof playerPosition !== 'undefined') {
-                        const dx = playerPosition.x - worldPos.x;
-                        const dz = playerPosition.z - worldPos.z;
-                        const distSq = dx * dx + dz * dz;
-                        const THRESHOLD_SQ = 3.0 * 3.0; // 3mまで反応
-
-                        if (distSq <= THRESHOLD_SQ) {
-                            targetFound = interactable;
-                            targetType = 'action'; // Mark as generic action
-                            break; // Stop checking other objects
-                        }
-                    }
-                }
-
-                // 2. Coin (game items) - check parent group or mesh
-                let coinGroup = obj;
-                while (coinGroup.parent && !coinGroup.userData.isCoin && coinGroup !== scene) {
-                    coinGroup = coinGroup.parent;
-                }
-
-                if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
-                    targetFound = coinGroup;
-                    targetType = 'coin';
-                    break;
-                }
-            }
-
-            if (targetFound) {
-                // Target locked
-                window.sgCurrentTarget = targetFound;
-                crosshair.classList.add('target-locked');
-                getBtn.style.display = 'block';
-
-                // Position button near crosshair
-                getBtn.style.left = '50%';
-                getBtn.style.top = '60%';
-                getBtn.style.transform = 'translate(-50%, -50%)';
-
-                if (targetType === 'vending') {
-                    getBtn.innerHTML = '🍹<br>BUY';
-                } else if (targetType === 'action') {
-                    getBtn.innerHTML = '⛏️<br>DIG'; // Show Dig Icon
-                    getBtn.style.background = '#FFD700'; // Gold color
-                } else {
-                    getBtn.innerHTML = '🖐️<br>GET!';
-                    getBtn.style.background = ''; // Reset to default
-                }
-            } else {
-                // No target
-                window.sgCurrentTarget = null;
-                crosshair.classList.remove('target-locked');
-                getBtn.style.display = 'none';
-            }
-        }
-    }
-
-    function render() {
-        // Init mix clock if needed
-        if (!window.sgClock) window.sgClock = new THREE.Clock();
-        const delta = window.sgClock.getDelta();
-
-        // Update Mixers
-        if (window.sgMixers && window.sgMixers.length > 0) {
-            window.sgMixers.forEach(mixer => mixer.update(delta));
-        }
-
-        if (renderer && scene && camera) {
-            // Debug Log for Ending Camera
             if (currentState === GameState.ENDING) {
                 // Throttle log to once per second approx? No, user asked for it. 
                 // But let's simple throttle to avoid console flood 60fps
@@ -137,7 +33,7 @@
     /*
         function spawnTrees() {
             console.log("--- spawnTrees CALLED (Time Slicing Mode) ---");
-    
+     
             // ★ 葉っぱ専用カラーパレット
             const TREE_PALETTES = {
                 spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
@@ -147,7 +43,7 @@
             };
             window.sgTreeObjects = [];
             window.sgTreeCollisions = [];
-    
+     
             // ★ 季節切り替え関数
             window.setTreeSeason = (seasonName) => {
                 // (この中身は変更なし)
@@ -168,13 +64,13 @@
                     });
                 });
             };
-    
+     
             // 並木設定
             const AVENUE_OFFSET = 4.0;
             const AVENUE_START = 10.0;
             const AVENUE_END = 30.0;
             const AVENUE_STEP = 4.0;
-    
+     
             // ===================================
             // 1. ベンチの配置 (Benches) - 変更なし
             // ===================================
@@ -183,7 +79,7 @@
                 masterBench.scale.setScalar(1.0);
                 if (typeof window.applyOutlineRules === 'function') window.applyOutlineRules(masterBench);
                 masterBench.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-    
+     
                 const addBench = (x, z, rotY) => {
                     if (Math.abs(x - 4) < 0.1 && Math.abs(z - 16) < 0.1) return;
                     const bench = masterBench.clone();
@@ -192,7 +88,7 @@
                     scene.add(bench);
                     if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.5);
                 };
-    
+     
                 for (let d = AVENUE_START; d <= AVENUE_END; d += AVENUE_STEP) {
                     const b = d - 2.0;
                     addBench(b, 4, 180); addBench(-b, 4, 180);
@@ -201,7 +97,7 @@
                     addBench(-4, b, 90); addBench(-4, -b, 90);
                 }
             });
-    
+     
             // ===================================
             // 2. 木の配置 (Trees) - ★タイムスライス実装★
             // ===================================
@@ -209,7 +105,7 @@
             treeLoader.load('models/tree.fbx', (masterTree) => {
                 console.log('FBX Loaded: tree.fbx (Starting Time Slicing Generation)');
                 window.sgMasterTree = masterTree;
-    
+     
                 // ★Step 1: 親玉（マスター）のセットアップ
                 masterTree.traverse((child) => {
                     if (child.isMesh) {
@@ -219,7 +115,7 @@
                             const mList = Array.isArray(child.material) ? child.material : [child.material];
                             const name = child.name.toLowerCase();
                             const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
-    
+     
                             mList.forEach(m => {
                                 m.emissive.setHex(0x000000);
                                 if (isLeaves) {
@@ -240,10 +136,10 @@
                         }
                     }
                 });
-    
+     
                 // 生成予定リスト（まだシーンには追加しない）
                 const plantingQueue = [];
-    
+     
                 // A. 並木道 (Avenue)
                 // 並木は本数が少なく、ゲームプレイに重要なので、先にリストへ
                 const addFixedTree = (x, z) => {
@@ -257,7 +153,7 @@
                     addFixedTree(AVENUE_OFFSET, d); addFixedTree(-AVENUE_OFFSET, d);
                     addFixedTree(AVENUE_OFFSET, -d); addFixedTree(-AVENUE_OFFSET, -d);
                 }
-    
+     
                 // B. ランダム配置 (Forest)
                 const NUM_TREES = 160;
                 let attempts = 0;
@@ -266,7 +162,7 @@
                 const range = 62;
                 // 既に配置が決まった座標リスト（並木含む）
                 const placedPositions = plantingQueue.map(p => ({ x: p.x, z: p.z }));
-    
+     
                 const isTooClose = (x, z) => {
                     for (const placed of placedPositions) {
                         const dx = x - placed.x;
@@ -275,19 +171,19 @@
                     }
                     return false;
                 };
-    
+     
                 while (plantingQueue.length < (NUM_TREES + 24) && attempts < 10000) {
                     attempts++;
                     const x = (Math.random() - 0.5) * range;
                     const z = (Math.random() - 0.5) * range;
                     if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
                     if (isTooClose(x, z)) continue;
-    
+     
                     plantingQueue.push({ x: x, z: z, type: 'forest' });
                     placedPositions.push({ x: x, z: z });
                     if (typeof ExclusionManager !== 'undefined') ExclusionManager.addCircle(x, z, 1.2);
                 }
-    
+     
                 // C. 外周の木 (Exterior)
                 const NUM_EXTERIOR = 70;
                 for (let i = 0; i < NUM_EXTERIOR; i++) {
@@ -297,16 +193,16 @@
                     const z = Math.sin(angle) * radius;
                     plantingQueue.push({ x: x, z: z, type: 'exterior' });
                 }
-    
+     
                 console.log(`Total Trees to Plant: ${plantingQueue.length}`);
-    
+     
                 // ★★★ タイムスライス実行ロジック ★★★
                 const masterBox = new THREE.Box3().setFromObject(masterTree);
                 const masterOffsetY = -masterBox.min.y;
-    
+     
                 // 1フレームに植える本数（PC/スマホの性能に合わせて調整可）
                 const BATCH_SIZE = 5;
-    
+     
                 const processPlanting = () => {
                     // キューが空になったら終了
                     if (plantingQueue.length === 0) {
@@ -317,14 +213,14 @@
                         if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
                         return;
                     }
-    
+     
                     // バッチサイズ分だけ処理
                     const batch = plantingQueue.splice(0, BATCH_SIZE);
-    
+     
                     batch.forEach((data, i) => {
                         const tree = masterTree.clone();
                         tree.userData.isTree = true;
-    
+     
                         // スケールと位置
                         let scale = 1.0;
                         if (data.type === 'exterior') {
@@ -335,7 +231,7 @@
                         tree.scale.setScalar(scale);
                         tree.position.set(data.x, masterOffsetY * scale, data.z);
                         tree.rotation.y = Math.random() * Math.PI * 2;
-    
+     
                         // マテリアルの独立化
                         tree.traverse(child => {
                             if (child.isMesh && child.material) {
@@ -346,23 +242,23 @@
                                 }
                             }
                         });
-    
+     
                         scene.add(tree);
                         window.sgTreeObjects.push(tree);
-    
+     
                         // 森の木だけ衝突判定を追加
                         if (data.type !== 'exterior') {
                             window.sgTreeCollisions.push({ x: data.x, z: data.z, radius: 0.3 * scale });
                         }
                     });
-    
+     
                     // 次のフレームで続きを実行
                     requestAnimationFrame(processPlanting);
                 };
-    
+     
                 // 植樹開始！
                 processPlanting();
-    
+     
             }, undefined, (error) => console.error('Error loading tree.fbx:', error));
     */
 
@@ -373,7 +269,7 @@
                 loader.load('models/coin.fbx', (coin) => {
                     coin.scale.setScalar(0.015);
                     coin.position.set(x, y, z);
-    
+     
                     coin.traverse(c => {
                         if (c.isMesh) {
                             c.castShadow = true;
@@ -385,10 +281,10 @@
                             });
                         }
                     });
-    
+     
                     coin.userData.isCoin = true;
                     coin.userData.collected = false;
-    
+     
                     // アニメーション用
                     coin.userData.spinSpeed = 0.05;
                     const animateCoin = () => {
@@ -402,12 +298,12 @@
                         }
                     };
                     animateCoin();
-    
+     
                     window.parkGroup.add(coin); // シーンに追加
                     if (window.sgGameCoins) window.sgGameCoins.push(coin);
                 });
             }
-    
+     
         }
     */
 

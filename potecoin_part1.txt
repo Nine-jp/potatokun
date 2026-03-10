@@ -959,9 +959,9 @@ const SearchGame = (() => {
     let cinematicTimer = 0;
 
     // Player Position (Module Scope)
-    let playerPosition = new THREE.Vector3(0, 0.6, 0);
-    // ★追加: プレイヤーの向き (モジュールスコープ)
-    let playerFacing = 0; // 初期値: 南向き
+    let playerPosition = new THREE.Vector3(0, 0.6, 31.0); // Zを31.0に変更
+    // プレイヤーの向き (モジュールスコープ)
+    let playerFacing = Math.PI; // 初期値: 北向き（噴水側）に変更
 
     // Camera Control Variables (Module Scope for access from transitionToGameplay)
     let cameraDistance = 0; // 0 = FPS, 10 = max TPS
@@ -972,8 +972,8 @@ const SearchGame = (() => {
     // ★修正: North = -Z System. Inverted Z coordinates.
     const NPC_CONFIG = {
         opening: {
-            position: { x: -11, z: 5 },  // Old: -5. Inverted: 5
-            rotation: 0,
+            position: { x: -26.5, z: -18.0 },
+            rotation: -Math.PI / 2,
         },
         gameplay: {
             position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
@@ -1320,36 +1320,7 @@ const SearchGame = (() => {
                 return; // Skip startOpeningSequence
             }
 
-            // ★★★ PLAYGROUND DEV: Opening Disabled ★★★
-            // Original: startOpeningSequence();
-            // Now: Directly set game to PLAYING state
-            console.log("[PLAYGROUND DEV] Opening Sequence DISABLED - Direct Start");
-
-            // Hide Loading Overlay
-            const loadingOverlay = document.getElementById('sg-loading-overlay');
-            if (loadingOverlay) loadingOverlay.style.display = 'none';
-
-            // Set State to PLAYING
-            isCinematic = false;
-            currentState = GameState.PLAYING;
-
-            // Position Player at Start Point (Safe zone, far from all colliders)
-            if (typeof playerPosition !== 'undefined') {
-                playerPosition.set(0, 0.6, 27); // ★修正: デバッグ起動時と同一の元の場所に統一
-                if (typeof playerFacing !== 'undefined') playerFacing = 0;
-                if (typeof cameraAngle !== 'undefined') cameraAngle = 0;
-            }
-
-            // Show D-Pad Controls
-            const dpad = document.getElementById('sg-dpad');
-            if (dpad) dpad.style.display = 'grid';
-
-            // Hide Skip Button (not needed)
-            const skipBtn = document.getElementById('sg-skip-btn');
-            if (skipBtn) skipBtn.style.display = 'none';
-
-            // Show START message
-            showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+            startOpeningSequence();
         }, 100);
     }
 
@@ -1896,14 +1867,15 @@ const SearchGame = (() => {
 
 
         // --- Acting Setup ---
-        npc.position.set(-11, 0, -5);
+        npc.position.set(-26.5, 0, -18.0);
+        npc.rotation.y = -Math.PI / 2;
         npc.visible = true;
         createSeasonEffects(npc);
 
         // --- Camera Work ---
-        const baseCamPos = new THREE.Vector3(-11, 1.0, 2.5); // Old: -2.5. Inverted: 2.5
+        const baseCamPos = new THREE.Vector3(-24.5, 1.0, -15.5);
         camera.position.copy(baseCamPos);
-        camera.lookAt(-11, 0.5, 5); // Old: -5. Inverted: 5
+        camera.lookAt(-26.5, 0.5, -18.0);
 
         // --- Hide Loading Overlay ---
         const overlay = document.getElementById('sg-loading-overlay');
@@ -1998,3 +1970,31 @@ const SearchGame = (() => {
                         if (banzaiNPC) {
                             banzaiNPC.visible = false; // Hidden until Step 3
                             banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                            banzaiNPC.rotation.y = -Math.PI / 8;
+                        } else {
+                            // Emergency Spawn check
+                            spawnEndingAssets(() => {
+                                if (banzaiNPC) {
+                                    addEndingObject(banzaiNPC);
+                                    banzaiNPC.visible = false;
+                                    banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                                    banzaiNPC.rotation.y = -Math.PI / 8;
+                                }
+                            });
+                        }
+                        if (juiceModel) {
+                            juiceModel.visible = false; // Hidden until Step 2
+                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+                            const vm = NPC_CONFIG.vendingMachine;
+                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
+                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+
+                            // Rotation: Sideways (Z-axis rotation)
+                            juiceModel.rotation.set(0, 0, Math.PI / 2);
+                        }
+                    }
+                },
+                {
+                    time: 1.5,
+                    fired: false,
+                    action: () => {

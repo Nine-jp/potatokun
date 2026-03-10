@@ -959,9 +959,9 @@ const SearchGame = (() => {
     let cinematicTimer = 0;
 
     // Player Position (Module Scope)
-    let playerPosition = new THREE.Vector3(0, 0.6, 0);
-    // ★追加: プレイヤーの向き (モジュールスコープ)
-    let playerFacing = 0; // 初期値: 南向き
+    let playerPosition = new THREE.Vector3(0, 0.6, 31.0); // Zを31.0に変更
+    // プレイヤーの向き (モジュールスコープ)
+    let playerFacing = Math.PI; // 初期値: 北向き（噴水側）に変更
 
     // Camera Control Variables (Module Scope for access from transitionToGameplay)
     let cameraDistance = 0; // 0 = FPS, 10 = max TPS
@@ -1777,15 +1777,16 @@ const SearchGame = (() => {
         clearSeasonEffects();
 
         // ★Reset Camera Variables for FPS
-        cameraDistance = 0.0; // Force FPS
+        // ★Reset Camera Variables for TPS
+        cameraDistance = 5;
 
-        // Synced Position: Starts at Z=-2 (safe distance from Vending Machine at Z=8)
-        // Old: 2. Inverted: -2.
-        playerPosition.set(-11, 0.6, -2);
+        // Player Spawn Point at South Entrance
+        playerPosition.set(0, 0.6, 31.0);
+        playerFacing = Math.PI; // Look North
 
-        // Sync Camera Angle to look at Vending Machine (North/Negative Z)
-        cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
-        cameraPitch = 0;       // Level
+        // Sync Camera Angle to look North toward Fountain
+        cameraAngle = Math.PI;
+        cameraPitch = -0.2;
 
         // Apply immediately so render doesn't flicker
         camera.position.copy(playerPosition);
@@ -1868,15 +1869,14 @@ const SearchGame = (() => {
 
         // --- Acting Setup ---
         npc.position.set(-26.5, 0, -18.0);
-        npc.rotation.y = -Math.PI / 2; // 自販機の方を向く
+        npc.rotation.y = -Math.PI / 2;
         npc.visible = true;
         createSeasonEffects(npc);
 
         // --- Camera Work ---
-        // 自販機とポテトくんが収まる斜め前方のカメラ位置
         const baseCamPos = new THREE.Vector3(-24.5, 1.0, -15.5);
         camera.position.copy(baseCamPos);
-        camera.lookAt(-26.5, 0.5, -18.0); // ポテトくんを見つめる
+        camera.lookAt(-26.5, 0.5, -18.0);
 
         // --- Hide Loading Overlay ---
         const overlay = document.getElementById('sg-loading-overlay');
