@@ -1776,16 +1776,16 @@ const SearchGame = (() => {
         // ★ Clear Season Effects (Snow, Sweat, etc.)
         clearSeasonEffects();
 
-        // ★Reset Camera Variables for FPS
-        cameraDistance = 0.0; // Force FPS
+        // ★Reset Camera Variables for TPS
+        cameraDistance = 5.0;
 
-        // Synced Position: Starts at Z=-2 (safe distance from Vending Machine at Z=8)
-        // Old: 2. Inverted: -2.
-        playerPosition.set(-11, 0.6, -2);
+        // Player Spawn Point at South Entrance
+        playerPosition.set(0, 0.6, 28.0);
+        playerFacing = Math.PI;
 
-        // Sync Camera Angle to look at Vending Machine (North/Negative Z)
-        cameraAngle = 0; // 0 = Looking -Z (North/Fountain)
-        cameraPitch = 0;       // Level
+        // Sync Camera Angle to look North toward Fountain
+        cameraAngle = 0;
+        cameraPitch = 0;
 
         // Apply immediately so render doesn't flicker
         camera.position.copy(playerPosition);

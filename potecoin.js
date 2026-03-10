@@ -1776,17 +1776,16 @@ const SearchGame = (() => {
         // ★ Clear Season Effects (Snow, Sweat, etc.)
         clearSeasonEffects();
 
-        // ★Reset Camera Variables for FPS
         // ★Reset Camera Variables for TPS
-        cameraDistance = 5;
+        cameraDistance = 0;
 
         // Player Spawn Point at South Entrance
-        playerPosition.set(0, 0.6, 31.0);
-        playerFacing = Math.PI; // Look North
+        playerPosition.set(0, 0.6, 28.0);
+        playerFacing = Math.PI;
 
         // Sync Camera Angle to look North toward Fountain
-        cameraAngle = Math.PI;
-        cameraPitch = -0.2;
+        cameraAngle = 0;
+        cameraPitch = 0;
 
         // Apply immediately so render doesn't flicker
         camera.position.copy(playerPosition);
