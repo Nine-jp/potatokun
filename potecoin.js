@@ -4122,7 +4122,7 @@ const SearchGame = (() => {
             // 変更点: (10, 100) を (6, 100) にする
             const roadNS = new THREE.Mesh(new THREE.PlaneGeometry(6, 100), roadMat);
             roadNS.rotation.x = -Math.PI / 2;
-            roadNS.position.set(0, -0.01, 0);
+            roadNS.position.set(0, 0.01, 0);
             roadNS.receiveShadow = true;
             window.parkGroup.add(roadNS);
 
@@ -4130,7 +4130,7 @@ const SearchGame = (() => {
             // 変更点: (100, 10) を (100, 6) にする
             const roadEW = new THREE.Mesh(new THREE.PlaneGeometry(100, 6), roadMat);
             roadEW.rotation.x = -Math.PI / 2;
-            roadEW.position.set(0, -0.01, 0);
+            roadEW.position.set(0, 0.01, 0);
             roadEW.receiveShadow = true;
             window.parkGroup.add(roadEW);
 
