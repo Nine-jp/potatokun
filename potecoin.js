@@ -979,7 +979,7 @@ const SearchGame = (() => {
             position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
             rotation: 0,
         },
-        vending_machine: { x: -11, z: 8 } // Old: -8. Inverted: 8
+        vending_machine: { x: -28, z: -18.0 } // Updated to actual map location
     };
 
     // === Season System ===
@@ -1867,8 +1867,16 @@ const SearchGame = (() => {
 
 
         // --- Acting Setup ---
-        npc.position.set(-26.5, 0, -18.0);
-        npc.rotation.y = -Math.PI / 2;
+        if (npc) {
+            // 自販機の位置を基準に、X軸プラス側（正面）に1.5m離して配置
+            npc.position.set(
+                NPC_CONFIG.vending_machine.x + 1.5,
+                0,
+                NPC_CONFIG.vending_machine.z
+            );
+            // 自販機の方角（-X方向）を向かせる
+            npc.rotation.y = -Math.PI / 2;
+        }
         npc.visible = true;
         createSeasonEffects(npc);
 

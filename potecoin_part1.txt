@@ -979,7 +979,7 @@ const SearchGame = (() => {
             position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
             rotation: 0,
         },
-        vendingMachine: { x: -11, z: 8 } // Old: -8. Inverted: 8
+        vending_machine: { x: -11, z: 8 } // Old: -8. Inverted: 8
     };
 
     // === Season System ===
@@ -1777,7 +1777,7 @@ const SearchGame = (() => {
         clearSeasonEffects();
 
         // ★Reset Camera Variables for TPS
-        cameraDistance = 5.0;
+        cameraDistance = 0;
 
         // Player Spawn Point at South Entrance
         playerPosition.set(0, 0.6, 28.0);
@@ -1944,8 +1944,8 @@ const SearchGame = (() => {
         // Pos: (vm.x, 1.3, vm.z + 3.5)
         // LookAt: (vm.x, 1.3, vm.z)
         baseCamera: {
-            pos: new THREE.Vector3(NPC_CONFIG.vendingMachine.x, 1.3, NPC_CONFIG.vendingMachine.z + 3.5),
-            lookAt: new THREE.Vector3(NPC_CONFIG.vendingMachine.x, 1.3, NPC_CONFIG.vendingMachine.z)
+            pos: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z + 3.5),
+            lookAt: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z)
         },
 
         start: function () {
@@ -1985,7 +1985,7 @@ const SearchGame = (() => {
                         if (juiceModel) {
                             juiceModel.visible = false; // Hidden until Step 2
                             // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
-                            const vm = NPC_CONFIG.vendingMachine;
+                            const vm = NPC_CONFIG.vending_machine;
                             // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
                             juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
 

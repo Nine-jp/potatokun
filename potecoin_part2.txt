@@ -681,7 +681,7 @@
                     // Exclude trees, ketchup items, invisible objects, vending machine HitBox
                     if (!child.userData.isTree &&
                         !child.userData.isKetchup &&
-                        !child.userData.isVendingMachine &&
+                        !child.userData.isvending_machine &&
                         !child.userData.isCoin && // Coins are not ground
                         !child.userData.ignoreGround && // Grass, Dokan pipe itself
                         child.visible !== false) {
@@ -788,12 +788,12 @@
                     const obj = hit.object;
                     // 親を遡ってターゲット確認
                     let targetGroup = obj;
-                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isvending_machine && targetGroup !== scene) {
                         targetGroup = targetGroup.parent;
                     }
 
                     // ターゲットが見つかったら磁石モード
-                    if (targetGroup.userData.isVendingMachine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
+                    if (targetGroup.userData.isvending_machine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
                         cursorState = 'magnet';
                         break;
                     }
@@ -878,13 +878,13 @@
                 if (obj.userData.isHitBox && obj.userData.parentItem) {
                     targetGroup = obj.userData.parentItem;
                 } else {
-                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isvending_machine && targetGroup !== scene) {
                         targetGroup = targetGroup.parent;
                     }
                 }
 
                 const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
-                const isVending = targetGroup.userData.isVendingMachine;
+                const isVending = targetGroup.userData.isvending_machine;
 
                 // インタラクティブ・オブジェクト（アクション持ち）の判定
                 let interactable = targetGroup; // 上で特定したグループを使う

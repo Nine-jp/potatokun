@@ -644,10 +644,10 @@
                     }
                 },
 
-                // ▼▼▼ 🎰自動販売機 (VendingMachine) ▼▼▼
+                // ▼▼▼ 🎰自動販売機 (vending_machine) ▼▼▼
 
                 {
-                    name: 'VendingMachine',
+                    name: 'vending_machine',
                     path: 'models/vending_machine.fbx',
                     pos: { x: 0, y: 0, z: 0 }, // Template pos
                     rot: { y: 90 },
@@ -1687,7 +1687,7 @@
         const currentCoins = window.sgItemData ? window.sgItemData.collected : 0;
 
         // --- Case A: Vending Machine (BUY) ---
-        if (target.userData.isVendingMachine) {
+        if (target.userData.isvending_machine) {
 
             if (currentCoins >= 10) {
                 // === Game Clear! ===
@@ -1911,7 +1911,7 @@
                 }
 
                 // 1. Vending Machine HitBox
-                if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
+                if (obj.userData.isvending_machine && hit.distance <= 4.0) {
                     targetFound = obj;
                     targetType = 'vending';
                     break; // Priority
