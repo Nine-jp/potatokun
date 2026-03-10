@@ -972,8 +972,8 @@ const SearchGame = (() => {
     // ★修正: North = -Z System. Inverted Z coordinates.
     const NPC_CONFIG = {
         opening: {
-            position: { x: -11, z: 5 },  // Old: -5. Inverted: 5
-            rotation: 0,
+            position: { x: -26.5, z: -18.0 },
+            rotation: -Math.PI / 2,
         },
         gameplay: {
             position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
@@ -1867,14 +1867,16 @@ const SearchGame = (() => {
 
 
         // --- Acting Setup ---
-        npc.position.set(-11, 0, -5);
+        npc.position.set(-26.5, 0, -18.0);
+        npc.rotation.y = -Math.PI / 2; // 自販機の方を向く
         npc.visible = true;
         createSeasonEffects(npc);
 
         // --- Camera Work ---
-        const baseCamPos = new THREE.Vector3(-11, 1.0, 2.5); // Old: -2.5. Inverted: 2.5
+        // 自販機とポテトくんが収まる斜め前方のカメラ位置
+        const baseCamPos = new THREE.Vector3(-24.5, 1.0, -15.5);
         camera.position.copy(baseCamPos);
-        camera.lookAt(-11, 0.5, 5); // Old: -5. Inverted: 5
+        camera.lookAt(-26.5, 0.5, -18.0); // ポテトくんを見つめる
 
         // --- Hide Loading Overlay ---
         const overlay = document.getElementById('sg-loading-overlay');
