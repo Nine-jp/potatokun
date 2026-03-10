@@ -979,7 +979,7 @@ const SearchGame = (() => {
             position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
             rotation: 0,
         },
-        vendingMachine: { x: -11, z: 8 } // Old: -8. Inverted: 8
+        vending_machine: { x: -11, z: 8 } // Old: -8. Inverted: 8
     };
 
     // === Season System ===
@@ -1944,8 +1944,8 @@ const SearchGame = (() => {
         // Pos: (vm.x, 1.3, vm.z + 3.5)
         // LookAt: (vm.x, 1.3, vm.z)
         baseCamera: {
-            pos: new THREE.Vector3(NPC_CONFIG.vendingMachine.x, 1.3, NPC_CONFIG.vendingMachine.z + 3.5),
-            lookAt: new THREE.Vector3(NPC_CONFIG.vendingMachine.x, 1.3, NPC_CONFIG.vendingMachine.z)
+            pos: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z + 3.5),
+            lookAt: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z)
         },
 
         start: function () {
@@ -1985,7 +1985,7 @@ const SearchGame = (() => {
                         if (juiceModel) {
                             juiceModel.visible = false; // Hidden until Step 2
                             // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
-                            const vm = NPC_CONFIG.vendingMachine;
+                            const vm = NPC_CONFIG.vending_machine;
                             // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
                             juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
 
@@ -2678,10 +2678,9 @@ const SearchGame = (() => {
             const meshes = [];
             scene.traverse((child) => {
                 if (child.isMesh && child.geometry) {
-                    // Exclude trees, ketchup items, invisible objects, vending machine HitBox
+                    // Exclude trees, ketchup items, invisible objects
                     if (!child.userData.isTree &&
                         !child.userData.isKetchup &&
-                        !child.userData.isVendingMachine &&
                         !child.userData.isCoin && // Coins are not ground
                         !child.userData.ignoreGround && // Grass, Dokan pipe itself
                         child.visible !== false) {
@@ -2788,12 +2787,12 @@ const SearchGame = (() => {
                     const obj = hit.object;
                     // 親を遡ってターゲット確認
                     let targetGroup = obj;
-                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && targetGroup !== scene) {
                         targetGroup = targetGroup.parent;
                     }
 
                     // ターゲットが見つかったら磁石モード
-                    if (targetGroup.userData.isVendingMachine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
+                    if (targetGroup.userData.isCoin && !targetGroup.userData.collected) {
                         cursorState = 'magnet';
                         break;
                     }
@@ -2878,13 +2877,12 @@ const SearchGame = (() => {
                 if (obj.userData.isHitBox && obj.userData.parentItem) {
                     targetGroup = obj.userData.parentItem;
                 } else {
-                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isVendingMachine && targetGroup !== scene) {
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && targetGroup !== scene) {
                         targetGroup = targetGroup.parent;
                     }
                 }
 
                 const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
-                const isVending = targetGroup.userData.isVendingMachine;
 
                 // インタラクティブ・オブジェクト（アクション持ち）の判定
                 let interactable = targetGroup; // 上で特定したグループを使う
@@ -2901,9 +2899,6 @@ const SearchGame = (() => {
                     return;
                 } else if (isCoin) {
                     collectCoin(targetGroup, clientX, clientY);
-                    return;
-                } else if (isVending) {
-                    console.log("Vending Machine Clicked");
                     return;
                 }
             }
@@ -4644,10 +4639,10 @@ const SearchGame = (() => {
                     }
                 },
 
-                // ▼▼▼ 🎰自動販売機 (VendingMachine) ▼▼▼
+                // ▼▼▼ 🎰自動販売機 (vending_machine) ▼▼▼
 
                 {
-                    name: 'VendingMachine',
+                    name: 'vending_machine',
                     path: 'models/vending_machine.fbx',
                     pos: { x: 0, y: 0, z: 0 }, // Template pos
                     rot: { y: 90 },
@@ -5686,24 +5681,6 @@ const SearchGame = (() => {
         // Get current coins
         const currentCoins = window.sgItemData ? window.sgItemData.collected : 0;
 
-        // --- Case A: Vending Machine (BUY) ---
-        if (target.userData.isVendingMachine) {
-
-            if (currentCoins >= 10) {
-                // === Game Clear! ===
-                console.log("Juice Purchased! Game Clear!");
-
-                // Start Ending Cinematic
-                transitionToEnding();
-
-            } else {
-                // === Not Enough Coins ===
-                const missing = 10 - currentCoins;
-                showTapText(window.innerWidth / 2, window.innerHeight / 2, `あと ${missing} 枚足りないよ！`, '#FF4500');
-            }
-            return;
-        }
-
         // --- Case B: Coin (GET) ---
         if (target.userData.isCoin || target.userData.isTargetItem) {
             // Coin collection
@@ -5908,13 +5885,6 @@ const SearchGame = (() => {
                 // [Rule 1] Redirect Hitbox to Parent
                 if (obj.userData.isHitBox && obj.userData.parentItem) {
                     obj = obj.userData.parentItem;
-                }
-
-                // 1. Vending Machine HitBox
-                if (obj.userData.isVendingMachine && hit.distance <= 4.0) {
-                    targetFound = obj;
-                    targetType = 'vending';
-                    break; // Priority
                 }
 
                 // [Rule 2] Generic Interaction (Shovel, etc.)
