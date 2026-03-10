@@ -1868,22 +1868,22 @@ const SearchGame = (() => {
 
         // --- Acting Setup ---
         if (npc) {
-            // 自販機の位置を基準に、X軸プラス側（正面）に1.5m離して配置
-            npc.position.set(
-                NPC_CONFIG.vending_machine.x + 1.5,
-                0,
-                NPC_CONFIG.vending_machine.z
-            );
-            // 自販機の方角（-X方向）を背にする（カメラ側を向く）ように変更
-            npc.rotation.y = Math.PI / 2;
+            // 看板(X:-28.63, Z:-12.62)と自販機(X:-28, Z:-18.0)の間の看板寄り (約25%位置)
+            // Xは道を向くように少し内側(-26.5)に配置
+            npc.position.set(-26.5, 0, -14.0);
+
+            // 看板または道沿いに対して自然な向き（少し斜めにカメラ側を向く）
+            npc.rotation.y = Math.PI / 4;
         }
         npc.visible = true;
         createSeasonEffects(npc);
 
         // --- Camera Work ---
-        const baseCamPos = new THREE.Vector3(-24.5, 1.0, -15.5);
+        // ポテトくん(Z:-14)と看板を捉える位置にカメラを配置
+        const baseCamPos = new THREE.Vector3(-23.0, 1.2, -11.5);
         camera.position.copy(baseCamPos);
-        camera.lookAt(-26.5, 0.5, -18.0);
+        // 新しいポテトくんの位置をしっかり注視する
+        camera.lookAt(-26.5, 0.5, -14.0);
 
         // --- Hide Loading Overlay ---
         const overlay = document.getElementById('sg-loading-overlay');
