@@ -976,8 +976,8 @@ const SearchGame = (() => {
             rotation: -Math.PI / 2,
         },
         gameplay: {
-            position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
-            rotation: 0,
+            position: { x: -26.5, z: -14.0 },
+            rotation: Math.PI / 4,
         },
         vending_machine: { x: -28, z: -18.0 } // Updated to actual map location
     };
