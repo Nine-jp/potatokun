@@ -1,3 +1,9 @@
+                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+                            const vm = NPC_CONFIG.vending_machine;
+                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
+                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+
+                            // Rotation: Sideways (Z-axis rotation)
                             juiceModel.rotation.set(0, 0, Math.PI / 2);
                         }
                     }
@@ -1992,9 +1998,3 @@
                     const s = 3.5 + Math.random() * 2.0;
                     dummy.scale.set(s, s, s);
                     dummy.updateMatrix();
-
-                    iMesh.setMatrixAt(placed, dummy.matrix);
-                    placed++;
-                }
-
-                iMesh.instanceMatrix.needsUpdate = true;

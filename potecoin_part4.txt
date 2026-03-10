@@ -1,3 +1,9 @@
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    }
 
 
 

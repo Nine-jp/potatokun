@@ -977,7 +977,7 @@ const SearchGame = (() => {
         },
         gameplay: {
             position: { x: -26.5, z: -14.0 },
-            rotation: Math.PI / 4,
+            rotation: Math.PI / 4 + Math.PI / 2,
         },
         vending_machine: { x: -28, z: -18.0 } // Updated to actual map location
     };
@@ -1459,8 +1459,9 @@ const SearchGame = (() => {
             intensity += slowWave * 0.05;
         }
 
-        // Apply Rotation Shake
-        gameplayNPC.rotation.y = rapidShake * intensity;
+        // Apply Rotation Shake (設定された基準角度に振動を足す)
+        const baseRot = (typeof NPC_CONFIG !== 'undefined' && NPC_CONFIG.gameplay) ? NPC_CONFIG.gameplay.rotation : 0;
+        gameplayNPC.rotation.y = baseRot + (rapidShake * intensity);
 
         // Apply Position Shake
         const posConfig = NPC_CONFIG.gameplay || { position: { x: -13 } }; // 安全策

@@ -976,8 +976,8 @@ const SearchGame = (() => {
             rotation: -Math.PI / 2,
         },
         gameplay: {
-            position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
-            rotation: 0,
+            position: { x: -26.5, z: -14.0 },
+            rotation: Math.PI / 4 + Math.PI / 2,
         },
         vending_machine: { x: -28, z: -18.0 } // Updated to actual map location
     };
@@ -1518,8 +1518,10 @@ const SearchGame = (() => {
                 const box = new THREE.Box3().setFromObject(fbx);
                 const size = new THREE.Vector3();
                 box.getSize(size);
+                // 元のスケール計算
                 const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-                fbx.scale.setScalar(scaleFactor);
+                // 元の計算値の0.7倍を適用
+                fbx.scale.setScalar(scaleFactor * 0.7);
 
                 // 位置・回転設定
                 const scaledBox = new THREE.Box3().setFromObject(fbx);
@@ -1585,8 +1587,10 @@ const SearchGame = (() => {
                 const box = new THREE.Box3().setFromObject(fbx);
                 const size = new THREE.Vector3();
                 box.getSize(size);
+                // 元のスケール計算
                 const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-                fbx.scale.setScalar(scaleFactor);
+                // 元の計算値の0.7倍を適用
+                fbx.scale.setScalar(scaleFactor * 0.7);
 
                 // 位置・回転設定
                 const scaledBox = new THREE.Box3().setFromObject(fbx);
@@ -1645,13 +1649,15 @@ const SearchGame = (() => {
         console.log('LOADING ENDING POTATO (Juice):', banzaiPath); // Requested Log
 
         loader.load(banzaiPath, (fbx) => {
-            // スケール調整 (Opening NPCと同一ロジック)
+            // スケール調整
             const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].openingNPC;
             const box = new THREE.Box3().setFromObject(fbx);
             const size = new THREE.Vector3();
             box.getSize(size);
+            // 元のスケール計算
             const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-            fbx.scale.setScalar(scaleFactor);
+            // 元の計算値の0.7倍を適用
+            fbx.scale.setScalar(scaleFactor * 0.7);
 
             // アウトライン & Material Cloning (Isolation)
             fbx.userData.entityType = 'npc';
@@ -1992,9 +1998,3 @@ const SearchGame = (() => {
                         }
                         if (juiceModel) {
                             juiceModel.visible = false; // Hidden until Step 2
-                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
-                            const vm = NPC_CONFIG.vending_machine;
-                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
-                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
-
-                            // Rotation: Sideways (Z-axis rotation)
