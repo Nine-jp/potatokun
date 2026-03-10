@@ -1,3 +1,6 @@
+                scene.add(iMesh);
+                window.sgGrassInstancedMesh = iMesh;
+
                 console.log(`✅ ${placed} grass patches (InstancedMesh Fix Mode).`);
                 if (typeof GameConfig !== 'undefined') window.setGrassSeason(GameConfig.currentSeason);
             }, undefined, console.error);
@@ -1686,24 +1689,6 @@
         // Get current coins
         const currentCoins = window.sgItemData ? window.sgItemData.collected : 0;
 
-        // --- Case A: Vending Machine (BUY) ---
-        if (target.userData.isvending_machine) {
-
-            if (currentCoins >= 10) {
-                // === Game Clear! ===
-                console.log("Juice Purchased! Game Clear!");
-
-                // Start Ending Cinematic
-                transitionToEnding();
-
-            } else {
-                // === Not Enough Coins ===
-                const missing = 10 - currentCoins;
-                showTapText(window.innerWidth / 2, window.innerHeight / 2, `あと ${missing} 枚足りないよ！`, '#FF4500');
-            }
-            return;
-        }
-
         // --- Case B: Coin (GET) ---
         if (target.userData.isCoin || target.userData.isTargetItem) {
             // Coin collection
@@ -1910,13 +1895,6 @@
                     obj = obj.userData.parentItem;
                 }
 
-                // 1. Vending Machine HitBox
-                if (obj.userData.isvending_machine && hit.distance <= 4.0) {
-                    targetFound = obj;
-                    targetType = 'vending';
-                    break; // Priority
-                }
-
                 // [Rule 2] Generic Interaction (Shovel, etc.)
                 // Traverse up to find the root interactable
                 let interactable = obj;
@@ -1998,3 +1976,25 @@
 
         if (renderer && scene && camera) {
             // Debug Log for Ending Camera
+            if (currentState === GameState.ENDING) {
+                // Throttle log to once per second approx? No, user asked for it. 
+                // But let's simple throttle to avoid console flood 60fps
+                if (Math.random() < 0.01) {
+                    console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
+                }
+            }
+
+            // DEBUG: 座標情報の更新
+            if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                const panel = document.getElementById('debug-pos-panel');
+                if (panel && camera) {
+                    const x = camera.position.x.toFixed(2);
+                    const z = camera.position.z.toFixed(2);
+                    const y = camera.position.y.toFixed(2);
+                    panel.innerText = `POS X:${x} Z:${z} H:${y}`;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    }

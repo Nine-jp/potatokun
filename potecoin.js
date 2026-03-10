@@ -1518,8 +1518,10 @@ const SearchGame = (() => {
                 const box = new THREE.Box3().setFromObject(fbx);
                 const size = new THREE.Vector3();
                 box.getSize(size);
+                // 元のスケール計算
                 const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-                fbx.scale.setScalar(scaleFactor);
+                // 元の計算値の0.7倍を適用
+                fbx.scale.setScalar(scaleFactor * 0.7);
 
                 // 位置・回転設定
                 const scaledBox = new THREE.Box3().setFromObject(fbx);
@@ -1585,8 +1587,10 @@ const SearchGame = (() => {
                 const box = new THREE.Box3().setFromObject(fbx);
                 const size = new THREE.Vector3();
                 box.getSize(size);
+                // 元のスケール計算
                 const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-                fbx.scale.setScalar(scaleFactor);
+                // 元の計算値の0.7倍を適用
+                fbx.scale.setScalar(scaleFactor * 0.7);
 
                 // 位置・回転設定
                 const scaledBox = new THREE.Box3().setFromObject(fbx);
@@ -1645,13 +1649,15 @@ const SearchGame = (() => {
         console.log('LOADING ENDING POTATO (Juice):', banzaiPath); // Requested Log
 
         loader.load(banzaiPath, (fbx) => {
-            // スケール調整 (Opening NPCと同一ロジック)
+            // スケール調整
             const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].openingNPC;
             const box = new THREE.Box3().setFromObject(fbx);
             const size = new THREE.Vector3();
             box.getSize(size);
+            // 元のスケール計算
             const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-            fbx.scale.setScalar(scaleFactor);
+            // 元の計算値の0.7倍を適用
+            fbx.scale.setScalar(scaleFactor * 0.7);
 
             // アウトライン & Material Cloning (Isolation)
             fbx.userData.entityType = 'npc';

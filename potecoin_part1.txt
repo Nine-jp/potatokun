@@ -979,7 +979,7 @@ const SearchGame = (() => {
             position: { x: -13, z: 8 },  // Old: -8. Inverted: 8
             rotation: 0,
         },
-        vending_machine: { x: -11, z: 8 } // Old: -8. Inverted: 8
+        vending_machine: { x: -28, z: -18.0 } // Updated to actual map location
     };
 
     // === Season System ===
@@ -1867,15 +1867,23 @@ const SearchGame = (() => {
 
 
         // --- Acting Setup ---
-        npc.position.set(-26.5, 0, -18.0);
-        npc.rotation.y = -Math.PI / 2;
+        if (npc) {
+            // 看板(X:-28.63, Z:-12.62)と自販機(X:-28, Z:-18.0)の間の看板寄り (約25%位置)
+            // Xは道を向くように少し内側(-26.5)に配置
+            npc.position.set(-26.5, 0, -14.0);
+
+            // 看板または道沿いに対して自然な向き（少し斜めにカメラ側を向く）
+            npc.rotation.y = Math.PI / 4;
+        }
         npc.visible = true;
         createSeasonEffects(npc);
 
         // --- Camera Work ---
-        const baseCamPos = new THREE.Vector3(-24.5, 1.0, -15.5);
+        // ポテトくん(Z:-14)と看板を捉える位置にカメラを配置
+        const baseCamPos = new THREE.Vector3(-23.0, 1.2, -11.5);
         camera.position.copy(baseCamPos);
-        camera.lookAt(-26.5, 0.5, -18.0);
+        // 新しいポテトくんの位置をしっかり注視する
+        camera.lookAt(-26.5, 0.5, -14.0);
 
         // --- Hide Loading Overlay ---
         const overlay = document.getElementById('sg-loading-overlay');
@@ -1990,11 +1998,3 @@ const SearchGame = (() => {
                             juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
 
                             // Rotation: Sideways (Z-axis rotation)
-                            juiceModel.rotation.set(0, 0, Math.PI / 2);
-                        }
-                    }
-                },
-                {
-                    time: 1.5,
-                    fired: false,
-                    action: () => {

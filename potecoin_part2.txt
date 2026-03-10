@@ -1,3 +1,11 @@
+                            juiceModel.rotation.set(0, 0, Math.PI / 2);
+                        }
+                    }
+                },
+                {
+                    time: 1.5,
+                    fired: false,
+                    action: () => {
                         console.log("Ending Step 2: Juice Slide");
                         if (juiceModel) juiceModel.visible = true;
                         showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
@@ -678,10 +686,9 @@
             const meshes = [];
             scene.traverse((child) => {
                 if (child.isMesh && child.geometry) {
-                    // Exclude trees, ketchup items, invisible objects, vending machine HitBox
+                    // Exclude trees, ketchup items, invisible objects
                     if (!child.userData.isTree &&
                         !child.userData.isKetchup &&
-                        !child.userData.isvending_machine &&
                         !child.userData.isCoin && // Coins are not ground
                         !child.userData.ignoreGround && // Grass, Dokan pipe itself
                         child.visible !== false) {
@@ -788,12 +795,12 @@
                     const obj = hit.object;
                     // 親を遡ってターゲット確認
                     let targetGroup = obj;
-                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isvending_machine && targetGroup !== scene) {
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && targetGroup !== scene) {
                         targetGroup = targetGroup.parent;
                     }
 
                     // ターゲットが見つかったら磁石モード
-                    if (targetGroup.userData.isvending_machine || (targetGroup.userData.isCoin && !targetGroup.userData.collected)) {
+                    if (targetGroup.userData.isCoin && !targetGroup.userData.collected) {
                         cursorState = 'magnet';
                         break;
                     }
@@ -878,13 +885,12 @@
                 if (obj.userData.isHitBox && obj.userData.parentItem) {
                     targetGroup = obj.userData.parentItem;
                 } else {
-                    while (targetGroup.parent && !targetGroup.userData.isCoin && !targetGroup.userData.isvending_machine && targetGroup !== scene) {
+                    while (targetGroup.parent && !targetGroup.userData.isCoin && targetGroup !== scene) {
                         targetGroup = targetGroup.parent;
                     }
                 }
 
                 const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
-                const isVending = targetGroup.userData.isvending_machine;
 
                 // インタラクティブ・オブジェクト（アクション持ち）の判定
                 let interactable = targetGroup; // 上で特定したグループを使う
@@ -901,9 +907,6 @@
                     return;
                 } else if (isCoin) {
                     collectCoin(targetGroup, clientX, clientY);
-                    return;
-                } else if (isVending) {
-                    console.log("Vending Machine Clicked");
                     return;
                 }
             }
@@ -1995,6 +1998,3 @@
                 }
 
                 iMesh.instanceMatrix.needsUpdate = true;
-                scene.add(iMesh);
-                window.sgGrassInstancedMesh = iMesh;
-
