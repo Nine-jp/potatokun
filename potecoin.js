@@ -1284,27 +1284,12 @@ const SearchGame = (() => {
 
                 // Position Player (Start Point)
                 if (typeof playerPosition !== 'undefined') {
-                    // ★修正: 北側入り口へ (North = -Z)
-                    // Old: -27. Wait, checking logic.
-                    // If Old "North" was +Z, then -27 was South?
-                    // Let's stick to INVERTING whatever was there to flip the world.
-                    // Old: -27. Inverted: 27.
-                    // But standard park entrance is usually South (+Z).
-                    // If we want "North Entrance", and North is -Z, then -27 is correct.
-                    // Let's assume the user wants the player at the "Entrance".
-                    // If Old Code said "North side entrance (Z = -27)", and Old North was +Z... then -27 was South?
-                    // Confusion.
-                    // Let's simply INVERT Z.
-                    // Old: -27 -> New: 27.
-                    // New 27 is South (+Z).
-                    // If the user wants a North (-Z) coordinate system, South is +Z.
-                    playerPosition.set(0, 0.6, 27);
+                    // ★修正: 自販機前のポテトくん付近へ
+                    playerPosition.set(-27.5, 0.6, -15.5);
 
-                    // ★修正: プレイヤーの体は南向き(0)
-                    if (typeof playerFacing !== 'undefined') playerFacing = 0;
+                    if (typeof playerFacing !== 'undefined') playerFacing = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
 
-                    // ★修正: カメラは0度で北(噴水の方)を向かせる
-                    if (typeof cameraAngle !== 'undefined') cameraAngle = 0;
+                    if (typeof cameraAngle !== 'undefined') cameraAngle = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
                 }
 
                 // Show UI
@@ -1763,12 +1748,12 @@ const SearchGame = (() => {
         // ★Reset Camera Variables for TPS
         cameraDistance = 0;
 
-        // Player Spawn Point at South Entrance
-        playerPosition.set(0, 0.6, 28.0);
-        playerFacing = Math.PI;
+        // Player Spawn Point at Vending Machine Area (Near Potato Kun)
+        playerPosition.set(-27.5, 0.6, -15.5);
+        playerFacing = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
 
-        // Sync Camera Angle to look North toward Fountain
-        cameraAngle = 0;
+        // Sync Camera Angle to look toward Vending Machine
+        cameraAngle = playerFacing;
         cameraPitch = 0;
 
         // Apply immediately so render doesn't flicker
@@ -1818,7 +1803,7 @@ const SearchGame = (() => {
             // Fallback UI
             const dpad = document.getElementById('sg-dpad');
             if (dpad) dpad.style.display = 'grid';
-            if (typeof playerPosition !== 'undefined') playerPosition.set(-13, 0.6, 5); // Old: -5. Inverted: 5.
+            if (typeof playerPosition !== 'undefined') playerPosition.set(-27.5, 0.6, -15.5);
             showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
         }
 
@@ -1850,53 +1835,114 @@ const SearchGame = (() => {
         }
 
 
-        // --- Acting Setup ---
+        // --- Camera & UI Setup ---
+        // 新しいポテトくんの位置
         if (npc) {
-            // 看板(X:-28.63, Z:-12.62)と自販機(X:-28, Z:-18.0)の間の看板寄り (約25%位置)
-            // Xは道を向くように少し内側(-26.5)に配置
             npc.position.set(-26.5, 0, -14.0);
-
-            // 看板または道沿いに対して自然な向き（少し斜めにカメラ側を向く）
             npc.rotation.y = Math.PI / 4;
         }
         npc.visible = true;
         createSeasonEffects(npc);
 
-        // --- Camera Work ---
-        // ポテトくん(Z:-14)と看板を捉える位置にカメラを配置
-        const baseCamPos = new THREE.Vector3(-23.0, 1.2, -11.5);
-        camera.position.copy(baseCamPos);
-        // 新しいポテトくんの位置をしっかり注視する
-        camera.lookAt(-26.5, 0.5, -14.0);
-
-        // --- Hide Loading Overlay ---
         const overlay = document.getElementById('sg-loading-overlay');
         if (overlay) overlay.style.display = 'none';
 
-        // --- Dialog Sequence (Season-based) ---
-        const lines = OPENING_LINES[GameConfig.currentSeason];
-        lines.forEach(line => {
-            if (line.time === 0) {
-                showTapText(window.innerWidth / 2, window.innerHeight * 0.7, line.text, line.color);
-            } else {
-                openingTimers.push(setTimeout(() => {
-                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, line.text, line.color);
-                }, line.time));
-            }
-        });
+        // タイトルロゴ用の一時UI要素
+        const uiContainer = document.getElementById('sg-ui');
+        let titleEl = document.getElementById('sg-title-logo-temp');
+        if (!titleEl && uiContainer) {
+            titleEl = document.createElement('div');
+            titleEl.id = 'sg-title-logo-temp';
+            titleEl.style.position = 'absolute';
+            titleEl.style.top = '30%';
+            titleEl.style.left = '50%';
+            titleEl.style.transform = 'translate(-50%, -50%)';
+            titleEl.style.color = '#fff';
+            titleEl.style.fontSize = '8vw';
+            titleEl.style.fontWeight = 'bold';
+            titleEl.style.textShadow = '0 0 10px rgba(0,0,0,0.8)';
+            titleEl.style.opacity = '0';
+            titleEl.style.transition = 'opacity 1s ease';
+            titleEl.style.pointerEvents = 'none';
+            titleEl.innerText = 'PotatoKun VRM';
+            uiContainer.appendChild(titleEl);
+        }
 
-        // --- Animation Loop ---
-        // --- Animation Loop ---
+        // カメラキーフレーム定義
+        const kfPos = [
+            { t: 0, p: new THREE.Vector3(-25.0, 15.0, -8.0) }, // 0.0s: 上空から
+            { t: 3, p: new THREE.Vector3(-24.5, 0.6, -11.0) }, // 3.0s: 目線ローアングル (自販機も収まる)
+            { t: 8, p: new THREE.Vector3(-24.5, 0.6, -11.0) }, // 8.0s: 停止したまま
+            { t: 11, p: new THREE.Vector3(-27.5, 0.6, -15.5) } // 11.0s: 新スポーン地点
+        ];
+        const kfLook = [
+            { t: 0, l: new THREE.Vector3(-26.5, 0.5, -14.0) },
+            { t: 3, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
+            { t: 8, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
+            { t: 11, l: new THREE.Vector3(-28.0, 0.6, -18.0) }
+        ];
+
+        const easeInOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
+        const startTime = performance.now();
+        let timelineState = 0; // 0:Intro, 1:Dialog, 2:Hide Dialog
+
+        const lines = OPENING_LINES[GameConfig.currentSeason];
+        let dialogText = lines && lines.length > 0 ? lines[0].text : 'ポテトくん「……さ、寒い。温かい飲み物が〜」';
+        let dialogColor = lines && lines.length > 0 ? lines[0].color : '#B0E0E6';
+
+        // アニメーションループ (タイムライン制御)
         if (openingInterval) clearInterval(openingInterval);
         openingInterval = setInterval(() => {
-            if (currentState !== GameState.OPENING) return; // 安全策
+            if (currentState !== GameState.OPENING) return;
             updateSeasonEffects();
-        }, 16);
 
-        // Finish
-        openingTimers.push(setTimeout(() => {
-            finishOpening();
-        }, 13000));
+            const elapsed = (performance.now() - startTime) / 1000.0;
+
+            // --- UI タイムライン ---
+            if (elapsed < 3.0) {
+                if (timelineState === 0) {
+                    if (titleEl) titleEl.style.opacity = '1';
+                    timelineState = 1;
+                }
+            } else if (elapsed >= 3.0 && elapsed < 8.0) {
+                if (timelineState === 1) {
+                    if (titleEl) titleEl.style.opacity = '0';
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, dialogText, dialogColor);
+                    timelineState = 2;
+                }
+            } else if (elapsed >= 8.0 && elapsed < 11.0) {
+                if (timelineState === 2) {
+                    // ダイアログを消去 (ダミーの空文字で上書き、またはCanvasのクリアを待つ)
+                    // Canvasベースなら消えるまで少し時間がかかるが、フェードアウト効果になる
+                    timelineState = 3;
+                }
+            } else if (elapsed >= 11.0) {
+                finishOpening();
+                return;
+            }
+
+            // --- カメラ タイムライン ---
+            let idx = 0;
+            for (let i = 0; i < kfPos.length - 1; i++) {
+                if (elapsed >= kfPos[i].t && elapsed <= kfPos[i + 1].t) {
+                    idx = i; break;
+                } else if (i === kfPos.length - 2 && elapsed > kfPos[i + 1].t) {
+                    idx = i;
+                }
+            }
+            let t = 0;
+            if (elapsed > kfPos[idx].t) {
+                t = (elapsed - kfPos[idx].t) / (kfPos[idx + 1].t - kfPos[idx].t);
+                t = Math.max(0, Math.min(1, t));
+            }
+            const easedT = easeInOutSine(t);
+            const curPos = new THREE.Vector3().lerpVectors(kfPos[idx].p, kfPos[idx + 1].p, easedT);
+            const curLook = new THREE.Vector3().lerpVectors(kfLook[idx].l, kfLook[idx + 1].l, easedT);
+
+            camera.position.copy(curPos);
+            camera.lookAt(curLook);
+
+        }, 16);
     }
 
     // State Transition: Gameplay -> Ending

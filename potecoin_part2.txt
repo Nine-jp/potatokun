@@ -1,3 +1,49 @@
+                        // Front of Vending Machine (Default Position)
+                        const base = this.baseCamera;
+                        camera.position.copy(base.pos);
+                        camera.lookAt(base.lookAt);
+                        camera.updateMatrixWorld();
+
+                        // Assets Init (Hidden at start)
+                        if (banzaiNPC) {
+                            banzaiNPC.visible = false; // Hidden until Step 3
+                            banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                            banzaiNPC.rotation.y = -Math.PI / 8;
+                        } else {
+                            // Emergency Spawn check
+                            spawnEndingAssets(() => {
+                                if (banzaiNPC) {
+                                    addEndingObject(banzaiNPC);
+                                    banzaiNPC.visible = false;
+                                    banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+                                    banzaiNPC.rotation.y = -Math.PI / 8;
+                                }
+                            });
+                        }
+                        if (juiceModel) {
+                            juiceModel.visible = false; // Hidden until Step 2
+                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+                            const vm = NPC_CONFIG.vending_machine;
+                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
+                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+
+                            // Rotation: Sideways (Z-axis rotation)
+                            juiceModel.rotation.set(0, 0, Math.PI / 2);
+                        }
+                    }
+                },
+                {
+                    time: 1.5,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 2: Juice Slide");
+                        if (juiceModel) juiceModel.visible = true;
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
+                    }
+                },
+                {
+                    time: 3.5,
+                    fired: false,
                     action: () => {
                         console.log("Ending Step 3: Potato Appears");
                         if (banzaiNPC) banzaiNPC.visible = true;
@@ -1952,49 +1998,3 @@
                 mat.alphaTest = 0.5;
                 mat.side = THREE.DoubleSide;
 
-                // 4. InstancedMesh 作成
-                const grassCount = 800;
-                const iMesh = new THREE.InstancedMesh(grassMesh.geometry, mat, grassCount);
-                iMesh.name = 'InstancedGrassField';
-                iMesh.castShadow = false;
-                iMesh.receiveShadow = true;
-                iMesh.userData.ignoreGround = true;
-
-                const dummy = new THREE.Object3D();
-                let placed = 0;
-                let attempts = 0;
-
-                // 5. 配置ループ
-                while (placed < grassCount && attempts < 5000) {
-                    attempts++;
-                    const x = (Math.random() - 0.5) * 62;
-                    const z = (Math.random() - 0.5) * 62;
-                    if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
-
-                    dummy.position.set(x, 0, z);
-                    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
-                    const s = 3.5 + Math.random() * 2.0;
-                    dummy.scale.set(s, s, s);
-                    dummy.updateMatrix();
-
-                    iMesh.setMatrixAt(placed, dummy.matrix);
-                    placed++;
-                }
-
-                iMesh.instanceMatrix.needsUpdate = true;
-                scene.add(iMesh);
-                window.sgGrassInstancedMesh = iMesh;
-
-                console.log(`✅ ${placed} grass patches (InstancedMesh Fix Mode).`);
-                if (typeof GameConfig !== 'undefined') window.setGrassSeason(GameConfig.currentSeason);
-            }, undefined, console.error);
-        }
-
-        // ★ GLOBAL SEASON MANAGER (Comms Tower)
-        window.setGameSeason = (seasonName) => {
-            console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
-
-            // 1. Grass
-            if (window.setGrassSeason) window.setGrassSeason(seasonName);
-
-            // 2. Trees

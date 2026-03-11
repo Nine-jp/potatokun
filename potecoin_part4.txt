@@ -1,3 +1,49 @@
+
+        // Update Mixers
+        if (window.sgMixers && window.sgMixers.length > 0) {
+            window.sgMixers.forEach(mixer => mixer.update(delta));
+        }
+
+        if (renderer && scene && camera) {
+            // Debug Log for Ending Camera
+            if (currentState === GameState.ENDING) {
+                // Throttle log to once per second approx? No, user asked for it. 
+                // But let's simple throttle to avoid console flood 60fps
+                if (Math.random() < 0.01) {
+                    console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
+                }
+            }
+
+            // DEBUG: 座標情報の更新
+            if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
+                const panel = document.getElementById('debug-pos-panel');
+                if (panel && camera) {
+                    const x = camera.position.x.toFixed(2);
+                    const z = camera.position.z.toFixed(2);
+                    const y = camera.position.y.toFixed(2);
+                    panel.innerText = `POS X:${x} Z:${z} H:${y}`;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    }
+
+
+
+
+
+
+    // ==========================================
+    // 木 (Tree) と ベンチ (Bench) の配置（品質維持・最適化版）
+    // ==========================================
+
+    /*
+        function spawnTrees() {
+            console.log("--- spawnTrees CALLED (Time Slicing Mode) ---");
+     
+            // ★ 葉っぱ専用カラーパレット
+            const TREE_PALETTES = {
                 spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
                 summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
                 autumn: [0xFF4500, 0xD2691E, 0xFF8C00, 0xFFD700],

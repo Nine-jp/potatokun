@@ -1,3 +1,49 @@
+                // 4. InstancedMesh 作成
+                const grassCount = 800;
+                const iMesh = new THREE.InstancedMesh(grassMesh.geometry, mat, grassCount);
+                iMesh.name = 'InstancedGrassField';
+                iMesh.castShadow = false;
+                iMesh.receiveShadow = true;
+                iMesh.userData.ignoreGround = true;
+
+                const dummy = new THREE.Object3D();
+                let placed = 0;
+                let attempts = 0;
+
+                // 5. 配置ループ
+                while (placed < grassCount && attempts < 5000) {
+                    attempts++;
+                    const x = (Math.random() - 0.5) * 62;
+                    const z = (Math.random() - 0.5) * 62;
+                    if (typeof ExclusionManager !== 'undefined' && ExclusionManager.isBlocked(x, z)) continue;
+
+                    dummy.position.set(x, 0, z);
+                    dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+                    const s = 3.5 + Math.random() * 2.0;
+                    dummy.scale.set(s, s, s);
+                    dummy.updateMatrix();
+
+                    iMesh.setMatrixAt(placed, dummy.matrix);
+                    placed++;
+                }
+
+                iMesh.instanceMatrix.needsUpdate = true;
+                scene.add(iMesh);
+                window.sgGrassInstancedMesh = iMesh;
+
+                console.log(`✅ ${placed} grass patches (InstancedMesh Fix Mode).`);
+                if (typeof GameConfig !== 'undefined') window.setGrassSeason(GameConfig.currentSeason);
+            }, undefined, console.error);
+        }
+
+        // ★ GLOBAL SEASON MANAGER (Comms Tower)
+        window.setGameSeason = (seasonName) => {
+            console.log(`%c=== SEASON CHANGE: ${seasonName.toUpperCase()} ===`, 'color: orange; font-weight: bold;');
+
+            // 1. Grass
+            if (window.setGrassSeason) window.setGrassSeason(seasonName);
+
+            // 2. Trees
             if (window.setTreeSeason) window.setTreeSeason(seasonName);
 
             // 3. Environment (Sky, Fog, Sun)
@@ -1952,49 +1998,3 @@
         // Init mix clock if needed
         if (!window.sgClock) window.sgClock = new THREE.Clock();
         const delta = window.sgClock.getDelta();
-
-        // Update Mixers
-        if (window.sgMixers && window.sgMixers.length > 0) {
-            window.sgMixers.forEach(mixer => mixer.update(delta));
-        }
-
-        if (renderer && scene && camera) {
-            // Debug Log for Ending Camera
-            if (currentState === GameState.ENDING) {
-                // Throttle log to once per second approx? No, user asked for it. 
-                // But let's simple throttle to avoid console flood 60fps
-                if (Math.random() < 0.01) {
-                    console.log('RENDER CAMERA', currentState, camera.uuid, camera.position.toArray());
-                }
-            }
-
-            // DEBUG: 座標情報の更新
-            if (typeof GameConfig !== 'undefined' && GameConfig.debugMode) {
-                const panel = document.getElementById('debug-pos-panel');
-                if (panel && camera) {
-                    const x = camera.position.x.toFixed(2);
-                    const z = camera.position.z.toFixed(2);
-                    const y = camera.position.y.toFixed(2);
-                    panel.innerText = `POS X:${x} Z:${z} H:${y}`;
-                }
-            }
-
-            renderer.render(scene, camera);
-        }
-    }
-
-
-
-
-
-
-    // ==========================================
-    // 木 (Tree) と ベンチ (Bench) の配置（品質維持・最適化版）
-    // ==========================================
-
-    /*
-        function spawnTrees() {
-            console.log("--- spawnTrees CALLED (Time Slicing Mode) ---");
-     
-            // ★ 葉っぱ専用カラーパレット
-            const TREE_PALETTES = {
