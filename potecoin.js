@@ -976,7 +976,7 @@ const SearchGame = (() => {
             rotation: -Math.PI / 2,
         },
         gameplay: {
-            position: { x: -26.5, z: -14.0 },
+            position: { x: -28.5, z: -15.5 },
             rotation: Math.PI / 4 + Math.PI / 2,
         },
         vending_machine: { x: -28, z: -18.0 } // Updated to actual map location

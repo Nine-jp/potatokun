@@ -1,3 +1,4 @@
+                    panel.innerText = `POS X:${x} Z:${z} H:${y}`;
                 }
             }
 
