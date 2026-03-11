@@ -1218,6 +1218,12 @@ const SearchGame = (() => {
         setTimeout(async () => {
             initThreeJS();
 
+            // ★ 初期フレームバグ修正: レンダリング開始時から即座にオープニング初期位置（空）へカメラを配置
+            if (!GameConfig.debugMode) {
+                camera.position.set(-25.0, 15.0, -8.0);
+                camera.lookAt(-26.5, 0.5, -14.0);
+            }
+
             if (animationId) cancelAnimationFrame(animationId);
 
             // ★ Loop Start (DeltaTime)
@@ -1871,8 +1877,8 @@ const SearchGame = (() => {
         // カメラキーフレーム定義
         const kfPos = [
             { t: 0, p: new THREE.Vector3(-25.0, 15.0, -8.0) }, // 0.0s: 上空から
-            { t: 3, p: new THREE.Vector3(-24.5, 0.6, -11.0) }, // 3.0s: 目線ローアングル (自販機も収まる)
-            { t: 8, p: new THREE.Vector3(-24.5, 0.6, -11.0) }, // 8.0s: 停止したまま
+            { t: 3, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 3.0s: 目線ローアングル (現在より50%ポテトくんに接近)
+            { t: 8, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 8.0s: 停止したまま
             { t: 11, p: new THREE.Vector3(-27.5, 0.6, -15.5) } // 11.0s: 新スポーン地点
         ];
         const kfLook = [
@@ -1887,8 +1893,19 @@ const SearchGame = (() => {
         let timelineState = 0; // 0:Intro, 1:Dialog, 2:Hide Dialog
 
         const lines = OPENING_LINES[GameConfig.currentSeason];
-        let dialogText = lines && lines.length > 0 ? lines[0].text : 'ポテトくん「……さ、寒い。温かい飲み物が〜」';
-        let dialogColor = lines && lines.length > 0 ? lines[0].color : '#B0E0E6';
+
+        // 各時間のダイアログ内容を取得（存在しない場合のフォールバック含む）
+        const text0s = lines && lines.length > 0 ? lines[0].text : 'ポテトくん「……さ、寒い。温かい飲み物が〜」';
+        const color0s = lines && lines.length > 0 ? lines[0].color : '#B0E0E6';
+
+        const text4s = lines && lines.length > 1 ? lines[1].text : 'おや？ ポテトくんが困っているようだ...';
+        const color4s = lines && lines.length > 1 ? lines[1].color : '#FFFFFF';
+
+        const text7s = lines && lines.length > 2 ? lines[2].text : 'こんな寒さじゃ、凍えちゃうね...';
+        const color7s = lines && lines.length > 2 ? lines[2].color : '#FFFFFF';
+
+        const text10s = lines && lines.length > 3 ? lines[3].text : 'よし！ コインを集めてジュースを買ってあげよう！';
+        const color10s = lines && lines.length > 3 ? lines[3].color : '#FFFFFF';
 
         // アニメーションループ (タイムライン制御)
         if (openingInterval) clearInterval(openingInterval);
@@ -1899,24 +1916,44 @@ const SearchGame = (() => {
             const elapsed = (performance.now() - startTime) / 1000.0;
 
             // --- UI タイムライン ---
+            // 0.0s 〜 3.0s: 導入（タイトルロゴ出＋最初のダイアログ）
             if (elapsed < 3.0) {
                 if (timelineState === 0) {
                     if (titleEl) titleEl.style.opacity = '1';
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
                     timelineState = 1;
                 }
-            } else if (elapsed >= 3.0 && elapsed < 8.0) {
+            }
+            // 3.0s 〜 4.0s: クローズアップ移行直後（少し間を置く場合は表示維持）
+            else if (elapsed >= 3.0 && elapsed < 4.0) {
                 if (timelineState === 1) {
-                    if (titleEl) titleEl.style.opacity = '0';
-                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, dialogText, dialogColor);
+                    if (titleEl) titleEl.style.opacity = '0'; // ロゴ消去
                     timelineState = 2;
                 }
-            } else if (elapsed >= 8.0 && elapsed < 11.0) {
+            }
+            // 4.0s 〜 7.0s: ダイアログ2番目
+            else if (elapsed >= 4.0 && elapsed < 7.0) {
                 if (timelineState === 2) {
-                    // ダイアログを消去 (ダミーの空文字で上書き、またはCanvasのクリアを待つ)
-                    // Canvasベースなら消えるまで少し時間がかかるが、フェードアウト効果になる
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text4s, color4s);
                     timelineState = 3;
                 }
-            } else if (elapsed >= 11.0) {
+            }
+            // 7.0s 〜 10.0s: ダイアログ3番目
+            else if (elapsed >= 7.0 && elapsed < 10.0) {
+                if (timelineState === 3) {
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text7s, color7s);
+                    timelineState = 4;
+                }
+            }
+            // 10.0s 〜 11.0s: トランジション移動開始＋ダイアログ4番目
+            else if (elapsed >= 10.0 && elapsed < 11.0) {
+                if (timelineState === 4) {
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text10s, color10s);
+                    timelineState = 5;
+                }
+            }
+            // 11.0s以降: 操作解禁・START
+            else if (elapsed >= 11.0) {
                 finishOpening();
                 return;
             }

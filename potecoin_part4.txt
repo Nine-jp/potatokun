@@ -1,3 +1,40 @@
+                    break;
+                }
+            }
+
+            if (targetFound) {
+                // Target locked
+                window.sgCurrentTarget = targetFound;
+                crosshair.classList.add('target-locked');
+                getBtn.style.display = 'block';
+
+                // Position button near crosshair
+                getBtn.style.left = '50%';
+                getBtn.style.top = '60%';
+                getBtn.style.transform = 'translate(-50%, -50%)';
+
+                if (targetType === 'vending') {
+                    getBtn.innerHTML = '🍹<br>BUY';
+                } else if (targetType === 'action') {
+                    getBtn.innerHTML = '⛏️<br>DIG'; // Show Dig Icon
+                    getBtn.style.background = '#FFD700'; // Gold color
+                } else {
+                    getBtn.innerHTML = '🖐️<br>GET!';
+                    getBtn.style.background = ''; // Reset to default
+                }
+            } else {
+                // No target
+                window.sgCurrentTarget = null;
+                crosshair.classList.remove('target-locked');
+                getBtn.style.display = 'none';
+            }
+        }
+    }
+
+    function render() {
+        // Init mix clock if needed
+        if (!window.sgClock) window.sgClock = new THREE.Clock();
+        const delta = window.sgClock.getDelta();
 
         // Update Mixers
         if (window.sgMixers && window.sgMixers.length > 0) {

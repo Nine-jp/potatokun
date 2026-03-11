@@ -1,3 +1,40 @@
+        if (controls) controls.enabled = false;
+        if (slideModel) slideModel.visible = false;
+
+        // Start Controller
+        EndingController.start();
+    }
+
+
+    /**
+     * エンディングコントローラー
+     * 演出を一本のタイムラインで管理
+     */
+    const EndingController = {
+        time: 0,
+        steps: [],
+
+        // ★ Camera Base Definition (Single Source of Truth)
+        // [FIXED] Default Frontal View
+        // Pos: (vm.x, 1.3, vm.z + 3.5)
+        // LookAt: (vm.x, 1.3, vm.z)
+        baseCamera: {
+            pos: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z + 3.5),
+            lookAt: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z)
+        },
+
+        start: function () {
+            this.time = 0;
+
+            // Define Steps
+            this.steps = [
+                {
+                    time: 0.0,
+                    fired: false,
+                    action: () => {
+                        console.log("Ending Step 1: Init Camera & Assets");
+
+                        // Camera Setup: Use BASE CONSTANT
                         // Front of Vending Machine (Default Position)
                         const base = this.baseCamera;
                         camera.position.copy(base.pos);
@@ -1961,40 +1998,3 @@
             if (window.sgGrassInstancedMesh) {
                 const color = new THREE.Color();
                 for (let i = 0; i < window.sgGrassInstancedMesh.count; i++) {
-                    color.setHex(palette[i % palette.length]);
-                    window.sgGrassInstancedMesh.setColorAt(i, color);
-                }
-                if (window.sgGrassInstancedMesh.instanceColor) {
-                    window.sgGrassInstancedMesh.instanceColor.needsUpdate = true;
-                }
-            }
-        };
-
-        function spawnGrass() {
-            if (window.hasSpawnedGrass) return;
-            window.hasSpawnedGrass = true;
-            console.log("--- spawnGrass (InstancedMesh Mode) ---");
-
-            // クリーンアップ
-            const existing = scene.getObjectByName('InstancedGrassField');
-            if (existing) {
-                existing.geometry?.dispose();
-                scene.remove(existing);
-            }
-
-            new FBXLoader().load('models/grass.fbx', (masterGrass) => {
-                // 1. メッシュの抽出
-                let grassMesh = null;
-                masterGrass.traverse(c => { if (c.isMesh) grassMesh = c; });
-                if (!grassMesh) return;
-
-                // 2. 【形状補正】-90度で起こす
-                grassMesh.geometry.rotateX(-Math.PI / 2);
-
-                // 3. マテリアル準備
-                let mat = grassMesh.material;
-                mat = (Array.isArray(mat) ? mat[0] : mat).clone();
-                mat.transparent = true;
-                mat.alphaTest = 0.5;
-                mat.side = THREE.DoubleSide;
-

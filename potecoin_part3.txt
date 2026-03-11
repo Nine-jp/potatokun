@@ -1,3 +1,40 @@
+                    color.setHex(palette[i % palette.length]);
+                    window.sgGrassInstancedMesh.setColorAt(i, color);
+                }
+                if (window.sgGrassInstancedMesh.instanceColor) {
+                    window.sgGrassInstancedMesh.instanceColor.needsUpdate = true;
+                }
+            }
+        };
+
+        function spawnGrass() {
+            if (window.hasSpawnedGrass) return;
+            window.hasSpawnedGrass = true;
+            console.log("--- spawnGrass (InstancedMesh Mode) ---");
+
+            // クリーンアップ
+            const existing = scene.getObjectByName('InstancedGrassField');
+            if (existing) {
+                existing.geometry?.dispose();
+                scene.remove(existing);
+            }
+
+            new FBXLoader().load('models/grass.fbx', (masterGrass) => {
+                // 1. メッシュの抽出
+                let grassMesh = null;
+                masterGrass.traverse(c => { if (c.isMesh) grassMesh = c; });
+                if (!grassMesh) return;
+
+                // 2. 【形状補正】-90度で起こす
+                grassMesh.geometry.rotateX(-Math.PI / 2);
+
+                // 3. マテリアル準備
+                let mat = grassMesh.material;
+                mat = (Array.isArray(mat) ? mat[0] : mat).clone();
+                mat.transparent = true;
+                mat.alphaTest = 0.5;
+                mat.side = THREE.DoubleSide;
+
                 // 4. InstancedMesh 作成
                 const grassCount = 800;
                 const iMesh = new THREE.InstancedMesh(grassMesh.geometry, mat, grassCount);
@@ -1961,40 +1998,3 @@
                 if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
                     targetFound = coinGroup;
                     targetType = 'coin';
-                    break;
-                }
-            }
-
-            if (targetFound) {
-                // Target locked
-                window.sgCurrentTarget = targetFound;
-                crosshair.classList.add('target-locked');
-                getBtn.style.display = 'block';
-
-                // Position button near crosshair
-                getBtn.style.left = '50%';
-                getBtn.style.top = '60%';
-                getBtn.style.transform = 'translate(-50%, -50%)';
-
-                if (targetType === 'vending') {
-                    getBtn.innerHTML = '🍹<br>BUY';
-                } else if (targetType === 'action') {
-                    getBtn.innerHTML = '⛏️<br>DIG'; // Show Dig Icon
-                    getBtn.style.background = '#FFD700'; // Gold color
-                } else {
-                    getBtn.innerHTML = '🖐️<br>GET!';
-                    getBtn.style.background = ''; // Reset to default
-                }
-            } else {
-                // No target
-                window.sgCurrentTarget = null;
-                crosshair.classList.remove('target-locked');
-                getBtn.style.display = 'none';
-            }
-        }
-    }
-
-    function render() {
-        // Init mix clock if needed
-        if (!window.sgClock) window.sgClock = new THREE.Clock();
-        const delta = window.sgClock.getDelta();
