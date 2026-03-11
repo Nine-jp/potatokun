@@ -1024,27 +1024,27 @@ const SearchGame = (() => {
     // === Season-specific Dialog Lines ===
     const OPENING_LINES = {
         spring: [
-            { time: 0, text: 'ポテトくん「ふわぁ〜… ぽかぽかして ねむいなぁ…」', color: '#FF69B4' },
-            { time: 4000, text: 'あ！ 公園の桜が 満開だね！', color: '#87CEFA' },
-            { time: 7000, text: 'お花見したいけど、のどが渇いちゃった…', color: '#87CEFA' },
+            { time: 3000, text: 'ポテトくん「ふわぁ〜… ぽかぽかして ねむいなぁ…」', color: '#FF69B4' },
+            { time: 5000, text: 'あ！ 公園の桜が 満開だね！', color: '#87CEFA' },
+            { time: 7500, text: 'お花見したいけど、のどが渇いちゃった…', color: '#87CEFA' },
             { time: 10000, text: 'コインを集めて、ジュースでお花見パーティーしよう！', color: '#FFA500' },
         ],
         summer: [
-            { time: 0, text: 'ポテトくん「はぁ〜… あついよ〜… のどカラカラ…」', color: '#FFAE00' },
-            { time: 4000, text: 'あれれ？ ポテトくん、とっても困ってる！', color: '#87CEFA' },
-            { time: 7000, text: 'こんな暑さじゃ、元気も出ないよね…', color: '#87CEFA' },
+            { time: 3000, text: 'ポテトくん「はぁ〜… あついよ〜… のどカラカラ…」', color: '#FFAE00' },
+            { time: 5000, text: 'あれれ？ ポテトくん、とっても困ってる！', color: '#87CEFA' },
+            { time: 7500, text: 'こんな暑さじゃ、元気も出ないよね…', color: '#87CEFA' },
             { time: 10000, text: 'よし！ 公園に落ちているコインを集めて\\nジュースを買ってあげよう！', color: '#87CEFA' },
         ],
         autumn: [
-            { time: 0, text: 'ポテトくん「ぐぅ〜…… お腹すいたなぁ……」', color: '#D2691E' },
-            { time: 4000, text: '涼しくなってきて、食欲が止まらないよ！', color: '#FF8C00' },
-            { time: 7000, text: 'あ！ あんなところに焼き芋……じゃなくてコインが！', color: '#D2691E' },
+            { time: 3000, text: 'ポテトくん「ぐぅ〜…… お腹すいたなぁ……」', color: '#D2691E' },
+            { time: 5000, text: '涼しくなってきて、食欲が止まらないよ！', color: '#FF8C00' },
+            { time: 7500, text: 'あ！ あんなところに焼き芋……じゃなくてコインが！', color: '#D2691E' },
             { time: 10000, text: 'コインを集めて、秋の味覚をお腹いっぱい食べよう！', color: '#8B4513' },
         ],
         winter: [
-            { time: 0, text: 'ポテトくん「ぶるる… さむい… からだが こおりそう…」', color: '#FFAE00' },
-            { time: 4000, text: 'おや？ ポテトくんが ふるえている！', color: '#87CEFA' },
-            { time: 7000, text: 'こんな寒さじゃ、あったかいものが欲しいね', color: '#87CEFA' },
+            { time: 3000, text: 'ポテトくん「ぶるる… さむい… からだが こおりそう…」', color: '#FFAE00' },
+            { time: 5000, text: 'おや？ ポテトくんが ふるえている！', color: '#87CEFA' },
+            { time: 7500, text: 'こんな寒さじゃ、あったかいものが欲しいね', color: '#87CEFA' },
             { time: 10000, text: 'よし！ コインを集めて、ホットドリンクを買ってあげよう！', color: '#87CEFA' },
         ],
     };
@@ -1877,15 +1877,15 @@ const SearchGame = (() => {
         // カメラキーフレーム定義
         const kfPos = [
             { t: 0, p: new THREE.Vector3(-25.0, 15.0, -8.0) }, // 0.0s: 上空から
-            { t: 3, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 3.0s: 目線ローアングル (現在より50%ポテトくんに接近)
-            { t: 8, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 8.0s: 停止したまま
-            { t: 11, p: new THREE.Vector3(-27.5, 0.6, -15.5) } // 11.0s: 新スポーン地点
+            { t: 3, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 3.0s: 目線ローアングル
+            { t: 11, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 11.0s: 停止したまま
+            { t: 13, p: new THREE.Vector3(-27.5, 0.6, -15.5) } // 13.0s: 新スポーン地点
         ];
         const kfLook = [
             { t: 0, l: new THREE.Vector3(-26.5, 0.5, -14.0) },
             { t: 3, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
-            { t: 8, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
-            { t: 11, l: new THREE.Vector3(-28.0, 0.6, -18.0) }
+            { t: 11, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
+            { t: 13, l: new THREE.Vector3(-28.0, 0.6, -18.0) }
         ];
 
         const easeInOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
@@ -1916,44 +1916,52 @@ const SearchGame = (() => {
             const elapsed = (performance.now() - startTime) / 1000.0;
 
             // --- UI タイムライン ---
-            // 0.0s 〜 3.0s: 導入（タイトルロゴ出＋最初のダイアログ）
+            // 0.0s 〜 3.0s: 導入（タイトルロゴ出）
             if (elapsed < 3.0) {
                 if (timelineState === 0) {
                     if (titleEl) titleEl.style.opacity = '1';
-                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
                     timelineState = 1;
                 }
             }
-            // 3.0s 〜 4.0s: クローズアップ移行直後（少し間を置く場合は表示維持）
-            else if (elapsed >= 3.0 && elapsed < 4.0) {
+            // 3.0s 〜 5.0s: ロゴ消去＋ダイアログ1番目
+            else if (elapsed >= 3.0 && elapsed < 5.0) {
                 if (timelineState === 1) {
                     if (titleEl) titleEl.style.opacity = '0'; // ロゴ消去
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
                     timelineState = 2;
                 }
             }
-            // 4.0s 〜 7.0s: ダイアログ2番目
-            else if (elapsed >= 4.0 && elapsed < 7.0) {
+            // 5.0s 〜 7.5s: ダイアログ2番目
+            else if (elapsed >= 5.0 && elapsed < 7.5) {
                 if (timelineState === 2) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text4s, color4s);
                     timelineState = 3;
                 }
             }
-            // 7.0s 〜 10.0s: ダイアログ3番目
-            else if (elapsed >= 7.0 && elapsed < 10.0) {
+            // 7.5s 〜 10.0s: ダイアログ3番目
+            else if (elapsed >= 7.5 && elapsed < 10.0) {
                 if (timelineState === 3) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text7s, color7s);
                     timelineState = 4;
                 }
             }
-            // 10.0s 〜 11.0s: トランジション移動開始＋ダイアログ4番目
+            // 10.0s 〜 11.0s: ダイアログ4番目
             else if (elapsed >= 10.0 && elapsed < 11.0) {
                 if (timelineState === 4) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text10s, color10s);
                     timelineState = 5;
                 }
             }
-            // 11.0s以降: 操作解禁・START
-            else if (elapsed >= 11.0) {
+            // 11.0s 〜 13.0s: ダイアログ消去 (トランジション開始)
+            else if (elapsed >= 11.0 && elapsed < 13.0) {
+                if (timelineState === 5) {
+                    const tapContainers = document.querySelectorAll('.sg-tap-text');
+                    tapContainers.forEach(el => el.remove());
+                    timelineState = 6;
+                }
+            }
+            // 13.0s以降: 操作解禁・START
+            else if (elapsed >= 13.0) {
                 finishOpening();
                 return;
             }
