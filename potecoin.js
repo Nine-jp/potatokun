@@ -1513,16 +1513,8 @@ const SearchGame = (() => {
         loader.load(
             seasonConfig.model,
             (fbx) => {
-                console.log('FBX Loaded: Opening NPC (' + GameConfig.currentSeason + ')');
-
-                // スケール調整
-                const box = new THREE.Box3().setFromObject(fbx);
-                const size = new THREE.Vector3();
-                box.getSize(size);
-                // 元のスケール計算
-                const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-                // 元の計算値の0.7倍を適用
-                fbx.scale.setScalar(scaleFactor * 0.7);
+                // スケール調整: FBX(cm) -> Three.js(m) の単位変換のみ
+                fbx.scale.setScalar(0.01);
 
                 // 位置・回転設定
                 const scaledBox = new THREE.Box3().setFromObject(fbx);
@@ -1582,16 +1574,8 @@ const SearchGame = (() => {
         loader.load(
             seasonConfig.model,
             (fbx) => {
-                console.log('FBX Loaded: Gameplay NPC (' + GameConfig.currentSeason + ')');
-
-                // スケール調整
-                const box = new THREE.Box3().setFromObject(fbx);
-                const size = new THREE.Vector3();
-                box.getSize(size);
-                // 元のスケール計算
-                const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-                // 元の計算値の0.7倍を適用
-                fbx.scale.setScalar(scaleFactor * 0.7);
+                // スケール調整: FBX(cm) -> Three.js(m) の単位変換のみ
+                fbx.scale.setScalar(0.01);
 
                 // 位置・回転設定
                 const scaledBox = new THREE.Box3().setFromObject(fbx);
@@ -1650,15 +1634,8 @@ const SearchGame = (() => {
         console.log('LOADING ENDING POTATO (Juice):', banzaiPath); // Requested Log
 
         loader.load(banzaiPath, (fbx) => {
-            // スケール調整
-            const seasonConfig = SEASON_CONFIG[GameConfig.currentSeason].openingNPC;
-            const box = new THREE.Box3().setFromObject(fbx);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            // 元のスケール計算
-            const scaleFactor = seasonConfig.height / (size.y > 0 ? size.y : 1.0);
-            // 元の計算値の0.7倍を適用
-            fbx.scale.setScalar(scaleFactor * 0.7);
+            // スケール調整: FBX(cm) -> Three.js(m) の単位変換のみ
+            fbx.scale.setScalar(0.01);
 
             // アウトライン & Material Cloning (Isolation)
             fbx.userData.entityType = 'npc';
