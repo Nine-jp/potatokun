@@ -1898,16 +1898,16 @@ const SearchGame = (() => {
             new THREE.Vector3(-25.0, 20.0, -8.0),    // t=0: 上空
             new THREE.Vector3(-25.5, 1.3, -11.0),     // t=3: 地面降下
             new THREE.Vector3(-25.5, 0.8, -12.5),     // t=5: ポテトくん接近(静止開始)
-            new THREE.Vector3(-25.5, 0.8, -19.3),     // t=9: 16s時点 (2台目の前までスロー進行)
-            new THREE.Vector3(-25.5, 0.6, -19.95)     // t=11: 18s時点 (2台目と3台目の間でピタッと停止)
+            new THREE.Vector3(-25.5, 0.8, -19.3),     // t=13: 20s時点 (2台目の前までさらにスロー進行)
+            new THREE.Vector3(-25.5, 0.6, -19.95)     // t=15: 22s時点 (2台目と3台目の間でピタッと停止)
         ];
         const camCurve = new THREE.CatmullRomCurve3(camPoints);
 
         const lookPoints = [
             new THREE.Vector3(-26.5, 0.5, -14.0), // t=0: ポテトくん
             new THREE.Vector3(-26.5, 0.5, -14.0), // t=5: ポテトくん(静止)
-            new THREE.Vector3(-28.0, 0.6, -19.3), // t=9: 2台目を見つめる
-            new THREE.Vector3(-7.0, 0.6, -25.0)   // t=11: 18s時点(キッチンカーへ回転)
+            new THREE.Vector3(-28.0, 0.6, -19.3), // t=13: 20s地点
+            new THREE.Vector3(-7.0, 0.6, -25.0)   // t=15: 22s時点(キッチンカーへ回転)
         ];
         const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
 
@@ -1956,18 +1956,23 @@ const SearchGame = (() => {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text4s, color4s);
                     timelineState = 4;
                 }
-            } else if (elapsed >= 10.0 && elapsed < 12.0) {
+            } else if (elapsed >= 10.0 && elapsed < 12.5) {
                 if (timelineState === 4) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text7s, color7s);
                     timelineState = 5;
                 }
-            } else if (elapsed >= 12.0 && elapsed < 18.0) {
+            } else if (elapsed >= 12.5 && elapsed < 15.0) {
                 if (timelineState === 5) {
-                    const tapContainers = document.querySelectorAll('.sg-tap-text');
-                    tapContainers.forEach(el => el.remove());
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text10s, color10s);
                     timelineState = 6;
                 }
-            } else if (elapsed >= 18.0) {
+            } else if (elapsed >= 15.0 && elapsed < 22.0) {
+                if (timelineState === 6) {
+                    const tapContainers = document.querySelectorAll('.sg-tap-text');
+                    tapContainers.forEach(el => el.remove());
+                    timelineState = 7;
+                }
+            } else if (elapsed >= 22.0) {
                 finishOpening();
                 return;
             }
@@ -1980,7 +1985,7 @@ const SearchGame = (() => {
                 effectiveElapsed = elapsed - 7.0; // 5sから再開
             }
 
-            const progress = Math.min(effectiveElapsed / 11.0, 1.0);
+            const progress = Math.min(effectiveElapsed / 15.0, 1.0);
             const easedT = easeInOutSine(progress);
 
             const curPos = camCurve.getPoint(easedT);
