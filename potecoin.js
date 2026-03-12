@@ -1751,8 +1751,8 @@ const SearchGame = (() => {
         // 2. 物理座標の同期
         playerPosition.copy(finalPos);
 
-        // 3. 向きの同期（★公園中央を確実に見据える）
-        const targetLook = new THREE.Vector3(0, 0.6, 31);
+        // 3. 向きの同期（★キッチンカー方向を確実に見据える）
+        const targetLook = new THREE.Vector3(-7, 0.6, -25);
         cameraAngle = Math.atan2(-(targetLook.x - playerPosition.x), -(targetLook.z - playerPosition.z));
         playerFacing = cameraAngle;
         cameraPitch = 0;
@@ -1895,17 +1895,22 @@ const SearchGame = (() => {
             uiContainer.appendChild(titleEl);
         }        // 根本刷新：CatmullRomCurve3 による曲線軌道
         const camPoints = [
-            new THREE.Vector3(-25.0, 15.0, -8.0), // 0s: 上空
-            new THREE.Vector3(-25.5, 0.6, -12.5), // 3s: 接近
-            new THREE.Vector3(-25.5, 0.6, -12.5), // 8s: 停止
-            new THREE.Vector3(-27.5, 0.6, -15.5)  // 10s: 到着（Uターンしつつ中央向きへ）
+            new THREE.Vector3(-25.0, 20.0, -8.0),    // t=0: 上空
+            new THREE.Vector3(-25.5, 1.3, -11.0),     // t=3: 地面降下
+            new THREE.Vector3(-25.5, 0.8, -12.5),     // t=5: ポテトくん接近(静止開始)
+            new THREE.Vector3(-25.0, 0.8, -15.5),     // t=8: 12s(再始動)から3s後 (自販機の前方で緩やかに移動)
+            new THREE.Vector3(-27.0, 0.8, -18.0),     // t=10: 17s時点 (自販機付近でコンパクトにUターン)
+            new THREE.Vector3(-26.5, 0.6, -17.5)      // t=11: 18s時点 (ほぼその場で方向転換)
         ];
         const camCurve = new THREE.CatmullRomCurve3(camPoints);
 
         const lookPoints = [
-            new THREE.Vector3(-26.5, 0.5, -14.0), // 0s: ポテトくん
-            new THREE.Vector3(-26.5, 0.5, -14.0), // 8s: 維持
-            new THREE.Vector3(0, 0.6, 31)         // 10s: 公園中央
+            new THREE.Vector3(-26.5, 0.5, -14.0), // t=0: ポテトくん
+            new THREE.Vector3(-26.5, 0.5, -14.0), // t=3: ポテトくん
+            new THREE.Vector3(-26.5, 0.5, -14.0), // t=5: ポテトくん(静止中もここを見る)
+            new THREE.Vector3(-28.0, 0.6, -18.0), // t=8: 15s時点
+            new THREE.Vector3(-14.0, 0.6, -25.0), // t=10: 17s時点
+            new THREE.Vector3(-7.0, 0.6, -25.0)   // t=11: 18s時点(キッチンカー)
         ];
         const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
 
@@ -1933,7 +1938,7 @@ const SearchGame = (() => {
 
             const elapsed = (performance.now() - startTime) / 1000.0;
 
-            // --- UI タイムライン ---
+            // --- UI タイムライン (20s version) ---
             if (elapsed < 3.0) {
                 if (timelineState === 0) {
                     if (titleEl) titleEl.style.opacity = '1';
@@ -1942,31 +1947,43 @@ const SearchGame = (() => {
             } else if (elapsed >= 3.0 && elapsed < 5.0) {
                 if (timelineState === 1) {
                     if (titleEl) titleEl.style.opacity = '0';
-                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
                     timelineState = 2;
                 }
             } else if (elapsed >= 5.0 && elapsed < 7.5) {
                 if (timelineState === 2) {
-                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text4s, color4s);
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
                     timelineState = 3;
                 }
             } else if (elapsed >= 7.5 && elapsed < 10.0) {
                 if (timelineState === 3) {
-                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text7s, color7s);
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text4s, color4s);
                     timelineState = 4;
                 }
-            } else if (elapsed >= 10.0) {
+            } else if (elapsed >= 10.0 && elapsed < 12.0) {
                 if (timelineState === 4) {
-                    const tapContainers = document.querySelectorAll('.sg-tap-text');
-                    tapContainers.forEach(el => el.remove());
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text7s, color7s);
                     timelineState = 5;
                 }
+            } else if (elapsed >= 12.0 && elapsed < 18.0) {
+                if (timelineState === 5) {
+                    const tapContainers = document.querySelectorAll('.sg-tap-text');
+                    tapContainers.forEach(el => el.remove());
+                    timelineState = 6;
+                }
+            } else if (elapsed >= 18.0) {
                 finishOpening();
                 return;
             }
 
-            // --- カメラ タイムライン (CatmullRomCurve3) ---
-            const progress = Math.min(elapsed / 10.0, 1.0);
+            // --- カメラ タイムライン (CatmullRomCurve3 with effective time) ---
+            let effectiveElapsed = elapsed;
+            if (elapsed >= 5.0 && elapsed < 12.0) {
+                effectiveElapsed = 5.0; // 静止
+            } else if (elapsed >= 12.0) {
+                effectiveElapsed = elapsed - 7.0; // 5sから再開
+            }
+
+            const progress = Math.min(effectiveElapsed / 11.0, 1.0);
             const easedT = easeInOutSine(progress);
 
             const curPos = camCurve.getPoint(easedT);
