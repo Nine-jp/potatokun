@@ -1,12 +1,3 @@
-                    color.setHex(palette[i % palette.length]);
-                    window.sgGrassInstancedMesh.setColorAt(i, color);
-                }
-                if (window.sgGrassInstancedMesh.instanceColor) {
-                    window.sgGrassInstancedMesh.instanceColor.needsUpdate = true;
-                }
-            }
-        };
-
         function spawnGrass() {
             if (window.hasSpawnedGrass) return;
             window.hasSpawnedGrass = true;
@@ -1998,3 +1989,12 @@
                 if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
                     targetFound = coinGroup;
                     targetType = 'coin';
+                    break;
+                }
+            }
+
+            if (targetFound) {
+                // Target locked
+                window.sgCurrentTarget = targetFound;
+                crosshair.classList.add('target-locked');
+                getBtn.style.display = 'block';

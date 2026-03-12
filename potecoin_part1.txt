@@ -1024,27 +1024,27 @@ const SearchGame = (() => {
     // === Season-specific Dialog Lines ===
     const OPENING_LINES = {
         spring: [
-            { time: 0, text: 'ポテトくん「ふわぁ〜… ぽかぽかして ねむいなぁ…」', color: '#FF69B4' },
-            { time: 4000, text: 'あ！ 公園の桜が 満開だね！', color: '#87CEFA' },
-            { time: 7000, text: 'お花見したいけど、のどが渇いちゃった…', color: '#87CEFA' },
+            { time: 3000, text: 'ポテトくん「ふわぁ〜… ぽかぽかして ねむいなぁ…」', color: '#FF69B4' },
+            { time: 5000, text: 'あ！ 公園の桜が 満開だね！', color: '#87CEFA' },
+            { time: 7500, text: 'お花見したいけど、のどが渇いちゃった…', color: '#87CEFA' },
             { time: 10000, text: 'コインを集めて、ジュースでお花見パーティーしよう！', color: '#FFA500' },
         ],
         summer: [
-            { time: 0, text: 'ポテトくん「はぁ〜… あついよ〜… のどカラカラ…」', color: '#FFAE00' },
-            { time: 4000, text: 'あれれ？ ポテトくん、とっても困ってる！', color: '#87CEFA' },
-            { time: 7000, text: 'こんな暑さじゃ、元気も出ないよね…', color: '#87CEFA' },
+            { time: 3000, text: 'ポテトくん「はぁ〜… あついよ〜… のどカラカラ…」', color: '#FFAE00' },
+            { time: 5000, text: 'あれれ？ ポテトくん、とっても困ってる！', color: '#87CEFA' },
+            { time: 7500, text: 'こんな暑さじゃ、元気も出ないよね…', color: '#87CEFA' },
             { time: 10000, text: 'よし！ 公園に落ちているコインを集めて\\nジュースを買ってあげよう！', color: '#87CEFA' },
         ],
         autumn: [
-            { time: 0, text: 'ポテトくん「ぐぅ〜…… お腹すいたなぁ……」', color: '#D2691E' },
-            { time: 4000, text: '涼しくなってきて、食欲が止まらないよ！', color: '#FF8C00' },
-            { time: 7000, text: 'あ！ あんなところに焼き芋……じゃなくてコインが！', color: '#D2691E' },
+            { time: 3000, text: 'ポテトくん「ぐぅ〜…… お腹すいたなぁ……」', color: '#D2691E' },
+            { time: 5000, text: '涼しくなってきて、食欲が止まらないよ！', color: '#FF8C00' },
+            { time: 7500, text: 'あ！ あんなところに焼き芋……じゃなくてコインが！', color: '#D2691E' },
             { time: 10000, text: 'コインを集めて、秋の味覚をお腹いっぱい食べよう！', color: '#8B4513' },
         ],
         winter: [
-            { time: 0, text: 'ポテトくん「ぶるる… さむい… からだが こおりそう…」', color: '#FFAE00' },
-            { time: 4000, text: 'おや？ ポテトくんが ふるえている！', color: '#87CEFA' },
-            { time: 7000, text: 'こんな寒さじゃ、あったかいものが欲しいね', color: '#87CEFA' },
+            { time: 3000, text: 'ポテトくん「ぶるる… さむい… からだが こおりそう…」', color: '#FFAE00' },
+            { time: 5000, text: 'おや？ ポテトくんが ふるえている！', color: '#87CEFA' },
+            { time: 7500, text: 'こんな寒さじゃ、あったかいものが欲しいね', color: '#87CEFA' },
             { time: 10000, text: 'よし！ コインを集めて、ホットドリンクを買ってあげよう！', color: '#87CEFA' },
         ],
     };
@@ -1289,14 +1289,14 @@ const SearchGame = (() => {
                 currentState = GameState.PLAYING;
 
                 // Position Player (Start Point)
-                if (typeof playerPosition !== 'undefined') {
-                    // ★修正: 自販機前のポテトくん付近へ
-                    playerPosition.set(-27.5, 0.6, -15.5);
-
-                    if (typeof playerFacing !== 'undefined') playerFacing = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
-
-                    if (typeof cameraAngle !== 'undefined') cameraAngle = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
-                }
+                        // ★ 根本同期：カメラ位置からプレイヤー位置を継承
+        if (typeof playerPosition !== 'undefined') {
+            playerPosition.copy(camera.position);
+            const targetLook = new THREE.Vector3(0, 0.6, 31);
+            const angle = Math.atan2(targetLook.x - playerPosition.x, targetLook.z - playerPosition.z);
+            if (typeof playerFacing !== 'undefined') playerFacing = angle;
+            if (typeof cameraAngle !== 'undefined') cameraAngle = angle;
+        }
 
                 // Show UI
                 const dpad = document.getElementById('sg-dpad');
@@ -1755,11 +1755,14 @@ const SearchGame = (() => {
         cameraDistance = 0;
 
         // Player Spawn Point at Vending Machine Area (Near Potato Kun)
-        playerPosition.set(-27.5, 0.6, -15.5);
-        playerFacing = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
-
-        // Sync Camera Angle to look toward Vending Machine
-        cameraAngle = playerFacing;
+                // ★ 根本同期：カメラ位置からプレイヤー位置を継承
+        if (typeof playerPosition !== 'undefined') {
+            playerPosition.copy(camera.position);
+            const targetLook = new THREE.Vector3(0, 0.6, 31);
+            const angle = Math.atan2(targetLook.x - playerPosition.x, targetLook.z - playerPosition.z);
+            if (typeof playerFacing !== 'undefined') playerFacing = angle;
+            if (typeof cameraAngle !== 'undefined') cameraAngle = angle;
+        }
         cameraPitch = 0;
 
         // Apply immediately so render doesn't flicker
@@ -1809,7 +1812,14 @@ const SearchGame = (() => {
             // Fallback UI
             const dpad = document.getElementById('sg-dpad');
             if (dpad) dpad.style.display = 'grid';
-            if (typeof playerPosition !== 'undefined') playerPosition.set(-27.5, 0.6, -15.5);
+                                // ★ 根本同期：カメラ位置からプレイヤー位置を継承
+        if (typeof playerPosition !== 'undefined') {
+            playerPosition.copy(camera.position);
+            const targetLook = new THREE.Vector3(0, 0.6, 31);
+            const angle = Math.atan2(targetLook.x - playerPosition.x, targetLook.z - playerPosition.z);
+            if (typeof playerFacing !== 'undefined') playerFacing = angle;
+            if (typeof cameraAngle !== 'undefined') cameraAngle = angle;
+        }
             showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
         }
 
@@ -1872,21 +1882,22 @@ const SearchGame = (() => {
             titleEl.style.pointerEvents = 'none';
             titleEl.innerText = 'PotatoKun VRM';
             uiContainer.appendChild(titleEl);
-        }
+        }        // 根本刷新：CatmullRomCurve3 による曲線軌道
+        const camPoints = [
+            new THREE.Vector3(-25.0, 15.0, -8.0), // 0s: 上空
+            new THREE.Vector3(-25.5, 0.6, -12.5), // 3s: 接近
+            new THREE.Vector3(-25.5, 0.6, -12.5), // 8s: 停止
+            new THREE.Vector3(-29.5, 0.6, -16.5), // 9.5s: 回避
+            new THREE.Vector3(-27.5, 0.6, -15.5)  // 11s: 到着
+        ];
+        const camCurve = new THREE.CatmullRomCurve3(camPoints);
 
-        // カメラキーフレーム定義
-        const kfPos = [
-            { t: 0, p: new THREE.Vector3(-25.0, 15.0, -8.0) }, // 0.0s: 上空から
-            { t: 3, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 3.0s: 目線ローアングル (現在より50%ポテトくんに接近)
-            { t: 8, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 8.0s: 停止したまま
-            { t: 11, p: new THREE.Vector3(-27.5, 0.6, -15.5) } // 11.0s: 新スポーン地点
+        const lookPoints = [
+            new THREE.Vector3(-26.5, 0.5, -14.0), // 初期
+            new THREE.Vector3(-27.5, 0.6, -16.0), // ポテトくん
+            new THREE.Vector3(0, 0.6, 31)         // 最終
         ];
-        const kfLook = [
-            { t: 0, l: new THREE.Vector3(-26.5, 0.5, -14.0) },
-            { t: 3, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
-            { t: 8, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
-            { t: 11, l: new THREE.Vector3(-28.0, 0.6, -18.0) }
-        ];
+        const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
 
         const easeInOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
         const startTime = performance.now();
@@ -1894,16 +1905,13 @@ const SearchGame = (() => {
 
         const lines = OPENING_LINES[GameConfig.currentSeason];
 
-        // 各時間のダイアログ内容を取得（存在しない場合のフォールバック含む）
+        // 各時間のダイアログ内容を取得
         const text0s = lines && lines.length > 0 ? lines[0].text : 'ポテトくん「……さ、寒い。温かい飲み物が〜」';
         const color0s = lines && lines.length > 0 ? lines[0].color : '#B0E0E6';
-
         const text4s = lines && lines.length > 1 ? lines[1].text : 'おや？ ポテトくんが困っているようだ...';
         const color4s = lines && lines.length > 1 ? lines[1].color : '#FFFFFF';
-
         const text7s = lines && lines.length > 2 ? lines[2].text : 'こんな寒さじゃ、凍えちゃうね...';
         const color7s = lines && lines.length > 2 ? lines[2].color : '#FFFFFF';
-
         const text10s = lines && lines.length > 3 ? lines[3].text : 'よし！ コインを集めてジュースを買ってあげよう！';
         const color10s = lines && lines.length > 3 ? lines[3].color : '#FFFFFF';
 
@@ -1916,65 +1924,48 @@ const SearchGame = (() => {
             const elapsed = (performance.now() - startTime) / 1000.0;
 
             // --- UI タイムライン ---
-            // 0.0s 〜 3.0s: 導入（タイトルロゴ出＋最初のダイアログ）
             if (elapsed < 3.0) {
                 if (timelineState === 0) {
                     if (titleEl) titleEl.style.opacity = '1';
-                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
                     timelineState = 1;
                 }
-            }
-            // 3.0s 〜 4.0s: クローズアップ移行直後（少し間を置く場合は表示維持）
-            else if (elapsed >= 3.0 && elapsed < 4.0) {
+            } else if (elapsed >= 3.0 && elapsed < 5.0) {
                 if (timelineState === 1) {
-                    if (titleEl) titleEl.style.opacity = '0'; // ロゴ消去
+                    if (titleEl) titleEl.style.opacity = '0';
+                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
                     timelineState = 2;
                 }
-            }
-            // 4.0s 〜 7.0s: ダイアログ2番目
-            else if (elapsed >= 4.0 && elapsed < 7.0) {
+            } else if (elapsed >= 5.0 && elapsed < 7.5) {
                 if (timelineState === 2) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text4s, color4s);
                     timelineState = 3;
                 }
-            }
-            // 7.0s 〜 10.0s: ダイアログ3番目
-            else if (elapsed >= 7.0 && elapsed < 10.0) {
+            } else if (elapsed >= 7.5 && elapsed < 10.0) {
                 if (timelineState === 3) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text7s, color7s);
                     timelineState = 4;
                 }
-            }
-            // 10.0s 〜 11.0s: トランジション移動開始＋ダイアログ4番目
-            else if (elapsed >= 10.0 && elapsed < 11.0) {
+            } else if (elapsed >= 10.0 && elapsed < 11.0) {
                 if (timelineState === 4) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text10s, color10s);
                     timelineState = 5;
                 }
-            }
-            // 11.0s以降: 操作解禁・START
-            else if (elapsed >= 11.0) {
+            } else if (elapsed >= 11.0) {
+                if (timelineState === 5) {
+                    const tapContainers = document.querySelectorAll('.sg-tap-text');
+                    tapContainers.forEach(el => el.remove());
+                    timelineState = 6;
+                }
                 finishOpening();
                 return;
             }
 
-            // --- カメラ タイムライン ---
-            let idx = 0;
-            for (let i = 0; i < kfPos.length - 1; i++) {
-                if (elapsed >= kfPos[i].t && elapsed <= kfPos[i + 1].t) {
-                    idx = i; break;
-                } else if (i === kfPos.length - 2 && elapsed > kfPos[i + 1].t) {
-                    idx = i;
-                }
-            }
-            let t = 0;
-            if (elapsed > kfPos[idx].t) {
-                t = (elapsed - kfPos[idx].t) / (kfPos[idx + 1].t - kfPos[idx].t);
-                t = Math.max(0, Math.min(1, t));
-            }
-            const easedT = easeInOutSine(t);
-            const curPos = new THREE.Vector3().lerpVectors(kfPos[idx].p, kfPos[idx + 1].p, easedT);
-            const curLook = new THREE.Vector3().lerpVectors(kfLook[idx].l, kfLook[idx + 1].l, easedT);
+            // --- カメラ タイムライン (CatmullRomCurve3) ---
+            const progress = Math.min(elapsed / 11.0, 1.0);
+            const easedT = easeInOutSine(progress);
+            
+            const curPos = camCurve.getPoint(easedT);
+            const curLook = lookCurve.getPoint(easedT);
 
             camera.position.copy(curPos);
             camera.lookAt(curLook);
@@ -1998,3 +1989,12 @@ const SearchGame = (() => {
         });
 
         if (gameplayNPC) gameplayNPC.visible = false;
+        if (controls) controls.enabled = false;
+        if (slideModel) slideModel.visible = false;
+
+        // Start Controller
+        EndingController.start();
+    }
+
+
+    /**

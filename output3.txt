@@ -1,0 +1,410 @@
+1833: 
+1834:             // 3. プレイヤーとカメラの角度を同期
+1835:             if (typeof playerFacing !== 'undefined') playerFacing = currentAngle;
+1836:             if (typeof cameraAngle !== 'undefined') cameraAngle = currentAngle;
+1837:         }
+1838:             showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
+1839:         }
+1840: 
+1841:     }
+1842: 
+1843:     function startOpeningSequence() {
+1844:         console.log("Starting Opening Sequence...");
+1845:         currentState = GameState.OPENING; // ★State変更
+1846:         isCinematic = true;
+1847: 
+1848:         // ★Opening NPC参照
+1849:         const npc = openingNPC;
+1850:         if (!npc) {
+1851:             console.warn("Opening NPC not ready yet, retrying...");
+1852:             setTimeout(startOpeningSequence, 500);
+1853:             return;
+1854:         }
+1855: 
+1856:         // --- UI Toggle ---
+1857:         const skipBtn = document.getElementById('sg-skip-btn');
+1858:         const dpad = document.getElementById('sg-dpad');
+1859:         if (dpad) dpad.style.display = 'none';
+1860:         if (skipBtn) {
+1861:             skipBtn.style.display = 'block';
+1862:             skipBtn.onclick = (e) => {
+1863:                 e.preventDefault(); e.stopPropagation();
+1864:                 finishOpening();
+1865:             };
+1866:         }
+1867: 
+1868: 
+1869:         // --- Camera & UI Setup ---
+1870:         // 新しいポテトくんの位置
+1871:         if (npc) {
+1872:             npc.position.set(-26.5, 0, -14.0);
+1873:             npc.rotation.y = Math.PI / 4;
+1874:         }
+1875:         npc.visible = true;
+1876:         createSeasonEffects(npc);
+1877: 
+1878:         const overlay = document.getElementById('sg-loading-overlay');
+1879:         if (overlay) overlay.style.display = 'none';
+1880: 
+1881:         // タイトルロゴ用の一時UI要素
+1882:         const uiContainer = document.getElementById('sg-ui');
+1883:         let titleEl = document.getElementById('sg-title-logo-temp');
+1884:         if (!titleEl && uiContainer) {
+1885:             titleEl = document.createElement('div');
+1886:             titleEl.id = 'sg-title-logo-temp';
+1887:             titleEl.style.position = 'absolute';
+1888:             titleEl.style.top = '30%';
+1889:             titleEl.style.left = '50%';
+1890:             titleEl.style.transform = 'translate(-50%, -50%)';
+1891:             titleEl.style.color = '#fff';
+1892:             titleEl.style.fontSize = '8vw';
+1893:             titleEl.style.fontWeight = 'bold';
+1894:             titleEl.style.textShadow = '0 0 10px rgba(0,0,0,0.8)';
+1895:             titleEl.style.opacity = '0';
+1896:             titleEl.style.transition = 'opacity 1s ease';
+1897:             titleEl.style.pointerEvents = 'none';
+1898:             titleEl.innerText = 'PotatoKun VRM';
+1899:             uiContainer.appendChild(titleEl);
+1900:         }        // 根本刷新：CatmullRomCurve3 による曲線軌道
+1901:         const camPoints = [
+1902:             new THREE.Vector3(-25.0, 15.0, -8.0), // 0s: 上空
+1903:             new THREE.Vector3(-25.5, 0.6, -12.5), // 3s: 接近
+1904:             new THREE.Vector3(-25.5, 0.6, -12.5), // 8s: 停止
+1905:             new THREE.Vector3(-29.5, 0.6, -16.5), // 9.5s: 回避
+1906:             new THREE.Vector3(-27.5, 0.6, -15.5)  // 11s: 到着
+1907:         ];
+1908:         const camCurve = new THREE.CatmullRomCurve3(camPoints);
+1909: 
+1910:         const lookPoints = [
+1911:             new THREE.Vector3(-26.5, 0.5, -14.0), // 初期
+1912:             new THREE.Vector3(-27.5, 0.6, -16.0), // ポテトくん
+1913:             new THREE.Vector3(0, 0.6, 31)         // 最終
+1914:         ];
+1915:         const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
+1916: 
+1917:         const easeInOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
+1918:         const startTime = performance.now();
+1919:         let timelineState = 0; // 0:Intro, 1:Dialog, 2:Hide Dialog
+1920: 
+1921:         const lines = OPENING_LINES[GameConfig.currentSeason];
+1922: 
+1923:         // 各時間のダイアログ内容を取得
+1924:         const text0s = lines && lines.length > 0 ? lines[0].text : 'ポテトくん「……さ、寒い。温かい飲み物が〜」';
+1925:         const color0s = lines && lines.length > 0 ? lines[0].color : '#B0E0E6';
+1926:         const text4s = lines && lines.length > 1 ? lines[1].text : 'おや？ ポテトくんが困っているようだ...';
+1927:         const color4s = lines && lines.length > 1 ? lines[1].color : '#FFFFFF';
+1928:         const text7s = lines && lines.length > 2 ? lines[2].text : 'こんな寒さじゃ、凍えちゃうね...';
+1929:         const color7s = lines && lines.length > 2 ? lines[2].color : '#FFFFFF';
+1930:         const text10s = lines && lines.length > 3 ? lines[3].text : 'よし！ コインを集めてジュースを買ってあげよう！';
+1931:         const color10s = lines && lines.length > 3 ? lines[3].color : '#FFFFFF';
+1932: 
+1933:         // アニメーションループ (タイムライン制御)
+1934:         if (openingInterval) clearInterval(openingInterval);
+1935:         openingInterval = setInterval(() => {
+1936:             if (currentState !== GameState.OPENING) return;
+1937:             updateSeasonEffects();
+1938: 
+1939:             const elapsed = (performance.now() - startTime) / 1000.0;
+1940: 
+1941:             // --- UI タイムライン ---
+1942:             if (elapsed < 3.0) {
+1943:                 if (timelineState === 0) {
+1944:                     if (titleEl) titleEl.style.opacity = '1';
+1945:                     timelineState = 1;
+1946:                 }
+1947:             } else if (elapsed >= 3.0 && elapsed < 5.0) {
+1948:                 if (timelineState === 1) {
+1949:                     if (titleEl) titleEl.style.opacity = '0';
+1950:                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
+1951:                     timelineState = 2;
+1952:                 }
+1953:             } else if (elapsed >= 5.0 && elapsed < 7.5) {
+1954:                 if (timelineState === 2) {
+1955:                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text4s, color4s);
+1956:                     timelineState = 3;
+1957:                 }
+1958:             } else if (elapsed >= 7.5 && elapsed < 10.0) {
+1959:                 if (timelineState === 3) {
+1960:                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text7s, color7s);
+1961:                     timelineState = 4;
+1962:                 }
+1963:             } else if (elapsed >= 10.0 && elapsed < 11.0) {
+1964:                 if (timelineState === 4) {
+1965:                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text10s, color10s);
+1966:                     timelineState = 5;
+1967:                 }
+1968:             } else if (elapsed >= 11.0) {
+1969:                 if (timelineState === 5) {
+1970:                     const tapContainers = document.querySelectorAll('.sg-tap-text');
+1971:                     tapContainers.forEach(el => el.remove());
+1972:                     timelineState = 6;
+1973:                 }
+1974:                 finishOpening();
+1975:                 return;
+1976:             }
+1977: 
+1978:             // --- カメラ タイムライン (CatmullRomCurve3) ---
+1979:             const progress = Math.min(elapsed / 11.0, 1.0);
+1980:             const easedT = easeInOutSine(progress);
+1981:             
+1982:             const curPos = camCurve.getPoint(easedT);
+1983:             const curLook = lookCurve.getPoint(easedT);
+1984: 
+1985:             camera.position.copy(curPos);
+1986:             camera.lookAt(curLook);
+1987: 
+1988:         }, 16);
+1989:     }
+1990: 
+1991:     // State Transition: Gameplay -> Ending
+1992:     function transitionToEnding() {
+1993:         console.log("Transitioning to Ending...");
+1994:         currentState = GameState.ENDING;
+1995:         isPlaying = false;
+1996:         if (timerId) clearInterval(timerId);
+1997: 
+1998:         // UI & Asset Cleanup
+1999:         const bgCanvas = document.getElementById('canvas-container');
+2000:         if (bgCanvas) bgCanvas.style.display = 'none';
+2001:         ['sg-ui', 'sg-dpad', 'sg-get-btn', 'sg-instructions', 'sg-crosshair', 'sg-timer'].forEach(id => {
+2002:             const el = document.getElementById(id);
+2003:             if (el) el.style.display = 'none';
+2004:         });
+2005: 
+2006:         if (gameplayNPC) gameplayNPC.visible = false;
+2007:         if (controls) controls.enabled = false;
+2008:         if (slideModel) slideModel.visible = false;
+2009: 
+2010:         // Start Controller
+2011:         EndingController.start();
+2012:     }
+2013: 
+2014: 
+2015:     /**
+2016:      * エンディングコントローラー
+2017:      * 演出を一本のタイムラインで管理
+2018:      */
+2019:     const EndingController = {
+2020:         time: 0,
+2021:         steps: [],
+2022: 
+2023:         // ★ Camera Base Definition (Single Source of Truth)
+2024:         // [FIXED] Default Frontal View
+2025:         // Pos: (vm.x, 1.3, vm.z + 3.5)
+2026:         // LookAt: (vm.x, 1.3, vm.z)
+2027:         baseCamera: {
+2028:             pos: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z + 3.5),
+2029:             lookAt: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z)
+2030:         },
+2031: 
+2032:         start: function () {
+2033:             this.time = 0;
+2034: 
+2035:             // Define Steps
+2036:             this.steps = [
+2037:                 {
+2038:                     time: 0.0,
+2039:                     fired: false,
+2040:                     action: () => {
+2041:                         console.log("Ending Step 1: Init Camera & Assets");
+2042: 
+2043:                         // Camera Setup: Use BASE CONSTANT
+2044:                         // Front of Vending Machine (Default Position)
+2045:                         const base = this.baseCamera;
+2046:                         camera.position.copy(base.pos);
+2047:                         camera.lookAt(base.lookAt);
+2048:                         camera.updateMatrixWorld();
+2049: 
+2050:                         // Assets Init (Hidden at start)
+2051:                         if (banzaiNPC) {
+2052:                             banzaiNPC.visible = false; // Hidden until Step 3
+2053:                             banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+2054:                             banzaiNPC.rotation.y = -Math.PI / 8;
+2055:                         } else {
+2056:                             // Emergency Spawn check
+2057:                             spawnEndingAssets(() => {
+2058:                                 if (banzaiNPC) {
+2059:                                     addEndingObject(banzaiNPC);
+2060:                                     banzaiNPC.visible = false;
+2061:                                     banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
+2062:                                     banzaiNPC.rotation.y = -Math.PI / 8;
+2063:                                 }
+2064:                             });
+2065:                         }
+2066:                         if (juiceModel) {
+2067:                             juiceModel.visible = false; // Hidden until Step 2
+2068:                             // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+2069:                             const vm = NPC_CONFIG.vending_machine;
+2070:                             // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
+2071:                             juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+2072: 
+2073:                             // Rotation: Sideways (Z-axis rotation)
+2074:                             juiceModel.rotation.set(0, 0, Math.PI / 2);
+2075:                         }
+2076:                     }
+2077:                 },
+2078:                 {
+2079:                     time: 1.5,
+2080:                     fired: false,
+2081:                     action: () => {
+2082:                         console.log("Ending Step 2: Juice Slide");
+2083:                         if (juiceModel) juiceModel.visible = true;
+2084:                         showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
+2085:                     }
+2086:                 },
+2087:                 {
+2088:                     time: 3.5,
+2089:                     fired: false,
+2090:                     action: () => {
+2091:                         console.log("Ending Step 3: Potato Appears");
+2092:                         if (banzaiNPC) banzaiNPC.visible = true;
+2093:                         if (juiceModel) juiceModel.visible = false; // Hide Juice (Picked up by Potato)
+2094:                         showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ありがとう💕", "#FFA500");
+2095:                     }
+2096:                 },
+2097:                 {
+2098:                     time: 6.5,
+2099:                     fired: false,
+2100:                     action: () => {
+2101:                         console.log("Ending Step 4: Finish");
+2102:                         finishEnding();
+2103:                     }
+2104:                 }
+2105:             ];
+2106: 
+2107:             // Execute time 0 immediately
+2108:             this.update(0);
+2109:         },
+2110: 
+2111:         update: function (dt) {
+2112:             this.time += dt;
+2113: 
+2114:             // Execute Steps
+2115:             this.steps.forEach(step => {
+2116:                 if (!step.fired && this.time >= step.time) {
+2117:                     step.action();
+2118:                     step.fired = true;
+2119:                 }
+2120:             });
+2121: 
+2122:             // --- Continuous Animations ---
+2123: 
+2124:             // Juice Slide (1.5s ~ 3.0s)
+2125:             if (this.time >= 1.5 && this.time < 3.0) {
+2126:                 if (juiceModel && juiceModel.visible) {
+2127:                     // Slide forward/up slightly
+2128:                     juiceModel.position.z += dt * 0.1;
+2129:                 }
+2130:             }
+2131: 
+2132:             // Potato Bob (3.5s ~)
+2133:             if (this.time >= 3.5) {
+2134:                 if (banzaiNPC && banzaiNPC.visible) {
+2135:                     // Gentle vertical bob
+2136:                     banzaiNPC.position.y = Math.sin((this.time - 3.5) * 4) * 0.05;
+2137:                 }
+2138:             }
+2139:         }
+2140:     };
+2141: 
+2142:     /**
+2143:      * エンディング演出用アップデート関数
+2144:      * @param {number} dt 
+2145:      */
+2146:     function updateEndingAnimation(dt) {
+2147:         EndingController.update(dt);
+2148:     }
+2149: 
+2150:     function finishEnding() {
+2151:         console.log("Ending Finished.");
+2152: 
+2153:         // Message display (Success/Thank You)
+2154:         const overlay = document.getElementById('sg-loading-overlay');
+2155:         if (overlay) {
+2156:             overlay.style.display = 'flex';
+2157:             overlay.style.opacity = '0';
+2158:             overlay.style.transition = 'opacity 1s';
+2159:             overlay.innerHTML = 'THANK YOU FOR PLAYING!';
+2160: 
+2161:             // Force reflow
+2162:             void overlay.offsetWidth;
+2163:             overlay.style.opacity = '1';
+2164:         }
+2165: 
+2166:         // Return to Mini Game Select after delay (Auto Transition)
+2167:         setTimeout(() => {
+2168:             console.log("Transitioning to Menu...");
+2169:             stop(); // Cleanup Three.js & Events
+2170: 
+2171:             // Hide Ending Overlay directly
+2172:             if (overlay) overlay.style.display = 'none';
+2173: 
+2174:             // Attempt transition
+2175:             if (typeof showGameMenu === 'function') {
+2176:                 showGameMenu();
+2177:             } else {
+2178:                 console.warn("showGameMenu not found via scope, forcing UI reset.");
+2179:                 // Manual Fallback
+2180:                 const menu = document.getElementById('game-menu');
+2181:                 const active = document.getElementById('active-game-container');
+2182:                 const overlayPortal = document.getElementById('minigame-container');
+2183: 
+2184:                 if (active) active.classList.add('hidden');
+2185:                 if (menu) menu.classList.remove('hidden');
+2186:                 if (overlayPortal) overlayPortal.classList.remove('hidden');
+2187:             }
+2188:         }, 3000); // Wait 3.0s (User Request)
+2189:     }
+2190: 
+2191: 
+2192: 
+2193: 
+2194: 
+2195:     function startTimer() {
+2196:         if (timerId) clearInterval(timerId);
+2197:         timerId = setInterval(() => {
+2198:             timeLeft--;
+2199:             const timerEl = document.getElementById('sg-timer');
+2200:             if (timerEl) timerEl.textContent = timeLeft;
+2201:             if (timeLeft <= 0) {
+2202:                 stop();
+2203:                 const collected = window.sgItemData ? window.sgItemData.collected : 0;
+2204:                 showGameOver(collected * 100);
+2205:             }
+2206:         }, 1000);
+2207:     }
+2208: 
+2209:     function stop() {
+2210:         isPlaying = false;
+2211: 
+2212:         // ★ Restore Viewport
+2213:         const meta = document.querySelector('meta[name="viewport"]');
+2214:         if (meta) {
+2215:             meta.content = 'width=device-width, initial-scale=1.0';
+2216:         }
+2217: 
+2218:         clearInterval(timerId);
+2219:         if (animationId) cancelAnimationFrame(animationId);
+2220:         // Button handlers are removed when HTML is cleared
+2221: 
+2222:         // Resume Top Page Viewer
+2223:         window.backgroundViewer?.resume();
+2224: 
+2225:         if (renderer) {
+2226:             renderer.dispose();
+2227:             if (renderer.domElement && renderer.domElement.parentNode) {
+2228:                 renderer.domElement.parentNode.removeChild(renderer.domElement);
+2229:             }
+2230:             renderer = null;
+2231:         }
+2232: 
+2233:         // Reset Model References
+2234:         slideModel = null;
+2235:     }
+2236: 
+2237: 
+2238:     function setupGameUI() {
+2239:         const targetContainer = document.getElementById('active-game-container');
+2240:         if (!targetContainer) {
+2241:             console.error("setupGameUI: active-game-container not found.");
+2242:             return;

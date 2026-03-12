@@ -959,7 +959,7 @@ const SearchGame = (() => {
     let cinematicTimer = 0;
 
     // Player Position (Module Scope)
-    let playerPosition = new THREE.Vector3(0, 0.6, 31.0); // Zを31.0に変更
+    let playerPosition = new THREE.Vector3(); // Zを31.0に変更 (初期化解除)
     // プレイヤーの向き (モジュールスコープ)
     let playerFacing = Math.PI; // 初期値: 北向き（噴水側）に変更
 
@@ -1215,14 +1215,31 @@ const SearchGame = (() => {
         // Pause Top Page Viewer (Encapsulated)
         window.backgroundViewer?.pause();
 
+        // ★ [Task] script.js 由来のイベントリスナーを確実に削除 (Emergency Safety Checks)
+        try {
+            if (typeof window !== 'undefined') {
+                if (window.onBackgroundResize) {
+                    window.removeEventListener('resize', window.onBackgroundResize);
+                }
+                if (window.onBackgroundPointerLock) {
+                    window.removeEventListener('pointerlockchange', window.onBackgroundPointerLock);
+                }
+            }
+        } catch (e) {
+            console.error("EventListener removal failed:", e);
+        }
+
+        if (window.appControls) {
+            window.appControls.dispose();
+            window.appControls = null;
+        }
+
         setTimeout(async () => {
             initThreeJS();
 
-            // ★ 初期フレームバグ修正: レンダリング開始時から即座にオープニング初期位置（空）へカメラを配置
-            if (!GameConfig.debugMode) {
-                camera.position.set(-25.0, 15.0, -8.0);
-                camera.lookAt(-26.5, 0.5, -14.0);
-            }
+            // ★ 演出開始時の初期姿勢は startOpeningSequence() にて設定
+            // 演出開始時に動設定
+
 
             if (animationId) cancelAnimationFrame(animationId);
 
@@ -1288,14 +1305,14 @@ const SearchGame = (() => {
                 isCinematic = false;
                 currentState = GameState.PLAYING;
 
-                // Position Player (Start Point)
+                // Position Player (Start Point: Now Dynamically Inherited)
                 if (typeof playerPosition !== 'undefined') {
-                    // ★修正: 自販機前のポテトくん付近へ
-                    playerPosition.set(-27.5, 0.6, -15.5);
-
-                    if (typeof playerFacing !== 'undefined') playerFacing = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
-
-                    if (typeof cameraAngle !== 'undefined') cameraAngle = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
+                    playerPosition.copy(camera.position);
+                    const targetLook = new THREE.Vector3(0, 0.6, 31); // Center of Park
+                    // ★ Correct angle to match dir = (0,0,-1) at rotY=0
+                    const angle = Math.atan2(-(targetLook.x - playerPosition.x), -(targetLook.z - playerPosition.z));
+                    if (typeof playerFacing !== 'undefined') playerFacing = angle;
+                    if (typeof cameraAngle !== 'undefined') cameraAngle = angle;
                 }
 
                 // Show UI
@@ -1726,59 +1743,50 @@ const SearchGame = (() => {
         });
     }
 
-    // State Transition: Opening -> Gameplay
     function transitionToGameplay() {
-        console.log("Transitioning to Gameplay...");
+        // 1. 演出終了時の状態を確定
+        camera.updateMatrixWorld();
+        const finalPos = camera.position.clone();
 
-        // 1. オープニングNPC削除
+        // 2. 物理座標の同期
+        playerPosition.copy(finalPos);
+
+        // 3. 向きの同期（★公園中央を確実に見据える）
+        const targetLook = new THREE.Vector3(0, 0.6, 31);
+        cameraAngle = Math.atan2(-(targetLook.x - playerPosition.x), -(targetLook.z - playerPosition.z));
+        playerFacing = cameraAngle;
+        cameraPitch = 0;
+
+        // 4. OrbitControls があれば、ターゲットを「公園中央方向」に強制移動
+        if (window.controls) {
+            window.controls.target.copy(targetLook);
+            window.controls.update();
+            window.controls.enabled = true; // 操作解禁
+        }
+
+        // その他クリーンアップ（NPC生成等は維持）
+        spawnGameplayNPC();
         if (openingNPC) {
             disposeObject(openingNPC);
             openingNPC = null;
         }
-
-        // 2. お座りくん生成
-        spawnGameplayNPC();
-
-        // 3. FPS視点へ & 入力有効化 (Sync Variables!)
-        isCinematic = false;
-
-        // ★ Stop OPENING interval explicitly
         if (openingInterval) {
             clearInterval(openingInterval);
             openingInterval = null;
         }
-
-        // ★ Clear Season Effects (Snow, Sweat, etc.)
         clearSeasonEffects();
 
-        // ★Reset Camera Variables for TPS
-        cameraDistance = 0;
-
-        // Player Spawn Point at Vending Machine Area (Near Potato Kun)
-        playerPosition.set(-27.5, 0.6, -15.5);
-        playerFacing = Math.atan2(-28.0 - (-27.5), -18.0 - (-15.5));
-
-        // Sync Camera Angle to look toward Vending Machine
-        cameraAngle = playerFacing;
+        currentState = GameState.PLAYING;
+        isCinematic = false;
         cameraPitch = 0;
-
-        // Apply immediately so render doesn't flicker
-        camera.position.copy(playerPosition);
-        camera.rotation.set(cameraPitch, cameraAngle, 0, 'YXZ');
+        console.log("🚀 Restored & Seamless Start at:", playerPosition);
 
         // UI Reset
         const dpad = document.getElementById('sg-dpad');
         if (dpad) dpad.style.display = 'grid';
         showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
-
-        // ★ Enable Player Input (ensure input manager is active)
-        // enablePlayerInput is implicit - inputs are always enabled when isCinematic = false
-        // But we can explicitly log for debugging:
-        console.log("Player Input Enabled. State:", GameState.PLAYING);
-
-        // ★ Set State LAST to ensure all setup is done
-        currentState = GameState.PLAYING;
     }
+
 
     // Finish/Skip Opening - Common cleanup function
     // Finish/Skip Opening
@@ -1799,6 +1807,7 @@ const SearchGame = (() => {
 
         // 次のフェーズへ
         if (typeof transitionToGameplay === 'function') {
+            camera.updateMatrixWorld(); // ★ 11秒時点の正確な座標を確定
             transitionToGameplay();
         } else {
             console.log("transitionToGameplay not found, falling back strictly.");
@@ -1809,7 +1818,14 @@ const SearchGame = (() => {
             // Fallback UI
             const dpad = document.getElementById('sg-dpad');
             if (dpad) dpad.style.display = 'grid';
-            if (typeof playerPosition !== 'undefined') playerPosition.set(-27.5, 0.6, -15.5);
+            // ★ 根本同期：カメラ位置からプレイヤー位置を継承
+            if (typeof playerPosition !== 'undefined') {
+                playerPosition.copy(camera.position);
+                const targetLook = new THREE.Vector3(0, 0.6, 31); // Center
+                const angle = Math.atan2(-(targetLook.x - playerPosition.x), -(targetLook.z - playerPosition.z));
+                if (typeof playerFacing !== 'undefined') playerFacing = angle;
+                if (typeof cameraAngle !== 'undefined') cameraAngle = angle;
+            }
             showTapText(window.innerWidth / 2, window.innerHeight / 2, 'START!', '#FFFFFF');
         }
 
@@ -1817,6 +1833,11 @@ const SearchGame = (() => {
 
     function startOpeningSequence() {
         console.log("Starting Opening Sequence...");
+
+        // ★ 演出開始時のカメラ初期化
+        camera.position.set(-25.0, 15.0, -8.0);
+        camera.lookAt(-26.5, 0.5, -14.0);
+
         currentState = GameState.OPENING; // ★State変更
         isCinematic = true;
 
@@ -1872,21 +1893,21 @@ const SearchGame = (() => {
             titleEl.style.pointerEvents = 'none';
             titleEl.innerText = 'PotatoKun VRM';
             uiContainer.appendChild(titleEl);
-        }
+        }        // 根本刷新：CatmullRomCurve3 による曲線軌道
+        const camPoints = [
+            new THREE.Vector3(-25.0, 15.0, -8.0), // 0s: 上空
+            new THREE.Vector3(-25.5, 0.6, -12.5), // 3s: 接近
+            new THREE.Vector3(-25.5, 0.6, -12.5), // 8s: 停止
+            new THREE.Vector3(-27.5, 0.6, -15.5)  // 10s: 到着（Uターンしつつ中央向きへ）
+        ];
+        const camCurve = new THREE.CatmullRomCurve3(camPoints);
 
-        // カメラキーフレーム定義
-        const kfPos = [
-            { t: 0, p: new THREE.Vector3(-25.0, 15.0, -8.0) }, // 0.0s: 上空から
-            { t: 3, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 3.0s: 目線ローアングル
-            { t: 11, p: new THREE.Vector3(-25.5, 0.6, -12.5) }, // 11.0s: 停止したまま
-            { t: 13, p: new THREE.Vector3(-27.5, 0.6, -15.5) } // 13.0s: 新スポーン地点
+        const lookPoints = [
+            new THREE.Vector3(-26.5, 0.5, -14.0), // 0s: ポテトくん
+            new THREE.Vector3(-26.5, 0.5, -14.0), // 8s: 維持
+            new THREE.Vector3(0, 0.6, 31)         // 10s: 公園中央
         ];
-        const kfLook = [
-            { t: 0, l: new THREE.Vector3(-26.5, 0.5, -14.0) },
-            { t: 3, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
-            { t: 11, l: new THREE.Vector3(-27.5, 0.6, -16.0) },
-            { t: 13, l: new THREE.Vector3(-28.0, 0.6, -18.0) }
-        ];
+        const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
 
         const easeInOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
         const startTime = performance.now();
@@ -1894,16 +1915,13 @@ const SearchGame = (() => {
 
         const lines = OPENING_LINES[GameConfig.currentSeason];
 
-        // 各時間のダイアログ内容を取得（存在しない場合のフォールバック含む）
+        // 各時間のダイアログ内容を取得
         const text0s = lines && lines.length > 0 ? lines[0].text : 'ポテトくん「……さ、寒い。温かい飲み物が〜」';
         const color0s = lines && lines.length > 0 ? lines[0].color : '#B0E0E6';
-
         const text4s = lines && lines.length > 1 ? lines[1].text : 'おや？ ポテトくんが困っているようだ...';
         const color4s = lines && lines.length > 1 ? lines[1].color : '#FFFFFF';
-
         const text7s = lines && lines.length > 2 ? lines[2].text : 'こんな寒さじゃ、凍えちゃうね...';
         const color7s = lines && lines.length > 2 ? lines[2].color : '#FFFFFF';
-
         const text10s = lines && lines.length > 3 ? lines[3].text : 'よし！ コインを集めてジュースを買ってあげよう！';
         const color10s = lines && lines.length > 3 ? lines[3].color : '#FFFFFF';
 
@@ -1916,73 +1934,43 @@ const SearchGame = (() => {
             const elapsed = (performance.now() - startTime) / 1000.0;
 
             // --- UI タイムライン ---
-            // 0.0s 〜 3.0s: 導入（タイトルロゴ出）
             if (elapsed < 3.0) {
                 if (timelineState === 0) {
                     if (titleEl) titleEl.style.opacity = '1';
                     timelineState = 1;
                 }
-            }
-            // 3.0s 〜 5.0s: ロゴ消去＋ダイアログ1番目
-            else if (elapsed >= 3.0 && elapsed < 5.0) {
+            } else if (elapsed >= 3.0 && elapsed < 5.0) {
                 if (timelineState === 1) {
-                    if (titleEl) titleEl.style.opacity = '0'; // ロゴ消去
+                    if (titleEl) titleEl.style.opacity = '0';
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text0s, color0s);
                     timelineState = 2;
                 }
-            }
-            // 5.0s 〜 7.5s: ダイアログ2番目
-            else if (elapsed >= 5.0 && elapsed < 7.5) {
+            } else if (elapsed >= 5.0 && elapsed < 7.5) {
                 if (timelineState === 2) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text4s, color4s);
                     timelineState = 3;
                 }
-            }
-            // 7.5s 〜 10.0s: ダイアログ3番目
-            else if (elapsed >= 7.5 && elapsed < 10.0) {
+            } else if (elapsed >= 7.5 && elapsed < 10.0) {
                 if (timelineState === 3) {
                     showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text7s, color7s);
                     timelineState = 4;
                 }
-            }
-            // 10.0s 〜 11.0s: ダイアログ4番目
-            else if (elapsed >= 10.0 && elapsed < 11.0) {
+            } else if (elapsed >= 10.0) {
                 if (timelineState === 4) {
-                    showTapText(window.innerWidth / 2, window.innerHeight * 0.7, text10s, color10s);
-                    timelineState = 5;
-                }
-            }
-            // 11.0s 〜 13.0s: ダイアログ消去 (トランジション開始)
-            else if (elapsed >= 11.0 && elapsed < 13.0) {
-                if (timelineState === 5) {
                     const tapContainers = document.querySelectorAll('.sg-tap-text');
                     tapContainers.forEach(el => el.remove());
-                    timelineState = 6;
+                    timelineState = 5;
                 }
-            }
-            // 13.0s以降: 操作解禁・START
-            else if (elapsed >= 13.0) {
                 finishOpening();
                 return;
             }
 
-            // --- カメラ タイムライン ---
-            let idx = 0;
-            for (let i = 0; i < kfPos.length - 1; i++) {
-                if (elapsed >= kfPos[i].t && elapsed <= kfPos[i + 1].t) {
-                    idx = i; break;
-                } else if (i === kfPos.length - 2 && elapsed > kfPos[i + 1].t) {
-                    idx = i;
-                }
-            }
-            let t = 0;
-            if (elapsed > kfPos[idx].t) {
-                t = (elapsed - kfPos[idx].t) / (kfPos[idx + 1].t - kfPos[idx].t);
-                t = Math.max(0, Math.min(1, t));
-            }
-            const easedT = easeInOutSine(t);
-            const curPos = new THREE.Vector3().lerpVectors(kfPos[idx].p, kfPos[idx + 1].p, easedT);
-            const curLook = new THREE.Vector3().lerpVectors(kfLook[idx].l, kfLook[idx + 1].l, easedT);
+            // --- カメラ タイムライン (CatmullRomCurve3) ---
+            const progress = Math.min(elapsed / 10.0, 1.0);
+            const easedT = easeInOutSine(progress);
+
+            const curPos = camCurve.getPoint(easedT);
+            const curLook = lookCurve.getPoint(easedT);
 
             camera.position.copy(curPos);
             camera.lookAt(curLook);
@@ -2673,7 +2661,7 @@ const SearchGame = (() => {
 
         camera = new THREE.PerspectiveCamera(75, width / height, 0.05, 1000); // Wider FOV, closer near plane
         camera = new THREE.PerspectiveCamera(75, width / height, 0.05, 1000); // Wider FOV, closer near plane
-        camera.position.set(0, 0.6, -25); // Old: 25. Inverted: -25. (North Entrance?)
+        // camera.position.set(0, 0.6, -25); // Legacy Reset Removed // Old: 25. Inverted: -25. (North Entrance?)
         // If 25 was "Entrance", and we Invert, it becomes -25.
         // If North = -Z, then -25 is North.
         // Standard park entrance is often South (+Z).
@@ -2809,7 +2797,7 @@ const SearchGame = (() => {
         // playerPosition is now Module Scope
         // Player position tracking (separate from camera)
         // playerPosition is now Module Scope
-        playerPosition.set(0, 0.6, -25); // Old: 25. Inverted: -25.
+        // playerPosition.set(0, 0.6, -25); // Legacy Reset Removed
         let playerFacing = Math.PI; // Direction player is facing
 
         // Pinch zoom tracking

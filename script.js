@@ -52,7 +52,6 @@ const init3DViewer = () => {
     renderer.outputColorSpace = THREE.SRGBColorSpace; // Crucial for vivid colors
     container.appendChild(renderer.domElement);
 
-    // Controls (OrbitControls)
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -64,6 +63,9 @@ const init3DViewer = () => {
     controls.maxPolarAngle = Math.PI / 1.5;
     controls.target.set(0, 0.8, 0); // Shift target UP
     controls.update();
+
+    // ★ Loop State Flag
+    let isActive = true;
 
     // Theme detection
     const isNewYear = document.body.classList.contains('theme-newyear');
@@ -221,13 +223,22 @@ const init3DViewer = () => {
     loadModel(`models/${encodeURIComponent(defaultModelName)}`);
 
     // Handle window resize
-    window.addEventListener('resize', () => {
+    const onBackgroundResize = () => {
         const width = container.clientWidth;
         const height = container.clientHeight;
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
         if (renderer) renderer.setSize(width, height);
-    });
+    };
+    window.addEventListener('resize', onBackgroundResize);
+    window.onBackgroundResize = onBackgroundResize; // Expose for removal
+
+    // Placeholder for pointerlock (as requested to be removed)
+    const onBackgroundPointerLock = () => {
+        console.log("Background PointerLock changed");
+    };
+    window.addEventListener('pointerlockchange', onBackgroundPointerLock);
+    window.onBackgroundPointerLock = onBackgroundPointerLock;
 
     // ★ GLOBAL API (Encapsulated)
     window.backgroundViewer = {
@@ -237,11 +248,18 @@ const init3DViewer = () => {
          * Used during mini-game to save resources without destroying context.
          */
         pause: () => {
+            isActive = false; // Stop internal loop logic
             if (container) container.style.display = 'none';
             // Stop Loop logic
             if (animationId) {
                 cancelAnimationFrame(animationId);
                 animationId = null;
+            }
+            // ★ Dispose Controls (Crucial for Mini-game transition)
+            if (window.appControls) {
+                window.appControls.dispose();
+                window.appControls = null;
+                console.log("Background Controls DISPOSED for game mode.");
             }
         },
 
@@ -250,6 +268,7 @@ const init3DViewer = () => {
          * Used when returning from mini-game.
          */
         resume: () => {
+            isActive = true; // ★ Allow loop to run again
             if (container) {
                 container.style.display = 'block';
                 // Force resize
@@ -264,10 +283,19 @@ const init3DViewer = () => {
                     if (currentObject) {
                         const targetPos = currentObject.position.clone().add(new THREE.Vector3(0, 0.8, 0));
                         camera.lookAt(targetPos);
-                        if (controls) {
-                            controls.target.copy(targetPos);
-                            controls.update();
-                        }
+
+                        // ★ Re-initialize Controls
+                        const newControls = new OrbitControls(camera, renderer.domElement);
+                        newControls.enableDamping = true;
+                        newControls.dampingFactor = 0.05;
+                        newControls.rotateSpeed = 0.8;
+                        newControls.minDistance = 2;
+                        newControls.maxDistance = 6;
+                        newControls.enablePan = false;
+                        newControls.maxPolarAngle = Math.PI / 1.5;
+                        newControls.target.copy(targetPos);
+                        newControls.update();
+                        window.appControls = newControls;
                     }
 
                     // Force initial render frame
@@ -324,10 +352,10 @@ const init3DViewer = () => {
 
     // Animation Loop (Restored)
     const animate = () => {
-        if (!renderer) return; // Stop if destroyed
+        if (!renderer || !isActive) return; // Stop if destroyed or paused
         animationId = requestAnimationFrame(animate);
 
-        controls.update();
+        if (window.appControls) window.appControls.update();
 
         const delta = clock.getDelta();
         if (mixer) mixer.update(delta);
