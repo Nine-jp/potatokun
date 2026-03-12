@@ -1898,19 +1898,16 @@ const SearchGame = (() => {
             new THREE.Vector3(-25.0, 20.0, -8.0),    // t=0: 上空
             new THREE.Vector3(-25.5, 1.3, -11.0),     // t=3: 地面降下
             new THREE.Vector3(-25.5, 0.8, -12.5),     // t=5: ポテトくん接近(静止開始)
-            new THREE.Vector3(-25.0, 0.8, -15.5),     // t=8: 12s(再始動)から3s後 (自販機の前方で緩やかに移動)
-            new THREE.Vector3(-27.0, 0.8, -18.0),     // t=10: 17s時点 (自販機付近でコンパクトにUターン)
-            new THREE.Vector3(-26.5, 0.6, -17.5)      // t=11: 18s時点 (ほぼその場で方向転換)
+            new THREE.Vector3(-25.5, 0.8, -19.3),     // t=9: 16s時点 (2台目の前までスロー進行)
+            new THREE.Vector3(-25.5, 0.6, -19.95)     // t=11: 18s時点 (2台目と3台目の間でピタッと停止)
         ];
         const camCurve = new THREE.CatmullRomCurve3(camPoints);
 
         const lookPoints = [
             new THREE.Vector3(-26.5, 0.5, -14.0), // t=0: ポテトくん
-            new THREE.Vector3(-26.5, 0.5, -14.0), // t=3: ポテトくん
-            new THREE.Vector3(-26.5, 0.5, -14.0), // t=5: ポテトくん(静止中もここを見る)
-            new THREE.Vector3(-28.0, 0.6, -18.0), // t=8: 15s時点
-            new THREE.Vector3(-14.0, 0.6, -25.0), // t=10: 17s時点
-            new THREE.Vector3(-7.0, 0.6, -25.0)   // t=11: 18s時点(キッチンカー)
+            new THREE.Vector3(-26.5, 0.5, -14.0), // t=5: ポテトくん(静止)
+            new THREE.Vector3(-28.0, 0.6, -19.3), // t=9: 2台目を見つめる
+            new THREE.Vector3(-7.0, 0.6, -25.0)   // t=11: 18s時点(キッチンカーへ回転)
         ];
         const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
 
