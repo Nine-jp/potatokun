@@ -1343,9 +1343,9 @@ const SearchGame = (() => {
 
         // 3 drops on forehead (centered, front of face)
         const positions = [
-            { x: 0.05, y: 1.55, z: 0.35 },   // Right forehead
-            { x: -0.05, y: 1.6, z: 0.35 },   // Left forehead
-            { x: 0, y: 1.5, z: 0.4 }         // Between eyebrows
+            { x: 0.05, y: 1.05, z: 0.2 },   // Right forehead
+            { x: -0.05, y: 1.1, z: 0.2 },   // Left forehead
+            { x: 0, y: 1.0, z: 0.25 }        // Between eyebrows
         ];
 
         positions.forEach(pos => {
@@ -1394,9 +1394,9 @@ const SearchGame = (() => {
         for (let i = 0; i < 3; i++) {
             const mesh = new THREE.Mesh(breathGeo, breathMat.clone());
             mesh.position.copy(model.position).add(new THREE.Vector3(
-                (Math.random() - 0.5) * 0.1,  // X variance
-                1.35 + Math.random() * 0.1,    // Mouth height
-                0.35                            // Front of face
+                0.07 + (Math.random() - 0.5) * 0.1, // Shifted to the right (Fixed from (Math.random()-0.5)*0.1)
+                0.6 + Math.random() * 0.1,    // Mouth height (Fixed from 0.7)
+                0.2                            // Front of face (Fixed from 0.35)
             ));
             scene.add(mesh);
             breathParticles.push({

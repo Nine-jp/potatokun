@@ -102,6 +102,12 @@ def cmd_goto(args):
         print(f"Navigated to: {args.url}")
     connect_and_execute(action)
 
+def cmd_wait(args):
+    def action(page):
+        page.locator(args.selector).wait_for(state="visible", timeout=args.timeout)
+        print(f"Element '{args.selector}' is now visible.")
+    connect_and_execute(action)
+
 def main():
     parser = argparse.ArgumentParser(description="AntiGravity Python Browser Controller via CDP")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -130,9 +136,14 @@ def main():
     parser_eval = subparsers.add_parser("eval", help="Evaluate JavaScript expression on the page")
     parser_eval.add_argument("expression", help="JavaScript code to evaluate")
 
+    # wait
+    parser_wait = subparsers.add_parser("wait", help="Wait for an element to be visible")
+    parser_wait.add_argument("selector", help="CSS Selector for the target element")
+    parser_wait.add_argument("--timeout", type=int, default=30000, help="Timeout in ms")
+
     # goto
-    parser_goto = subparsers.add_parser("goto", help="Navigate the active page to a new URL")
-    parser_goto.add_argument("url", help="Target URL")
+    parser_goto = subparsers.add_parser("goto", help="Navigate to a URL")
+    parser_goto.add_argument("url", help="URL to navigate to")
 
     args = parser.parse_args()
 
@@ -143,7 +154,8 @@ def main():
         "click": cmd_click,
         "type": cmd_type,
         "eval": cmd_eval,
-        "goto": cmd_goto
+        "goto": cmd_goto,
+        "wait": cmd_wait
     }
     
     commands[args.command](args)

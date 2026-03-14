@@ -53,6 +53,12 @@ python c:\GeminiProjects\TestProject\ag_browser.py eval "document.title"
 python c:\GeminiProjects\TestProject\ag_browser.py goto "http://localhost:8081"
 ```
 
+### 8. 要素の待機
+要素が表示されるまで待機します（デフォルトは30秒）。
+```bash
+python c:\GeminiProjects\TestProject\ag_browser.py wait "<CSSセレクタ>" [--timeout 30000]
+```
+
 ## 注意事項
 - 必ず `run_command` ツールを使って上記コマンドを実行すること。
 - 検証作業（スクリーンショット撮影、DOM取得など）は、ユーザーへの事前確認なし（SafeToAutoRun=true）で実行し、結果のみを報告すること。
