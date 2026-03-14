@@ -1,4 +1,0 @@
-1294:                    playerPosition.set(-27.5, 0.6, -15.5);
-1758:        playerPosition.set(-27.5, 0.6, -15.5);
-1813:                playerPosition.set(-27.5, 0.6, -15.5);
-2791:        playerPosition.set(0, 0.6, -25); // Old: 25. Inverted: -25.

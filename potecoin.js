@@ -1896,18 +1896,19 @@ const SearchGame = (() => {
         }        // 根本刷新：CatmullRomCurve3 による曲線軌道
         const camPoints = [
             new THREE.Vector3(-25.0, 20.0, -8.0),    // t=0: 上空
-            new THREE.Vector3(-25.5, 1.3, -11.0),     // t=3: 地面降下
-            new THREE.Vector3(-25.5, 0.8, -12.5),     // t=5: ポテトくん接近(静止開始)
-            new THREE.Vector3(-25.5, 0.8, -19.3),     // t=13: 20s時点 (2台目の前までさらにスロー進行)
-            new THREE.Vector3(-25.5, 0.6, -19.95)     // t=15: 22s時点 (2台目と3台目の間でピタッと停止)
+            new THREE.Vector3(-25.5, 1.3, -11.0),
+            new THREE.Vector3(-25.5, 0.8, -13.5),     // Knot 0.5: ポテトくん接近(静止地点)
+            new THREE.Vector3(-25.5, 0.8, -19.3),
+            new THREE.Vector3(-25.5, 0.6, -19.95)     // 終点
         ];
         const camCurve = new THREE.CatmullRomCurve3(camPoints);
 
         const lookPoints = [
-            new THREE.Vector3(-26.5, 0.5, -14.0), // t=0: ポテトくん
-            new THREE.Vector3(-26.5, 0.5, -14.0), // t=5: ポテトくん(静止)
-            new THREE.Vector3(-28.0, 0.6, -19.3), // t=13: 20s地点
-            new THREE.Vector3(-7.0, 0.6, -25.0)   // t=15: 22s時点(キッチンカーへ回転)
+            new THREE.Vector3(-26.5, 0.5, -14.0), // 初回NPCへ
+            new THREE.Vector3(-26.5, 0.5, -14.0),
+            new THREE.Vector3(-26.5, 0.5, -14.0), // Knot 0.5: ポテトくん(静止時重視)
+            new THREE.Vector3(-28.0, 0.6, -19.3), // 次の自販機へ
+            new THREE.Vector3(-7.0, 0.6, -25.0)   // キッチンカーへ回転
         ];
         const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
 
@@ -1979,10 +1980,12 @@ const SearchGame = (() => {
 
             // --- カメラ タイムライン (CatmullRomCurve3 with effective time) ---
             let effectiveElapsed = elapsed;
-            if (elapsed >= 5.0 && elapsed < 12.0) {
-                effectiveElapsed = 5.0; // 静止
-            } else if (elapsed >= 12.0) {
-                effectiveElapsed = elapsed - 7.0; // 5sから再開
+            if (elapsed < 5.0) {
+                effectiveElapsed = elapsed * 1.5; // 0s-5s -> 0s-7.5s (Knot 0.5: 中心点)
+            } else if (elapsed < 15.0) {
+                effectiveElapsed = 7.5; // 静止期間 (15sまで延長)
+            } else {
+                effectiveElapsed = (elapsed - 15.0) + 7.5; // 15s以降は7.5sから即座に移動再開
             }
 
             const progress = Math.min(effectiveElapsed / 15.0, 1.0);
