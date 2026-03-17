@@ -979,7 +979,11 @@ const SearchGame = (() => {
             position: { x: -28.5, z: -15.5 },
             rotation: Math.PI / 4 + Math.PI / 2,
         },
-        vending_machine: { x: -28, z: -18.0 } // Updated to actual map location
+        vending_machine: { x: -28, z: -18.0 }, // Updated to actual map location
+        opening_camera_final: {
+            pos: new THREE.Vector3(-25.5, 0.6, -19.95),
+            look: new THREE.Vector3(-7.0, 0.6, -25.0)
+        }
     };
 
     // === Season System ===
@@ -1857,6 +1861,10 @@ const SearchGame = (() => {
             skipBtn.style.display = 'block';
             skipBtn.onclick = (e) => {
                 e.preventDefault(); e.stopPropagation();
+                // ★ スキップ時は「最終地点」を強制セットしてから終了
+                const final = NPC_CONFIG.opening_camera_final;
+                camera.position.copy(final.pos);
+                camera.lookAt(final.look);
                 finishOpening();
             };
         }
@@ -1899,7 +1907,7 @@ const SearchGame = (() => {
             new THREE.Vector3(-25.5, 1.3, -11.0),
             new THREE.Vector3(-25.5, 0.8, -13.5),     // Knot 0.5: ポテトくん接近(静止地点)
             new THREE.Vector3(-25.5, 0.8, -19.3),
-            new THREE.Vector3(-25.5, 0.6, -19.95)     // 終点
+            NPC_CONFIG.opening_camera_final.pos       // 終点 (定数から取得)
         ];
         const camCurve = new THREE.CatmullRomCurve3(camPoints);
 
@@ -1908,7 +1916,7 @@ const SearchGame = (() => {
             new THREE.Vector3(-26.5, 0.5, -14.0),
             new THREE.Vector3(-26.5, 0.5, -14.0), // Knot 0.5: ポテトくん(静止時重視)
             new THREE.Vector3(-28.0, 0.6, -19.3), // 次の自販機へ
-            new THREE.Vector3(-7.0, 0.6, -25.0)   // キッチンカーへ回転
+            NPC_CONFIG.opening_camera_final.look      // キッチンカーへ回転 (定数から取得)
         ];
         const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
 
@@ -3733,7 +3741,7 @@ const SearchGame = (() => {
                                 // ▼▼▼ 🪙コイン座標・場所 (Coin) ▼▼▼
                 
                                 const coinPositions = [
-                                    { x: 0.00, y: 0.62, z: 21.80 }, // 正面(十字路)
+                                    { x: -20.50, y: 0.62, z: -22.50 }, // スタート地点正面(遊具エリア)
                                     { x: 24.00, y: 3.60, z: 23.00 }, // 噴水(十字路)
                                     { x: 4.26, y: 0.60, z: -30.86 }, // 中央北(十字路)
                                     { x: -30.94, y: 0.60, z: 3.84 }, // 中央西(十字路)
@@ -3743,7 +3751,7 @@ const SearchGame = (() => {
                                     { x: 16.00, y: 1.00, z: 16.00 }, // ロケット(遊具エリア)
                                     { x: 2.31, y: 1.60, z: -0.23 }, // 滑り台(遊具エリア)
                                     { x: -29.00, y: 0.60, z: -20.00 }, // 自販機裏(休憩エリア)
-                                    { x: -23.30, y: 0.90, z: -28.00 }, // パラソル(休憩エリア)
+                                    { x: 31.00, y: 0.60, z: -4.00 }, // 中央東(十字路)
                                     { x: -7.00, y: 0.85, z: -26.00 }, // トゥクトゥク(休憩エリア)
                                     { x: -9.00, y: 1.60, z: -9.20 }, // 象さん(休憩エリア)
                                     { x: -31.00, y: 0.60, z: 31.00 }, // 森林奥地(森林エリア)
