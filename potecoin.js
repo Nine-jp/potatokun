@@ -1,3 +1,4 @@
+// Development Branch: 説明バージョン
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -149,8 +150,9 @@ window.AudioManager = AudioManager;
 
 // ★季節管理＆開発設定の司令塔
 const GameConfig = {
-    currentSeason: 'winter', // 冬仕様に変更
-    debugMode: false          // ★通常モードに変更 (一時的)
+    currentSeason: 'spring', // 春仕様に変更
+    debugMode: false,         // ★通常モードに変更 (一時的)
+    isAnimationPaused: true   // ★説明バージョン用: アニメーション停止
 };
 
 const GameLibrary = {
@@ -941,6 +943,7 @@ const SearchGame = (() => {
     let timeLeft = 30;
     let timerId = null;
     let animationId = null;
+    let onResizeHandler = null; // ★ resizeリスナーの参照保持用
     let mixer;
     let clock = new THREE.Clock();
 
@@ -1028,28 +1031,28 @@ const SearchGame = (() => {
     // === Season-specific Dialog Lines ===
     const OPENING_LINES = {
         spring: [
-            { time: 3000, text: 'ポテトくん「ふわぁ〜… ぽかぽかして ねむいなぁ…」', color: '#FF69B4' },
+            { time: 3000, text: 'ポテトくん「ふわぁ〜… <br>ぽかぽかして ねむいなぁ…」', color: '#FFA500' },
             { time: 5000, text: 'あ！ 公園の桜が 満開だね！', color: '#87CEFA' },
-            { time: 7500, text: 'お花見したいけど、のどが渇いちゃった…', color: '#87CEFA' },
-            { time: 10000, text: 'コインを集めて、ジュースでお花見パーティーしよう！', color: '#FFA500' },
+            { time: 7500, text: 'お花見したいけど、<br>のどが渇いちゃった…', color: '#87CEFA' },
+            { time: 10000, text: 'コインを集めて、<br>ジュースでお花見パーティーしよう！', color: '#87CEFA' },
         ],
         summer: [
-            { time: 3000, text: 'ポテトくん「はぁ〜… あついよ〜… のどカラカラ…」', color: '#FFAE00' },
+            { time: 3000, text: 'ポテトくん「はぁ〜… <br>あついよ〜… <br>のどカラカラ…」', color: '#FFA500' },
             { time: 5000, text: 'あれれ？ ポテトくん、とっても困ってる！', color: '#87CEFA' },
             { time: 7500, text: 'こんな暑さじゃ、元気も出ないよね…', color: '#87CEFA' },
             { time: 10000, text: 'よし！ 公園に落ちているコインを集めて\\nジュースを買ってあげよう！', color: '#87CEFA' },
         ],
         autumn: [
-            { time: 3000, text: 'ポテトくん「ぐぅ〜…… お腹すいたなぁ……」', color: '#D2691E' },
-            { time: 5000, text: '涼しくなってきて、食欲が止まらないよ！', color: '#FF8C00' },
-            { time: 7500, text: 'あ！ あんなところに焼き芋……じゃなくてコインが！', color: '#D2691E' },
-            { time: 10000, text: 'コインを集めて、秋の味覚をお腹いっぱい食べよう！', color: '#8B4513' },
+            { time: 3000, text: 'ポテトくん「ぐぅ〜…… お腹すいたなぁ……」', color: '#FFA500' },
+            { time: 5000, text: '涼しくなってきて、食欲が止まらないよ！', color: '#87CEFA' },
+            { time: 7500, text: 'あ！ あんなところに焼き芋……じゃなくてコインが！', color: '#87CEFA' },
+            { time: 10000, text: 'コインを集めて、秋の味覚をお腹いっぱい食べよう！', color: '#87CEFA' },
         ],
         winter: [
-            { time: 3000, text: 'ポテトくん「ぶるる… さむい… からだが こおりそう…」', color: '#FFAE00' },
-            { time: 5000, text: 'おや？ ポテトくんが ふるえている！', color: '#87CEFA' },
-            { time: 7500, text: 'こんな寒さじゃ、あったかいものが欲しいね', color: '#87CEFA' },
-            { time: 10000, text: 'よし！ コインを集めて、ホットドリンクを買ってあげよう！', color: '#87CEFA' },
+            { time: 3000, text: 'ポテトくん<br>「ぶるる… さむい… <br>からだがこおりそう…」', color: '#FFA500' },
+            { time: 5000, text: 'おや？ ポテトくんが <br>ふるえている！', color: '#87CEFA' },
+            { time: 7500, text: 'こんな寒さじゃ、<br>あったかいものが欲しいね', color: '#87CEFA' },
+            { time: 10000, text: 'よし！ コインを集めて、<br>ホットドリンクを<br>買ってあげよう！', color: '#87CEFA' },
         ],
     };
 
@@ -1642,7 +1645,7 @@ const SearchGame = (() => {
 
         // 1. Banzai Potato
         // 1. Ending Potato (Juice Ver)
-        const banzaiPath = 'models/potatokun_juice.fbx';
+        const banzaiPath = 'models/potatokun_banzai.fbx';
         console.log('LOADING ENDING POTATO (Juice):', banzaiPath); // Requested Log
 
         loader.load(banzaiPath, (fbx) => {
@@ -1737,7 +1740,31 @@ const SearchGame = (() => {
             // アウトライン
             fbx.userData.entityType = 'object'; // 'object' uses simple outline
             applyOutlineRules(fbx);
-            fbx.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; c.userData.entityType = 'object'; } });
+            fbx.traverse(c => { 
+                if (c.isMesh) { 
+                    c.castShadow = true; 
+                    c.receiveShadow = true; 
+                    c.userData.entityType = 'object'; 
+                    
+                    // ★ FBXの意図しない半透明化を強制ブロックし、完全な不透明にする
+                    if (c.material) {
+                        const isArray = Array.isArray(c.material);
+                        const materials = isArray ? c.material : [c.material];
+                        
+                        const newMaterials = materials.map(mat => {
+                            const cloned = mat.clone(); // マテリアルを独立させる
+                            cloned.transparent = false;
+                            cloned.depthWrite = true;
+                            cloned.opacity = 1.0;
+                            cloned.blending = THREE.NormalBlending; // 強制不透明化
+                            cloned.needsUpdate = true; // 描画의 更新を強制
+                            return cloned;
+                        });
+                        
+                        c.material = isArray ? newMaterials : newMaterials[0];
+                    }
+                } 
+            });
 
             juiceModel = fbx;
             addEndingObject(fbx); // Use safe wrapper
@@ -1837,6 +1864,21 @@ const SearchGame = (() => {
 
     function startOpeningSequence() {
         console.log("Starting Opening Sequence...");
+
+        // ★説明バージョン: 即時スキップ時はここで処理（モデルロード完了後に実行）
+        if (GameConfig.isAnimationPaused) {
+            const npc = openingNPC;
+            if (!npc) {
+                setTimeout(startOpeningSequence, 500);
+                return;
+            }
+            const overlay = document.getElementById('sg-loading-overlay');
+            if (overlay) overlay.style.display = 'none';
+
+            currentState = GameState.OPENING;
+            finishOpening();
+            return;
+        }
 
         // ★ 演出開始時のカメラ初期化
         camera.position.set(-25.0, 15.0, -8.0);
@@ -1940,6 +1982,9 @@ const SearchGame = (() => {
         if (openingInterval) clearInterval(openingInterval);
         openingInterval = setInterval(() => {
             if (currentState !== GameState.OPENING) return;
+
+            if (GameConfig.isAnimationPaused) return;
+
             updateSeasonEffects();
 
             const elapsed = (performance.now() - startTime) / 1000.0;
@@ -2018,7 +2063,7 @@ const SearchGame = (() => {
         // UI & Asset Cleanup
         const bgCanvas = document.getElementById('canvas-container');
         if (bgCanvas) bgCanvas.style.display = 'none';
-        ['sg-ui', 'sg-dpad', 'sg-get-btn', 'sg-instructions', 'sg-crosshair', 'sg-timer'].forEach(id => {
+        ['ui-container', 'sg-get-btn', 'sg-instructions', 'sg-crosshair', 'btn-action-pickup', 'floating-message'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.style.display = 'none';
         });
@@ -2027,9 +2072,15 @@ const SearchGame = (() => {
         if (controls) controls.enabled = false;
         if (slideModel) slideModel.visible = false;
 
-        // Start Controller
-        EndingController.start();
+        // ★説明バージョン: アニメーションの停止
+        if (GameConfig.isAnimationPaused) {
+            finishEnding();
+        } else {
+            // Start Controller
+            EndingController.start();
+        }
     }
+
 
 
     /**
@@ -2040,13 +2091,16 @@ const SearchGame = (() => {
         time: 0,
         steps: [],
 
-        // ★ Camera Base Definition (Single Source of Truth)
-        // [FIXED] Default Frontal View
-        // Pos: (vm.x, 1.3, vm.z + 3.5)
-        // LookAt: (vm.x, 1.3, vm.z)
+        // [UPDATED] Closer to Vending Machine and Lower for Outlet focus
         baseCamera: {
-            pos: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z + 3.5),
-            lookAt: new THREE.Vector3(NPC_CONFIG.vending_machine.x, 1.3, NPC_CONFIG.vending_machine.z)
+            pos: new THREE.Vector3(-25.5, 0.7, -19.3),
+            lookAt: new THREE.Vector3(-28.0, 0.5, -19.3) // Closer look at vending machine outlet
+        },
+
+        // [UPDATED] Potato-kun TRUE FRONT + LOW ANGLE Position
+        potatoCamera: {
+            pos: new THREE.Vector3(-25.2, 0.3, -18.5),
+            lookAt: new THREE.Vector3(-26.5, 0.6, -18.5)
         },
 
         start: function () {
@@ -2061,37 +2115,39 @@ const SearchGame = (() => {
                         console.log("Ending Step 1: Init Camera & Assets");
 
                         // Camera Setup: Use BASE CONSTANT
-                        // Front of Vending Machine (Default Position)
                         const base = this.baseCamera;
                         camera.position.copy(base.pos);
                         camera.lookAt(base.lookAt);
+                        if (typeof controls !== 'undefined' && controls) {
+                            controls.target.copy(base.lookAt);
+                            controls.update();
+                        }
                         camera.updateMatrixWorld();
 
                         // Assets Init (Hidden at start)
                         if (banzaiNPC) {
                             banzaiNPC.visible = false; // Hidden until Step 3
-                            banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
-                            banzaiNPC.rotation.y = -Math.PI / 8;
+                            banzaiNPC.position.set(-26.5, 0, -18.5);
+                            banzaiNPC.rotation.y = Math.PI / 2;
                         } else {
                             // Emergency Spawn check
                             spawnEndingAssets(() => {
                                 if (banzaiNPC) {
                                     addEndingObject(banzaiNPC);
                                     banzaiNPC.visible = false;
-                                    banzaiNPC.position.set(-10.5, 0, 7.0); // Old: -7.0. Inverted: 7.0
-                                    banzaiNPC.rotation.y = -Math.PI / 8;
+                                    banzaiNPC.position.set(-26.5, 0, -18.5);
+                                    banzaiNPC.rotation.y = Math.PI / 2;
                                 }
                             });
                         }
                         if (juiceModel) {
                             juiceModel.visible = false; // Hidden until Step 2
-                            // Pos: Front (+0.4) & Right (+0.4) of Center, Height 1.1m -> Adjusted Phase 2
+                            // Pos: near the vending machine dispenser within camera view
                             const vm = NPC_CONFIG.vending_machine;
-                            // Update: X (Center - 0.1), Y (0.4), Z (Unchanged)
-                            juiceModel.position.set(vm.x - 0.1, 0.4, vm.z + 0.4);
+                            juiceModel.position.set(-27.6, 0.4, -19.3);
 
-                            // Rotation: Sideways (Z-axis rotation)
-                            juiceModel.rotation.set(0, 0, Math.PI / 2);
+                            // Rotation: Sideways (Z-axis rotation) and Horizontal (Y-axis rotation)
+                            juiceModel.rotation.set(0, Math.PI / 2, Math.PI / 2);
                         }
                     }
                 },
@@ -2101,7 +2157,11 @@ const SearchGame = (() => {
                     action: () => {
                         console.log("Ending Step 2: Juice Slide");
                         if (juiceModel) juiceModel.visible = true;
-                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#00FF00");
+                        
+                        // [NEW] Play can drop sound
+                        if (window.AudioManager) window.AudioManager.play('can_drop', 1.0);
+                        
+                        showTapText(window.innerWidth / 2, window.innerHeight * 0.3, "ジュース、買えたよ！", "#87CEFA");
                     }
                 },
                 {
@@ -2115,7 +2175,7 @@ const SearchGame = (() => {
                     }
                 },
                 {
-                    time: 6.5,
+                    time: 7.5,
                     fired: false,
                     action: () => {
                         console.log("Ending Step 4: Finish");
@@ -2144,8 +2204,8 @@ const SearchGame = (() => {
             // Juice Slide (1.5s ~ 3.0s)
             if (this.time >= 1.5 && this.time < 3.0) {
                 if (juiceModel && juiceModel.visible) {
-                    // Slide forward/up slightly
-                    juiceModel.position.z += dt * 0.1;
+                    // Slide forward/up slightly (Towards camera / East)
+                    juiceModel.position.x += dt * 0.2;
                 }
             }
 
@@ -2154,6 +2214,23 @@ const SearchGame = (() => {
                 if (banzaiNPC && banzaiNPC.visible) {
                     // Gentle vertical bob
                     banzaiNPC.position.y = Math.sin((this.time - 3.5) * 4) * 0.05;
+                }
+            }
+
+            // Camera Interpolation (Close-up Vending -> Close-up Potato) (3.5s ~ 5.0s)
+            if (this.time >= 3.5 && this.time < 5.0) {
+                const t = (this.time - 3.5) / 1.5; // 1.5s duration
+                const easedT = t * t * (3 - 2 * t); // Smoothstep
+
+                camera.position.lerpVectors(this.baseCamera.pos, this.potatoCamera.pos, easedT);
+
+                // Lerp lookAt target
+                const currentLookAt = new THREE.Vector3().lerpVectors(this.baseCamera.lookAt, this.potatoCamera.lookAt, easedT);
+                camera.lookAt(currentLookAt);
+
+                if (typeof controls !== 'undefined' && controls) {
+                    controls.target.copy(currentLookAt);
+                    controls.update();
                 }
             }
         }
@@ -2168,44 +2245,145 @@ const SearchGame = (() => {
     }
 
     function finishEnding() {
-        console.log("Ending Finished.");
+        console.log("Ending Finished. Integrated Window & Free Roam started.");
 
-        // Message display (Success/Thank You)
-        const overlay = document.getElementById('sg-loading-overlay');
-        if (overlay) {
-            overlay.style.display = 'flex';
-            overlay.style.opacity = '0';
-            overlay.style.transition = 'opacity 1s';
-            overlay.innerHTML = 'THANK YOU FOR PLAYING!';
-
-            // Force reflow
-            void overlay.offsetWidth;
-            overlay.style.opacity = '1';
+        // 1. 即座に操作とUIを復元 (シームレスな散策モード移行)
+        if (typeof banzaiNPC !== 'undefined' && banzaiNPC) {
+            banzaiNPC.visible = false;
         }
 
-        // Return to Mini Game Select after delay (Auto Transition)
-        setTimeout(() => {
-            console.log("Transitioning to Menu...");
-            stop(); // Cleanup Three.js & Events
+        if (controls) controls.enabled = true;
+        currentState = GameState.PLAYING;
+        isPlaying = true;
 
-            // Hide Ending Overlay directly
-            if (overlay) overlay.style.display = 'none';
+        // 2. CSSアニメーションの追加 (FadeInUp, PulseGold, ZoomOut)
+        if (!document.getElementById('sg-result-style')) {
+            const style = document.createElement('style');
+            style.id = 'sg-result-style';
+            style.textContent = `
+                @keyframes sgFadeInUp {
+                    0% { opacity: 0; transform: translate(-50%, 20px) scale(1); }
+                    100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+                }
+                @keyframes sgPulseGold {
+                    0% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.2); }
+                    100% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 0 50px rgba(255, 215, 0, 0.4); }
+                }
+                @keyframes sgZoomOut {
+                    0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+                    100% { opacity: 0; transform: translate(-50%, 0) scale(0); }
+                }
+                .sg-result-window {
+                    position: fixed;
+                    left: 50%;
+                    top: 26%;
+                    background: rgba(30, 30, 30, 0.85);
+                    color: white;
+                    border-radius: 16px;
+                    padding: 30px 40px;
+                    text-align: center;
+                    z-index: 2147483647;
+                    pointer-events: none;
+                    animation: sgFadeInUp 0.5s ease-out forwards, sgPulseGold 2s infinite alternate;
+                    border: 2px solid rgba(255, 215, 0, 0.5);
+                    font-family: sans-serif;
+                }
+                .sg-result-window.dismiss {
+                    animation: sgZoomOut 0.4s ease-in forwards;
+                }
+            `;
+            document.head.appendChild(style);
+        }
 
-            // Attempt transition
-            if (typeof showGameMenu === 'function') {
-                showGameMenu();
-            } else {
-                console.warn("showGameMenu not found via scope, forcing UI reset.");
-                // Manual Fallback
-                const menu = document.getElementById('game-menu');
-                const active = document.getElementById('active-game-container');
-                const overlayPortal = document.getElementById('minigame-container');
+        // 3. 統合ウィンドウの生成
+        const resultWindow = document.createElement('div');
+        resultWindow.className = 'sg-result-window';
+        resultWindow.innerHTML = `
+            <div style="font-size: 2rem; font-weight: bold; margin-bottom: 10px; color: #FFD700; text-shadow: 2px 2px 4px #000;">Thank you for playing!</div>
+            <div style="font-size: 1.1rem; line-height: 1.5;">ゲームクリア！<br>パーク内を自由に散策できます。</div>
+        `;
+        document.body.appendChild(resultWindow);
 
-                if (active) active.classList.add('hidden');
-                if (menu) menu.classList.remove('hidden');
-                if (overlayPortal) overlayPortal.classList.remove('hidden');
+        // 4. コイン・ラッシュ演出 (2Dレイヤー)
+        const particleContainer = document.createElement('div');
+        particleContainer.id = 'sg-coin-rush';
+        particleContainer.style.position = 'fixed';
+        particleContainer.style.inset = '0';
+        particleContainer.style.pointerEvents = 'none';
+        particleContainer.style.zIndex = '2147483646'; // ウィンドウより下
+        document.body.appendChild(particleContainer);
+
+        const coinInterval = setInterval(() => {
+            const coin = document.createElement('div');
+            coin.textContent = '🪙';
+            coin.style.position = 'absolute';
+            coin.style.left = Math.random() * 100 + 'vw';
+            coin.style.top = '-50px';
+            coin.style.fontSize = (Math.random() * 15 + 15) + 'px';
+            coin.style.opacity = Math.random() * 0.5 + 0.5;
+            coin.style.transition = 'top 3s linear';
+            particleContainer.appendChild(coin);
+
+            setTimeout(() => {
+                coin.style.top = '120vh';
+            }, 50);
+
+            setTimeout(() => {
+                if (coin.parentNode) coin.remove();
+            }, 3050);
+        }, 100);
+
+        void resultWindow.offsetWidth;
+
+        // 5. 消去ロジック (5秒後 or 移動時)
+        let isDismissed = false;
+        const dismissWindow = () => {
+            if (isDismissed) return;
+            isDismissed = true;
+            
+            clearInterval(coinInterval);
+            resultWindow.classList.add('dismiss');
+            
+            setTimeout(() => {
+                if (resultWindow.parentNode) resultWindow.remove();
+                if (particleContainer.parentNode) particleContainer.remove();
+            }, 400);
+
+            // イベントリスナー解除
+            window.removeEventListener('keydown', handleMove);
+            const dpad = document.getElementById('sg-dpad');
+            if (dpad) {
+                dpad.removeEventListener('touchstart', dismissWindow);
+                dpad.removeEventListener('mousedown', dismissWindow);
             }
-        }, 3000); // Wait 3.0s (User Request)
+        };
+
+        const handleMove = (e) => {
+            if (['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) {
+                dismissWindow();
+            }
+        };
+
+        window.addEventListener('keydown', handleMove);
+        const dpad = document.getElementById('sg-dpad');
+        if (dpad) {
+            dpad.addEventListener('touchstart', dismissWindow, {passive: true});
+            dpad.addEventListener('mousedown', dismissWindow);
+        }
+
+        setTimeout(dismissWindow, 5000);
+
+        // UI（分母）の更新
+        if (window.sgItemData) window.sgItemData.total = 2; // テスト用: 20 -> 2
+        const scoreDiv = document.getElementById('score');
+        const counterSpan = document.getElementById('sg-coin-counter');
+        if (scoreDiv && counterSpan) {
+            const currentVal = counterSpan.textContent;
+            scoreDiv.innerHTML = 'コイン: <span id="sg-coin-counter">' + currentVal + '</span>/2';
+            scoreDiv.style.transition = 'transform 0.3s ease';
+            scoreDiv.style.transform = 'scale(1.1)';
+            setTimeout(() => { scoreDiv.style.transform = 'scale(1.0)'; }, 300);
+        }
     }
 
 
@@ -2242,6 +2420,12 @@ const SearchGame = (() => {
         // Resume Top Page Viewer
         window.backgroundViewer?.resume();
 
+        // ★ resizeリスナーの解除
+        if (onResizeHandler) {
+            window.removeEventListener('resize', onResizeHandler);
+            onResizeHandler = null;
+        }
+
         if (renderer) {
             renderer.dispose();
             if (renderer.domElement && renderer.domElement.parentNode) {
@@ -2252,6 +2436,63 @@ const SearchGame = (() => {
 
         // Reset Model References
         slideModel = null;
+
+        // === Phase 2: コイン収集再開 ===
+        if (window.sgItemData) {
+            window.sgItemData.total = 20;
+            const counter = document.getElementById('sg-coin-counter'); // Use existing counter
+            if (counter) {
+                const currentVal = counter.textContent.split('/')[0];
+                counter.textContent = currentVal + '/20';
+            }
+        }
+
+        // ★★★ ガードフラグのリセット（再起動時に再配置を可能にする）★★★
+        window.hasParkAssetsCreated = false;
+        window.hasSpawnedGrass = false;
+        window.hasSpawnedPond = false;
+
+        // ★★★ グローバル参照のクリーンアップ ★★★
+        window.parkGroup = null;
+        window.sgCoinMaster = null;
+        window.sgGameCoins = null;
+        window.sgItemData = null;
+        window.sgTreeObjects = null;
+        window.sgTreeCollisions = null;
+        window.sgCloudObjects = null;
+        window.sgExtraObstacles = null;
+        window.sgFountainCollision = null;
+        window.sgInteractables = null;
+        window.sgGrassInstancedMesh = null;
+        window.sgGrassObjects = null;
+        window.sgSeasonDolls = null;
+        window.sgActiveCoins = null;
+        window.sgParasolCanopies = null;
+        window.sgBenchCat = null;
+        window.sgMixers = null;
+        window.sgWalkableMeshes = null;
+        window.sgMasterTree = null;
+        window.sgSunLight = null;
+        window.sgClock = null;
+        window.sgCurrentTarget = null;
+        window.scene = null;
+        window.camera = null;
+
+        // ★ ExclusionManagerのリセット
+        if (ExclusionManager && ExclusionManager.reset) {
+            ExclusionManager.reset();
+        }
+
+        // ★ キッチンカーイベントのリセット
+        if (window.resetKitchenCarEvent) {
+            window.resetKitchenCarEvent();
+        }
+
+        // ★ SeasonDollインターバルの停止
+        if (window.sgDollInterval) {
+            clearInterval(window.sgDollInterval);
+            window.sgDollInterval = null;
+        }
     }
 
 
@@ -2294,7 +2535,7 @@ const SearchGame = (() => {
                 
                 <div id="hud-top-left" style="pointer-events: auto; touch-action: none;">
                     <h1 style="display: flex; align-items: center; gap: 10px;">ポテトコイン <span class="beta-badge" style="margin: 0; font-size: 0.6em; padding: 2px 8px; line-height: 1.2;">β版</span></h1>
-                    <div id="score" style="display:none;">コイン: <span id="sg-coin-counter">0</span>/10</div>
+                    <div id="score" style="display: block; background: transparent; width: fit-content; margin-top: 5px; margin-left: 8px;">コイン: <span id="sg-coin-counter">0</span>/1</div>
                     <div id="tutorial-hint" style="display:none;">🎮 移動: D-Pad / 🦅 視点切替</div>
                 </div>
 
@@ -2319,6 +2560,12 @@ const SearchGame = (() => {
         if (window.sgItemData && typeof window.sgItemData.collected === 'number') {
             const counter = document.getElementById('sg-coin-counter');
             if (counter) counter.textContent = window.sgItemData.collected;
+        }
+
+        // ★ 初期表示の同期改善: カウンターが正しく表示されるように即時反映
+        const counterEl = document.getElementById('sg-coin-counter');
+        if (counterEl && window.sgItemData) {
+            counterEl.textContent = window.sgItemData.collected || 0;
         }
 
         // イベントバインド
@@ -2373,7 +2620,7 @@ const SearchGame = (() => {
                 let targetCoin = null;
 
                 scene.traverse((obj) => {
-                    if (obj.userData.isCoin && !obj.userData.collected) {
+                    if (obj.userData.isCoin && !obj.userData.collected && obj.userData.hasFallen !== false) {
                         const worldPos = new THREE.Vector3();
                         obj.getWorldPosition(worldPos);
                         const distSq = playerPosition.distanceToSquared(worldPos);
@@ -2412,7 +2659,7 @@ const SearchGame = (() => {
         const tempVec = new THREE.Vector3();
         if (window.sgGameCoins) {
             for (const coin of window.sgGameCoins) {
-                if (coin.visible && !coin.userData.collected) {
+                if (coin.visible && !coin.userData.collected && coin.userData.hasFallen !== false) {
                     coin.getWorldPosition(tempVec);
                     if (playerPosition.distanceToSquared(tempVec) < CHECK_DIST_SQ) {
                         nearCoinFound = true;
@@ -2425,7 +2672,7 @@ const SearchGame = (() => {
         // 2. 隠しコインのチェック (通常コインで見つかってなければ)
         if (!nearCoinFound && window.sgActiveCoins) {
             for (const coin of window.sgActiveCoins) {
-                if (coin.visible && !coin.userData.collected) {
+                if (coin.visible && !coin.userData.collected && coin.userData.hasFallen !== false) {
                     coin.getWorldPosition(tempVec);
                     if (playerPosition.distanceToSquared(tempVec) < CHECK_DIST_SQ) {
                         nearCoinFound = true;
@@ -2472,20 +2719,91 @@ const SearchGame = (() => {
         if (window.sgItemData) {
             window.sgItemData.collected++;
             const counter = document.getElementById('sg-coin-counter');
-            if (counter) counter.textContent = window.sgItemData.collected;
-
-            // ★ 10枚達成メッセージ
-            if (window.sgItemData.collected === 10) {
-                if (window.showFloatingMessage) {
-                    window.showFloatingMessage("ジュース、ポテトくんよろこんでくれたね～💕");
-                }
+            if (counter) {
+                counter.textContent = window.sgItemData.collected;
+                
+                // ★ 取得時のポップアップアニメーション
+                counter.style.transition = 'transform 0.1s ease-out';
+                counter.style.display = 'inline-block';
+                counter.style.transform = 'scale(1.3)';
+                setTimeout(() => {
+                    counter.style.transform = 'scale(1.0)';
+                }, 150);
             }
 
-            // ★ 20枚達成メッセージ (追加)
-            if (window.sgItemData.collected === 20) {
+
+
+            // ★ 報酬達成メッセージ
+            if (window.sgItemData.collected === 2) { // テスト用: 20 -> 2
+                console.log("🎉 20 Coins Reached! Starting modal timer...");
                 if (window.showFloatingMessage) {
-                    window.showFloatingMessage("すごい！20枚達成！ポテトくんからプレゼントがあるみたいだよ🎁（仮）");
+                    window.showFloatingMessage("すごい！20枚達成！<br>ポテトくんから<br>プレゼントがあります🎁");
                 }
+                
+                // メッセージが消えるタイミングで報酬画面を表示
+                setTimeout(() => {
+                    console.log("🎁 Displaying reward modal NOW!");
+                    
+                    // 重複生成を防止
+                    const existing = document.getElementById('potecoin-reward-modal');
+                    if (existing) existing.remove();
+                    
+                    const rewardModal = document.createElement('div');
+                    rewardModal.id = 'potecoin-reward-modal';
+                    
+                    // 最前面に強制表示するCSS（スマホ対応）
+                    rewardModal.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(0,0,0,0.95); color:white; padding:30px; border-radius:20px; text-align:center; z-index:2147483647; border:4px solid #FFD700; box-shadow:0 0 50px rgba(255,215,0,0.8); display:flex; flex-direction:column; gap:20px; width:85%; max-width:400px; pointer-events:auto;';
+                    
+                    rewardModal.innerHTML = `
+                        <h2 style="margin:0; color:#FFD700; font-size:1.6rem; text-shadow: 2px 2px 4px #000;">🎉 20枚達成！ 🎉</h2>
+                        <p style="margin:0; font-size:1.1rem;">ポテトくんからの特別報酬です</p>
+                        <a href="https://drive.google.com/file/d/1nz9HWyO4Q3sMbPDmTLRZcGWkF6k1OjZf/view?usp=sharing" target="_blank" rel="noopener noreferrer" style="display:inline-block; background:linear-gradient(45deg, #FF1493, #FF69B4); color:white; padding:15px; text-decoration:none; border-radius:30px; font-weight:bold; font-size:1.1rem; box-shadow:0 4px 15px rgba(255,20,147,0.6);">🎁 Special VRMを<br>ダウンロード</a>
+                    `;
+
+                    // トップページに戻るボタン
+                    const backBtn = document.createElement('button');
+                    backBtn.innerHTML = '🏠 トップページに戻る';
+                    backBtn.style.cssText = 'background:linear-gradient(45deg, #4CAF50, #45a049); color:white; border:none; padding:15px; border-radius:30px; font-weight:bold; font-size:1.1rem; cursor:pointer; box-shadow:0 4px 15px rgba(76,175,80,0.6); margin-top:5px;';
+                    
+        backBtn.onclick = () => {
+            console.log("Returning to Absolute Top Page...");
+            
+            // 1. ゲームループと3D描画を完全停止
+            if (typeof stop === 'function') stop();
+            
+            // 2. モーダル自身を削除
+            rewardModal.remove();
+
+            // 3. ゲーム全体を覆っているオーバーレイを隠す
+            const overlayPortal = document.getElementById('minigame-container');
+            if (overlayPortal) overlayPortal.classList.add('hidden');
+            
+            // 4. トップページのスクロールロックを解除し、元の位置に戻す
+            document.body.classList.remove('modal-open');
+            document.body.style.top = '';
+            
+            // グローバルに保存されているスクロール位置があれば復元
+            if (typeof scrollPos !== 'undefined') {
+                window.scrollTo(0, scrollPos);
+            }
+            
+            // ★追加: トップページに戻る際にバッテンボタンを再表示する
+            const closeBtn = document.getElementById('portal-close-btn');
+            if (closeBtn) closeBtn.style.display = ''; 
+        };
+
+        rewardModal.appendChild(backBtn);
+        document.body.appendChild(rewardModal);
+        
+        // ★追加: 報酬モーダル表示中はバッテンボタンを隠す
+        const closeBtn = document.getElementById('portal-close-btn');
+        if (closeBtn) closeBtn.style.display = 'none';
+    }, 3800);
+}
+
+            // ★ 全コイン収集判定（直接統合リザルトウィンドウを表示）
+            if (window.sgItemData.collected === 1) { // テスト用: 10 -> 1
+                finishEnding();
             }
         }
 
@@ -2590,6 +2908,7 @@ const SearchGame = (() => {
         const height = canvasContainer.clientHeight || window.innerHeight;
 
         scene = new THREE.Scene();
+        window.scene = scene; // ★ キッチンカーイベント等の外部IIFEから参照可能にする
         scene.background = new THREE.Color(0xBFEFFF); // Soft pastel sky blue
         scene.fog = new THREE.Fog(0x90EE90, 5, 25); // Green-tinted fog for grass maze
 
@@ -2652,7 +2971,7 @@ const SearchGame = (() => {
                 lightPos: { x: 20, y: 25, z: 20 }, // 太陽は低い位置（影が伸びる）
                 lightIntensity: 1.2,    // 夏(1.6)より日差しを弱くする
                 ambientColor: 0x666688, // 青みがかったグレー（冷たい影の色）
-                ambientIntensity: 1.0   // 雪の反射で影もそこそこ明るくする
+                ambientIntensity: 1.0   // 冬の環境光設定
             }
         };
 
@@ -2698,6 +3017,18 @@ const SearchGame = (() => {
         // Let's assume standard inversion: 25 -> -25.
         camera.rotation.order = 'YXZ'; // Important for FPS camera
         camera.rotation.order = 'YXZ'; // Important for FPS camera
+        window.camera = camera; // ★ キッチンカーイベント等の外部IIFEから参照可能にする
+
+        // ★説明バージョン: カメラの初期位置を地上に設定
+        if (GameConfig.isAnimationPaused) {
+            const final = NPC_CONFIG.opening_camera_final;
+            camera.position.copy(final.pos);
+            camera.lookAt(final.look);
+            if (window.controls) {
+                window.controls.target.copy(final.look);
+                window.controls.update();
+            }
+        }
 
         // ★★★ Audio Managerの初期化 & リソースロード ★★★
         window.AudioManager.init();
@@ -2710,9 +3041,8 @@ const SearchGame = (() => {
         window.AudioManager.load('splash', 'assets/splash.mp3');
         window.AudioManager.load('psshhh', 'assets/psshhh.mp3');
 
-        // ▼ 追加 ▼
         window.AudioManager.load('wheeee', 'assets/wheeee.mp3');
-        // ▲▲▲ 追加ここまで ▲▲▲
+        window.AudioManager.load('can_drop', 'assets/vending_can_drop.mp3');
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(width, height);
@@ -2721,7 +3051,9 @@ const SearchGame = (() => {
         canvasContainer.appendChild(renderer.domElement);
 
         // === リサイズ・画面回転時の処理 ===
-        window.addEventListener('resize', onWindowResize, false);
+        if (onResizeHandler) window.removeEventListener('resize', onResizeHandler);
+        onResizeHandler = onWindowResize;
+        window.addEventListener('resize', onResizeHandler, false);
 
         function onWindowResize() {
             // カメラのアスペクト比を修正
@@ -2893,7 +3225,7 @@ const SearchGame = (() => {
                     }
 
                     // ターゲットが見つかったら磁石モード
-                    if (targetGroup.userData.isCoin && !targetGroup.userData.collected) {
+                    if (targetGroup.userData.isCoin && !targetGroup.userData.collected && targetGroup.userData.hasFallen !== false) {
                         cursorState = 'magnet';
                         break;
                     }
@@ -2983,7 +3315,7 @@ const SearchGame = (() => {
                     }
                 }
 
-                const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected;
+                const isCoin = targetGroup.userData.isCoin && !targetGroup.userData.collected && targetGroup.userData.hasFallen !== false;
 
                 // インタラクティブ・オブジェクト（アクション持ち）の判定
                 let interactable = targetGroup; // 上で特定したグループを使う
@@ -3344,7 +3676,7 @@ const SearchGame = (() => {
 
 
             // ★★★ ネコ耳ピクピク判定 (恩返しイベント：設定確定版) ★★★
-            if (false && currentState === GameState.PLAYING && window.sgBenchCat) { // ★これを追加：イベント判定を無効化
+            if (currentState === GameState.PLAYING && window.sgBenchCat) { // ★これを追加：イベント判定を無効化
                 const cat = window.sgBenchCat;
 
                 // ▼▼▼ 判定エリア設定 (Master Settings) ▼▼▼
@@ -3793,7 +4125,7 @@ const SearchGame = (() => {
                 window.sgItemData = {
                     items: gameItems,
                     collected: 0,
-                    total: coinPositions.length
+                    total: 1 // テスト用: 10 -> 1
                 };
 
                 console.log(`${coinPositions.length} collectible coins placed!`);
@@ -3930,8 +4262,8 @@ const SearchGame = (() => {
                 box.getSize(size);
                 coin.scale.setScalar(0.5 / (Math.max(size.x, size.y, size.z) || 1));
 
-                // 配置
-                coin.position.set(0, 2.2, 0); // 木のローカル座標
+                // 配置（木の上に光るヒントとして表示。取得は地面落下後のみ可能）
+                coin.position.set(0, 2.2, 0); // 木のキャノピー付近のローカル座標
                 const coinLight = new THREE.PointLight(targetColor, 3.0, 5.0);
                 coin.add(coinLight);
 
@@ -3971,6 +4303,48 @@ const SearchGame = (() => {
 
             window.setTreeSeason = (s) => {
                 if (window.TreeInstanceManager) window.TreeInstanceManager.updateSeason(s);
+                
+                // ★基盤整備: 独立した木（CoinHolder等）の季節色も同期
+                if (window.sgTreeObjects) {
+                    const TREE_PALETTES = {
+                        spring: [0xFF69B4, 0xFF1493, 0xFF99CC, 0xFFB6C1],
+                        summer: [0x66BB6A, 0x43A047, 0x81C784, 0x9CCC65],
+                        autumn: [0xFF4500, 0xD2691E, 0xFF8C00, 0xFFD700],
+                        winter: [0xE6E6FA, 0xF8F8FF, 0xD8BFD8]
+                    };
+                    const palette = TREE_PALETTES[s] || TREE_PALETTES.summer;
+                    window.sgTreeObjects.forEach((tree, index) => {
+                        const colorHex = palette[index % palette.length];
+                        const leafColorObj = new THREE.Color(colorHex);
+                        tree.traverse(child => {
+                            // コイン自体はスキップ
+                            if (child.userData && child.userData.isCoin) return;
+                            if (child.isMesh && child.material && child.material.color) {
+                                const name = child.name.toLowerCase();
+                                const isLeaves = name.includes('leaves') || name.includes('leaf') || name.includes('canopy');
+                                if (isLeaves) {
+                                    child.material.color.copy(leafColorObj);
+                                }
+                            }
+                        });
+                    });
+                }
+
+                // ★基盤整備: コインの色も季節に同期
+                if (window.sgActiveCoins) {
+                    const seasonColors = { spring: 0xADFF2F, summer: 0xFF69B4, autumn: 0xE0FFFF, winter: 0xFFD700 };
+                    const targetColor = seasonColors[s] || seasonColors.summer;
+                    window.sgActiveCoins.forEach(coin => {
+                        coin.traverse(child => {
+                            if (child.isMesh && child.material && child.material.color) {
+                                child.material.color.setHex(targetColor);
+                            }
+                        });
+                        if (coin.userData && coin.userData.pointLight) {
+                            coin.userData.pointLight.color.setHex(targetColor);
+                        }
+                    });
+                }
             };
 
             const benchLoader = new FBXLoader();
@@ -3996,7 +4370,7 @@ const SearchGame = (() => {
                 const iq = [];
                 all.forEach((d, i) => {
                     if (d.type !== 'exterior') window.sgTreeCollisions.push({ x: d.x, z: d.z, radius: 0.3 * d.scale });
-                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); if (window.applyOutlineRules) window.applyOutlineRules(t); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); /* setupHiddenCoin(t); */ }
+                    if (i === cti) { const t = mt.clone(); t.userData.isTree = true; t.name = 'Tree_CoinHolder'; t.scale.setScalar(d.scale); t.position.set(d.x, 0, d.z); t.rotation.y = Math.random() * Math.PI * 2; t.traverse(c => { if (c.isMesh) { c.material = Array.isArray(c.material) ? c.material.map(m => m.clone()) : c.material.clone(); c.castShadow = true; c.receiveShadow = true; } }); scene.add(t); window.sgTreeObjects.push(t); console.log('CoinTree at ' + d.x.toFixed(1) + ',' + d.z.toFixed(1)); setupHiddenCoin(t); /* ★基盤整備: CoinHolder木も即座に季節色を同期 */ if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason); }
                     else { iq.push({ x: d.x, z: d.z, scale: d.scale, rot: Math.random() * Math.PI * 2 }); }
                 });
                 if (window.TreeInstanceManager) { window.TreeInstanceManager.init(mt, iq.length); const dm = new THREE.Object3D(); iq.forEach((p, i) => { dm.position.set(p.x, 0, p.z); dm.rotation.y = p.rot; dm.scale.setScalar(p.scale); window.TreeInstanceManager.setTransform(i, dm); }); window.TreeInstanceManager.finalize(); console.log('Instanced ' + iq.length + ' trees.'); }
@@ -4194,10 +4568,10 @@ const SearchGame = (() => {
             if (!window.sgFountainCollision) window.sgFountainCollision = [];
             if (!window.sgInteractables) window.sgInteractables = [];
 
-            if (window.sgSnowmen) {
-                window.sgSnowmen.forEach(s => { if (s.parent) s.parent.remove(s); });
+            if (window.sgSeasonDolls) {
+                window.sgSeasonDolls.forEach(s => { if (s.parent) s.parent.remove(s); });
             }
-            window.sgSnowmen = [];
+            window.sgSeasonDolls = [];
 
             if (!window.parkGroup) {
                 window.parkGroup = new THREE.Group();
@@ -4302,7 +4676,7 @@ const SearchGame = (() => {
                         pos.z + (Math.random() - 0.5) * 1.0
                     );
 
-                    // サイズ: コインは0.13なので、雪もそれに近づける (0.15〜0.2)
+                    // サイズ: コインは0.13なので、同等のスケールに近づける (0.15〜0.2)
                     const s = 0.15 + Math.random() * 0.1;
                     particle.scale.set(s, s, s);
 
@@ -5111,6 +5485,7 @@ const SearchGame = (() => {
                     pos: { x: 10, y: 0, z: 25 },
                     rot: { y: 0 },
                     scale: 1.4,
+                    checkCollisions: true,
                     onLoad: (obj) => {
                         console.log("🪏 Sandbox Set Loaded");
                         let shovel = null;
@@ -5122,17 +5497,26 @@ const SearchGame = (() => {
                                 c.receiveShadow = true;
 
                                 const name = c.name.toLowerCase();
+                                // メッシュ名の特定 (Shovel / SandMound)
                                 if (name.includes('shovel')) {
                                     shovel = c;
+
+                                    // ★根本治療: スコップに含まれる「全てのメッシュ」を走査して無効化する
+                                    // これにより、見えないゴースト判定も全て無効化されます
                                     shovel.traverse((child) => {
                                         if (child.isMesh) {
                                             child.userData.ignoreRaycast = true;
                                         }
                                     });
+                                    console.log("🪏 Shovel: All original meshes set to ignoreRaycast.");
 
+                                    // ★HitBoxの作成 (ユーザー確定サイズ)
+                                    // サイズ: 幅60cm, 高さ20cm, 奥行50cm
                                     const hitGeo = new THREE.BoxGeometry(0.6, 0.2, 0.5);
+
+                                    // ★修正: 本番用に「透明」に戻す (visible: false)
                                     const hitMat = new THREE.MeshBasicMaterial({
-                                        visible: false,
+                                        visible: false, // 透明化！
                                         side: THREE.DoubleSide
                                     });
 
@@ -5141,27 +5525,66 @@ const SearchGame = (() => {
                                     hitBox.userData.isHitBox = true;
                                     hitBox.userData.skipOutline = true;
                                     hitBox.userData.ignoreHighlight = true;
+                                    // hitBoxには ignoreRaycast を設定しない（デフォルトfalse = 反応する）
 
+                                    // 位置合わせ
                                     shovel.geometry.computeBoundingBox();
                                     const center = new THREE.Vector3();
                                     shovel.geometry.boundingBox.getCenter(center);
                                     hitBox.position.copy(center);
 
+                                    // 最後に箱を追加
                                     shovel.add(hitBox);
-                                }
+                                    console.log("🪏 Shovel HitBox set (RED). Original mesh raycast disabled.");
+                                }    // ------------------------------------------------
                                 if (name.includes('mound') || name.includes('sandpile')) sandMound = c;
 
+                                // Register walkable mesh
                                 if (c.name.includes('SandboxMain')) {
                                     if (window.sgWalkableMeshes) window.sgWalkableMeshes.push(c);
                                 }
                             }
                         });
 
+                        // --- ギミック設定 ---
                         if (shovel && sandMound) {
+                            console.log("✨ Sandbox Shovel & Mound identified. Setting up interaction.");
+
+                            // クリック対象として登録
+                            if (window.sgInteractables) window.sgInteractables.push(shovel);
+
                             shovel.userData.hasDug = false;
                             shovel.userData.action = () => {
-                                return;
+                                if (shovel.userData.hasDug) return;
+                                shovel.userData.hasDug = true;
+
+                                console.log("🪏 Digging in the sandbox!");
+
+                                // 音
+                                if (window.AudioManager) window.AudioManager.play('thud');
+
+                                // 演出: 砂山を消してパーティクル
+                                sandMound.visible = false;
+                                if (window.createSandSplash) {
+                                    const worldPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(worldPos);
+                                    window.createSandSplash(worldPos);
+                                }
+
+                                // 報酬: コイン出現
+                                if (typeof spawnDropCoin === 'function') {
+                                    const coinPos = new THREE.Vector3();
+                                    sandMound.getWorldPosition(coinPos);
+                                    spawnDropCoin(coinPos);
+                                }
+
+                                // スコップ本体も非表示にする (追加)
+                                // ヒットボックス(InteractionCollider)はスコップの子供なので、親を消せば一緒に消えます [cite: 1214]
+                                shovel.visible = false;
                             };
+                        } else {
+                            console.warn("⚠️ Sandbox Interaction failed: Shovel or Mound not found. Names:",
+                                obj.children.map(c => c.name));
                         }
                     }
                 },
@@ -5384,11 +5807,57 @@ const SearchGame = (() => {
             });
 
 
+            function showTapText(x, y, text, color) {
+                const el = document.createElement('div');
+                el.className = 'sg-tap-text';
+                el.innerHTML = text;
+                
+                // ★ 位置と上辺の統一
+                el.style.position = 'fixed';
+                el.style.left = '50%'; // 引数xを無視して常に中央
+                el.style.top = '26%';  // 引数yを無視して常に26%（ジュース枠の上辺付近）に固定
+                el.style.transform = 'translate(-50%, 0)'; // Yを0にして上辺を固定
+                
+                el.style.color = color;
+                el.style.zIndex = '2147483647';
+                el.style.fontWeight = 'bold';
+                el.style.fontSize = '1.2rem';
+                el.style.textShadow = 'none';
+                el.style.pointerEvents = 'none';
+                el.style.textAlign = 'center';
+                el.style.lineHeight = '1.4';
+                
+                // 枠の横幅設定
+                el.style.width = '80%';
+                el.style.maxWidth = '400px';
+                el.style.boxSizing = 'border-box';
+                
+                // 季節ごとの背景色判定
+                let bgColor = 'rgba(0, 0, 0, 0.8)';
+                if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
+                    switch(GameConfig.currentSeason) {
+                        case 'spring': bgColor = 'rgba(255, 105, 180, 0.8)'; break;
+                        case 'summer': bgColor = 'rgba(0, 105, 148, 0.8)'; break;
+                        case 'autumn': bgColor = 'rgba(210, 105, 30, 0.8)'; break;
+                        case 'winter': bgColor = 'rgba(70, 130, 180, 0.8)'; break;
+                    }
+                }
+                el.style.background = bgColor;
+                el.style.border = '2px solid white';
+                el.style.borderRadius = '20px';
+                el.style.padding = '15px 30px';
+                el.style.fontFamily = 'sans-serif';
+                
+                const targetContainer = typeof container !== 'undefined' && container ? container : document.body;
+                targetContainer.appendChild(el);
+                
+                setTimeout(() => el.remove(), 1500);
+            }
 
-            // ▼▼▼ ⛄️体当たり人形 (Seasondoll) ▼▼▼
+            // ▼▼▼ 🎭体当たり人形 (SeasonDoll) ▼▼▼
 
-            const snowmanPositions = [{ x: 11, z: 14 }, { x: 11, z: 16 }, { x: 11, z: 18 }]; // Old: -14, -16, -18. Inverted: 14, 16, 18
-            const winnerIndex = Math.floor(Math.random() * snowmanPositions.length);
+            const dollPositions = [{ x: 11, z: 14 }, { x: 11, z: 16 }, { x: 11, z: 18 }];
+            const winnerIndex = Math.floor(Math.random() * dollPositions.length);
             // ==========================================
             // 1. マスターモデル管理 & 季節カラー定義
             // ==========================================
@@ -5408,8 +5877,8 @@ const SearchGame = (() => {
             window.updateSeasonDollColor = (seasonName) => {
                 const targetColor = new THREE.Color(SEASON_DOLL_COLORS[seasonName] || SEASON_DOLL_COLORS.winter);
 
-                if (window.sgSnowmen) {
-                    window.sgSnowmen.forEach(doll => {
+                if (window.sgSeasonDolls) {
+                    window.sgSeasonDolls.forEach(doll => {
                         doll.traverse(child => {
                             if (child.isMesh) {
                                 // ★bodyのみ色変更
@@ -5428,16 +5897,16 @@ const SearchGame = (() => {
                         });
                     });
                 }
-                console.log(`⛄️ SeasonDolls body color updated to: ${seasonName}`);
+                console.log(`🎭 SeasonDoll body color updated to: ${seasonName}`);
             };
 
             // ==========================================
-            // 3. createSnowman 関数の上書き (FBX版)
+            // 3. createSeasonDoll 関数 (FBX版)
             // ==========================================
-            // 既存の createSnowman を完全に置き換えます。
+            // SeasonDollをシーンに配置します。
             // 呼び出し元のロジック(座標configなど)はそのまま利用されます。
 
-            const createSnowman = (config, isWinner, hasPaid = false) => {
+            const createSeasonDoll = (config, isWinner, hasPaid = false) => {
                 // 実際にシーンに配置する内部関数
                 const placeDoll = (master, conf, winnerFlag, paidFlag) => {
                     const doll = master.clone();
@@ -5464,7 +5933,7 @@ const SearchGame = (() => {
 
                     // 管理リスト登録
                     window.parkGroup.add(doll);
-                    window.sgSnowmen.push(doll);
+                    window.sgSeasonDolls.push(doll);
 
                     // 衝突判定 (既存維持)
                     if (typeof ExclusionManager !== 'undefined') {
@@ -5529,7 +5998,7 @@ const SearchGame = (() => {
                     }
                 }
             };
-            snowmanPositions.forEach((config, index) => createSnowman(config, index === winnerIndex));
+            dollPositions.forEach((config, index) => createSeasonDoll(config, index === winnerIndex));
 
             // コイン出現演出 (FBX版)
             const spawnDropCoin = (startPos) => {
@@ -5597,21 +6066,21 @@ const SearchGame = (() => {
 
 
             // アニメーション監視ループ (エラー修正・安全化版)
-            if (window.sgSnowmanInterval) clearInterval(window.sgSnowmanInterval);
+            if (window.sgDollInterval) clearInterval(window.sgDollInterval);
 
-            window.sgSnowmanInterval = setInterval(() => {
+            window.sgDollInterval = setInterval(() => {
                 // 【安全装置1】プレイヤー座標やシーンが未ロードなら何もせずリターン
                 // これで "reading 'z'" エラーの9割を防ぎます
                 if (!playerPosition || !scene) return;
 
-                // 1. 雪だるま判定
-                if (window.sgSnowmen) {
-                    window.sgSnowmen.forEach(snowman => {
-                        // 【安全装置2】親から外れた(削除された)雪だるまは無視
-                        if (!snowman || !snowman.parent || snowman.userData.isDead || !snowman.visible) return;
+                // 1. SeasonDoll判定
+                if (window.sgSeasonDolls) {
+                    window.sgSeasonDolls.forEach(doll => {
+                        // 【安全装置2】親から外れた(削除された)Dollは無視
+                        if (!doll || !doll.parent || doll.userData.isDead || !doll.visible) return;
 
                         const worldPos = new THREE.Vector3();
-                        snowman.getWorldPosition(worldPos);
+                        doll.getWorldPosition(worldPos);
 
                         // 距離チェック
                         if (playerPosition.distanceTo(worldPos) < 2.0) {
@@ -5620,14 +6089,14 @@ const SearchGame = (() => {
                             window.AudioManager.play('boing', 1.0);
                             // ▲▲▲ 追加ここまで ▲▲▲
 
-                            snowman.visible = false;
-                            snowman.userData.isDead = true;
+                            doll.visible = false;
+                            doll.userData.isDead = true;
 
                             if (typeof spawnSnowExplosion === 'function') spawnSnowExplosion(worldPos);
 
-                            if (snowman.userData.isWinner && !snowman.userData.hasPaid) {
-                                snowman.userData.hasPaid = true;
-                                // if (typeof spawnDropCoin === 'function') spawnDropCoin(worldPos); // ★コイン生成のみ停止
+                            if (doll.userData.isWinner && !doll.userData.hasPaid) {
+                                doll.userData.hasPaid = true;
+                                if (typeof spawnDropCoin === 'function') spawnDropCoin(worldPos); 
 
                                 // ▼ 追加：コイン出現音 ▼
                                 window.AudioManager.play('wheeee', 1.0);
@@ -5643,23 +6112,23 @@ const SearchGame = (() => {
 
                             setTimeout(() => {
                                 // ★修正: 古いオブジェクトを完全削除
-                                const oldX = snowman.position.x;
-                                const oldZ = snowman.position.z;
-                                const wasWinner = snowman.userData.isWinner;
-                                const wasPaid = snowman.userData.hasPaid; // ★ 支払い履歴を継承
+                                const oldX = doll.position.x;
+                                const oldZ = doll.position.z;
+                                const wasWinner = doll.userData.isWinner;
+                                const wasPaid = doll.userData.hasPaid; // ★ 支払い履歴を継承
 
-                                if (snowman.parent) {
-                                    snowman.parent.remove(snowman);
+                                if (doll.parent) {
+                                    doll.parent.remove(doll);
                                 }
 
                                 // 配列からも削除 (安全のため)
-                                const idx = window.sgSnowmen.indexOf(snowman);
-                                if (idx > -1) window.sgSnowmen.splice(idx, 1);
+                                const idx = window.sgSeasonDolls.indexOf(doll);
+                                if (idx > -1) window.sgSeasonDolls.splice(idx, 1);
 
                                 // ★修正: 新しい関数経由で、新品をリスポーンさせる
                                 // これならスケールも季節カラーも最新ルールが適用される！
-                                if (typeof createSnowman === 'function') {
-                                    createSnowman({ x: oldX, z: oldZ }, wasWinner, wasPaid);
+                                if (typeof createSeasonDoll === 'function') {
+                                    createSeasonDoll({ x: oldX, z: oldZ }, wasWinner, wasPaid);
                                 }
                             }, 5000); // 復活時間 (3秒に変更指示があればここ)
                         }
@@ -5722,51 +6191,101 @@ const SearchGame = (() => {
     }
 
 
-    window.showFloatingMessage = function (text) {
-        const el = document.getElementById('floating-message');
-        if (el) {
-            el.textContent = text;
-            el.style.display = 'block';
-            el.style.opacity = '1';
-            el.style.transition = 'none';
+window.showFloatingMessage = function (text) {
+    const el = document.getElementById('floating-message');
+    if (el) {
+        el.innerHTML = text;
+        el.style.display = 'block';
+        el.style.opacity = '1';
+        el.style.transition = 'none';
+        
+        el.style.lineHeight = '1.4';
+        el.style.textAlign = 'center';
 
-            // アニメーション (Pop In)
-            el.style.transform = 'translate(-50%, -50%) scale(0.5)';
-            setTimeout(() => {
-                el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-                el.style.transform = 'translate(-50%, -50%) scale(1.0)';
-            }, 10);
+        // ★ 位置と上辺の統一
+        el.style.top = '26%'; // showTapTextと完全に一致させる
+        el.style.transformOrigin = 'top center'; // アニメーション中も上辺を固定
 
-            if (window.floatingMessageTimeout) clearTimeout(window.floatingMessageTimeout);
-
-            window.floatingMessageTimeout = setTimeout(() => {
-                el.style.transition = 'opacity 1s';
-                el.style.opacity = '0';
-                setTimeout(() => {
-                    if (el.style.opacity === '0') el.style.display = 'none';
-                }, 1000);
-            }, 3000);
+        // 季節ごとの背景色判定
+        let bgColor = 'rgba(0, 0, 0, 0.8)';
+        if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
+            switch(GameConfig.currentSeason) {
+                case 'spring': bgColor = 'rgba(65, 115, 75, 0.7)'; break; // 桜餅の葉や新緑をイメージした、文字が読みやすい色
+                case 'summer': bgColor = 'rgba(0, 105, 148, 0.8)'; break;
+                case 'autumn': bgColor = 'rgba(210, 105, 30, 0.8)'; break;
+                case 'winter': bgColor = 'rgba(70, 130, 180, 0.8)'; break;
+            }
         }
-    };
+        el.style.background = bgColor;
+        el.style.textShadow = '2px 2px 4px rgba(0, 0, 0, 0.5)'; // 文字を読みやすくするためのシャドウ
 
+        // ★ アニメーション座標のY軸を -50% から 0 に変更
+        el.style.transform = 'translate(-50%, 0) scale(0.5)';
+        setTimeout(() => {
+            el.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            el.style.transform = 'translate(-50%, 0) scale(1.0)';
+        }, 10);
 
-    function showTapText(x, y, text, color) {
-        const el = document.createElement('div');
-        el.className = 'sg-tap-text';
-        el.textContent = text;
-        el.style.position = 'fixed'; // Changed from implicit static
-        el.style.left = `${x}px`;
-        el.style.top = `${y}px`;
-        el.style.transform = 'translate(-50%, -50%)'; // Center alignment
-        el.style.color = color;
-        el.style.zIndex = '2000'; // High z-index to show above UI
-        el.style.fontWeight = 'bold';
-        el.style.fontSize = '1.5rem';
-        el.style.textShadow = '0 0 5px black';
-        el.style.pointerEvents = 'none';
-        container.appendChild(el);
-        setTimeout(() => el.remove(), 1500); // Slightly longer display
+        if (window.floatingMessageTimeout) clearTimeout(window.floatingMessageTimeout);
+
+        window.floatingMessageTimeout = setTimeout(() => {
+            el.style.transition = 'opacity 1s';
+            el.style.opacity = '0';
+            setTimeout(() => {
+                if (el.style.opacity === '0') el.style.display = 'none';
+            }, 1000);
+        }, 3000);
     }
+};
+
+
+function showTapText(x, y, text, color) {
+    const el = document.createElement('div');
+    el.className = 'sg-tap-text';
+    el.innerHTML = text;
+    
+    // ★ 位置と上辺の統一
+    el.style.position = 'fixed';
+    el.style.left = '50%'; // 引数xを無視して常に中央
+    el.style.top = '26%';  // 引数yを無視して常に26%（ジュース枠の上辺付近）に固定
+    el.style.transform = 'translate(-50%, 0)'; // Yを0にして上辺を固定
+    
+    el.style.color = color;
+    el.style.zIndex = '2147483647';
+    el.style.fontWeight = 'bold';
+    el.style.fontSize = '1.2rem';
+    el.style.textShadow = 'none';
+    el.style.pointerEvents = 'none';
+    el.style.textAlign = 'center';
+    el.style.lineHeight = '1.4';
+    
+    // 枠の横幅設定
+    el.style.width = '80%';
+    el.style.maxWidth = '400px';
+    el.style.boxSizing = 'border-box';
+    
+    // 季節ごとの背景色判定
+    let bgColor = 'rgba(0, 0, 0, 0.8)';
+    if (typeof GameConfig !== 'undefined' && GameConfig.currentSeason) {
+        switch(GameConfig.currentSeason) {
+            case 'spring': bgColor = 'rgba(65, 115, 75, 0.7)'; break; // 桜餅の葉や新緑をイメージした、文字が読みやすい色
+            case 'summer': bgColor = 'rgba(0, 105, 148, 0.8)'; break;
+            case 'autumn': bgColor = 'rgba(210, 105, 30, 0.8)'; break;
+            case 'winter': bgColor = 'rgba(70, 130, 180, 0.8)'; break;
+        }
+    }
+    el.style.background = bgColor;
+    el.style.border = '2px solid white';
+    el.style.borderRadius = '20px';
+    el.style.padding = '15px 30px';
+    el.style.fontFamily = 'sans-serif';
+    el.style.textShadow = '2px 2px 4px rgba(0, 0, 0, 0.5)'; // 文字を読みやすくするためのシャドウ
+    
+    const targetContainer = typeof container !== 'undefined' && container ? container : document.body;
+    targetContainer.appendChild(el);
+    
+    setTimeout(() => el.remove(), 1500);
+}
 
 
     function handleInteraction() {
@@ -6017,7 +6536,7 @@ const SearchGame = (() => {
                     coinGroup = coinGroup.parent;
                 }
 
-                if (coinGroup.userData.isCoin && !coinGroup.userData.collected && hit.distance <= 3.0) {
+                if (coinGroup.userData.isCoin && !coinGroup.userData.collected && coinGroup.userData.hasFallen !== false && hit.distance <= 3.0) {
                     targetFound = coinGroup;
                     targetType = 'coin';
                     break;
@@ -6275,7 +6794,7 @@ const SearchGame = (() => {
                     if (plantingQueue.length === 0) {
                         console.log("🌲 All trees planted.");
                         // 隠しコインのセットアップ（木が生え終わった後に実行）
-                        setupHiddenCoin();
+                        // setupHiddenCoin は spawnTrees 内の CoinHolder 木作成時に直接呼び出し済み
                         // 色の最終適用
                         if (window.setTreeSeason) window.setTreeSeason(GameConfig.currentSeason);
                         return;
@@ -6387,7 +6906,7 @@ const SearchGame = (() => {
             spring: 0x443344, // ほんのり桜色
             summer: 0x333333, // 通常の白（グレー発光）
             autumn: 0x663322, // ★夕暮れ（赤みのある暖色グレー）
-            winter: 0x444455  // 雪雲（青みのあるグレー）
+            winter: 0x444455  // 冬の曇り空（青みのあるグレー）
         };
 
         // ★ 雲の色変更関数
@@ -7085,6 +7604,17 @@ if (typeof initGameSystem === 'function') {
     let generatedCoin = null;
     let playerCamera = null; // カメラ（プレイヤー）を特定して保持する変数
 
+    // ★ リセット関数をグローバルに公開（stop()から呼び出し可能にする）
+    window.resetKitchenCarEvent = function () {
+        stayTimer = 0;
+        isEventTriggered = false;
+        generatedCoin = null;
+        playerCamera = null;
+        if (hintLabel) {
+            hintLabel.style.display = 'none';
+        }
+    };
+
     // 2. 吹き出しUI
     function updateHintLabel(text, show) {
         if (!hintLabel) {
@@ -7172,7 +7702,6 @@ if (typeof initGameSystem === 'function') {
 
     // 5. 監視ループ
     setInterval(() => {
-        return; // ★これを追加：プレイヤーの立ち止まり判定を無効化
         if (isEventTriggered) {
             if (generatedCoin && generatedCoin.userData.collected && generatedCoin.parent) {
                 generatedCoin.parent.remove(generatedCoin);
