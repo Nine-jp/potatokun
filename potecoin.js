@@ -1199,7 +1199,7 @@ const SearchGame = (() => {
         // ★ ADMIN MODE: Instant Clear
         // Set to true to trigger ending immediately on BUY button press.
         // Set to false for normal gameplay.
-        const adminMode = true;
+        const adminMode = false;
 
         isPlaying = true;
         score = 0;
@@ -2528,12 +2528,12 @@ const SearchGame = (() => {
         setTimeout(dismissWindow, 5000);
 
         // UI（分母）の更新
-        if (window.sgItemData) window.sgItemData.total = 2; // テスト用: 20 -> 2
+        if (window.sgItemData) window.sgItemData.total = 20; // 元の状態に戻す: 2 -> 20
         const scoreDiv = document.getElementById('score');
         const counterSpan = document.getElementById('sg-coin-counter');
         if (scoreDiv && counterSpan) {
             const currentVal = counterSpan.textContent;
-            scoreDiv.innerHTML = 'コイン: <span id="sg-coin-counter">' + currentVal + '</span>/2';
+            scoreDiv.innerHTML = 'コイン: <span id="sg-coin-counter">' + currentVal + '</span>/20';
             scoreDiv.style.transition = 'transform 0.3s ease';
             scoreDiv.style.transform = 'scale(1.1)';
             setTimeout(() => { scoreDiv.style.transform = 'scale(1.0)'; }, 300);
@@ -2689,7 +2689,7 @@ const SearchGame = (() => {
                 
                 <div id="hud-top-left" style="pointer-events: auto; touch-action: none;">
                     <h1 style="display: flex; align-items: center; gap: 10px;">ポテトコイン <span class="beta-badge" style="margin: 0; font-size: 0.6em; padding: 2px 8px; line-height: 1.2;">β版</span></h1>
-                    <div id="score" style="display: block; background: transparent; width: fit-content; margin-top: 5px; margin-left: 8px;">コイン: <span id="sg-coin-counter">0</span>/1</div>
+                    <div id="score" style="display: block; background: transparent; width: fit-content; margin-top: 5px; margin-left: 8px;">コイン: <span id="sg-coin-counter">0</span>/10</div>
                     <div id="tutorial-hint" style="display:none;">🎮 移動: D-Pad / 🦅 視点切替</div>
                 </div>
 
@@ -2888,7 +2888,7 @@ const SearchGame = (() => {
 
 
             // ★ 報酬達成メッセージ
-            if (window.sgItemData.collected === 2) { // テスト用: 20 -> 2
+            if (window.sgItemData.collected === 20) { // 元の状態に戻す: 2 -> 20
                 console.log("🎉 20 Coins Reached! Starting modal timer...");
                 if (window.showFloatingMessage) {
                     window.showFloatingMessage("すごい！20枚達成！<br>ポテトくんから<br>プレゼントがあるよ🎁");
@@ -2956,7 +2956,7 @@ const SearchGame = (() => {
 }
 
             // ★ 全コイン収集判定（直接統合リザルトウィンドウを表示）
-            if (window.sgItemData.collected === 1) { // テスト用: 10 -> 1
+            if (window.sgItemData.collected === 10) { // 元の状態に戻す: 1 -> 10
                 finishEnding();
             }
         }
@@ -4279,7 +4279,7 @@ const SearchGame = (() => {
                 window.sgItemData = {
                     items: gameItems,
                     collected: 0,
-                    total: 1 // テスト用: 10 -> 1
+                    total: 10 // 元の状態に戻す: 1 -> 10
                 };
 
                 console.log(`${coinPositions.length} collectible coins placed!`);
