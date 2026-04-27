@@ -2820,7 +2820,7 @@ const SearchGame = (() => {
             if (window.sgItemData.collected === 2) { // テスト用: 20 -> 2
                 console.log("🎉 20 Coins Reached! Starting modal timer...");
                 if (window.showFloatingMessage) {
-                    window.showFloatingMessage("すごい！20枚達成！<br>ポテトくんから<br>プレゼントがあります🎁");
+                    window.showFloatingMessage("すごい！20枚達成！<br>ポテトくんから<br>プレゼントがあるよ🎁");
                 }
                 
                 // メッセージが消えるタイミングで報酬画面を表示
