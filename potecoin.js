@@ -2378,6 +2378,16 @@ const SearchGame = (() => {
                 .sg-result-window.dismiss {
                     animation: sgZoomOut 0.4s ease-in forwards;
                 }
+                @keyframes sgScorePop {
+                    0% { transform: scale(1); }
+                    15% { transform: scale(1.25); color: #FFD700; text-shadow: 0 0 10px rgba(255, 215, 0, 0.6); }
+                    30% { transform: scale(0.9); }
+                    45% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+                .sg-score-pop {
+                    animation: sgScorePop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+                }
             `;
             document.head.appendChild(style);
         }
@@ -2534,9 +2544,11 @@ const SearchGame = (() => {
         if (scoreDiv && counterSpan) {
             const currentVal = counterSpan.textContent;
             scoreDiv.innerHTML = 'コイン: <span id="sg-coin-counter">' + currentVal + '</span>/20';
-            scoreDiv.style.transition = 'transform 0.3s ease';
-            scoreDiv.style.transform = 'scale(1.1)';
-            setTimeout(() => { scoreDiv.style.transform = 'scale(1.0)'; }, 300);
+            
+            // 絶妙なバランスの演出を追加
+            scoreDiv.classList.remove('sg-score-pop');
+            void scoreDiv.offsetWidth; // Reflow
+            scoreDiv.classList.add('sg-score-pop');
         }
     }
 
