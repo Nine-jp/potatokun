@@ -1796,7 +1796,10 @@ const SearchGame = (() => {
         }
 
         // その他クリーンアップ（NPC生成等は維持）
-        spawnGameplayNPC();
+        // ★説明バージョンではゲームプレイNPCも非表示
+        if (!GameConfig.isAnimationPaused) {
+            spawnGameplayNPC();
+        }
         if (openingNPC) {
             disposeObject(openingNPC);
             openingNPC = null;
@@ -1878,8 +1881,9 @@ const SearchGame = (() => {
             currentState = GameState.OPENING;
             isCinematic = true;
 
-            // ポテトくんは非表示
-            npc.visible = false;
+            // ポテトくんをシーンから完全に除去
+            disposeObject(npc);
+            openingNPC = null;
 
             // UIを隠す
             const dpad = document.getElementById('sg-dpad');
