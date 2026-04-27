@@ -1887,26 +1887,26 @@ const SearchGame = (() => {
             const skipBtn = document.getElementById('sg-skip-btn');
             if (skipBtn) skipBtn.style.display = 'none';
 
-            // カメラ初期位置（通常オープニングと同じ）
-            camera.position.set(-25.0, 20.0, -8.0);
-            camera.lookAt(-26.5, 0.5, -14.0);
+            // カメラ初期位置（パーク上空・俯瞰）
+            camera.position.set(5.0, 25.0, 5.0);
+            camera.lookAt(0, 0, 0);
 
-            // 通常オープニングと同じカメラ曲線
+            // 噴水中心に降下 → パークを横切って START 位置へ
             const camPoints = [
-                new THREE.Vector3(-25.0, 20.0, -8.0),
-                new THREE.Vector3(-25.5, 1.3, -11.0),
-                new THREE.Vector3(-25.5, 0.8, -13.5),
-                new THREE.Vector3(-25.5, 0.8, -19.3),
-                NPC_CONFIG.opening_camera_final.pos
+                new THREE.Vector3(5.0, 25.0, 5.0),        // 上空：パーク全体を俯瞰
+                new THREE.Vector3(3.0, 5.0, 2.0),         // 降下：噴水の近くへ
+                new THREE.Vector3(-8.0, 2.5, -15.0),      // 中盤：パークを横切る
+                new THREE.Vector3(-18.0, 1.5, -20.0),     // 低空：ゲームエリアへ接近
+                NPC_CONFIG.opening_camera_final.pos        // 着地：START位置
             ];
             const camCurve = new THREE.CatmullRomCurve3(camPoints);
 
             const lookPoints = [
-                new THREE.Vector3(-26.5, 0.5, -14.0),
-                new THREE.Vector3(-26.5, 0.5, -14.0),
-                new THREE.Vector3(-26.5, 0.5, -14.0),
-                new THREE.Vector3(-28.0, 0.6, -19.3),
-                NPC_CONFIG.opening_camera_final.look
+                new THREE.Vector3(0, 0, 0),                // 噴水を見下ろす
+                new THREE.Vector3(0, 0.5, 0),              // 噴水を注視
+                new THREE.Vector3(-7.0, 0.5, -25.0),      // キッチンカー方向へ視線移動
+                new THREE.Vector3(-7.0, 0.6, -25.0),      // そのまま維持
+                NPC_CONFIG.opening_camera_final.look        // 最終視線
             ];
             const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
 
@@ -1941,7 +1941,7 @@ const SearchGame = (() => {
                         box-shadow:0 0 24px rgba(255,183,197,0.5);
                         font-family:'M PLUS Rounded 1c',sans-serif;
                     `;
-                    explWindow.innerHTML = '公園を探索してコインを10枚集めよう！<br>全てのコインを見つけられるかな？';
+                    explWindow.innerHTML = '公園でコインを10枚集めよう！<br>全てのコインを探せるかな？';
 
                     explOverlay.appendChild(explWindow);
                     document.body.appendChild(explOverlay);
