@@ -207,7 +207,7 @@ const seasonalColors = {
 
 // 季節ごとの形状パレット
 const seasonalShapes = {
-    spring: ['✿', '★', '✦', '✧'],
+    spring: ['🌸', '🌷', '🌱', '✨'],
     summer: ['🌻', '🌊', '🍦', '✨'],
     autumn: ['🍁', '🍂', '🍄', '✨'],
     // ★修正: 赤くなる '♥' を削除し、色変更可能な '♡' のみにする
@@ -2315,12 +2315,10 @@ const SearchGame = (() => {
 
         const coinInterval = setInterval(() => {
             const coin = document.createElement('div');
-            coin.textContent = '★';
+            coin.textContent = '🪙';
             coin.style.position = 'absolute';
             coin.style.left = Math.random() * 100 + 'vw';
             coin.style.top = '-50px';
-            coin.style.color = '#FFD700';
-            coin.style.textShadow = '0 0 8px rgba(255, 215, 0, 0.8)';
             coin.style.fontSize = (Math.random() * 15 + 15) + 'px';
             coin.style.opacity = Math.random() * 0.5 + 0.5;
             coin.style.transition = 'top 3s linear';
