@@ -2391,34 +2391,101 @@ const SearchGame = (() => {
         `;
         document.body.appendChild(resultWindow);
 
-        // 4. コイン・ラッシュ演出 (2Dレイヤー)
+        // 4. 花火風パーティクル演出 (放射状バースト)
         const particleContainer = document.createElement('div');
         particleContainer.id = 'sg-coin-rush';
         particleContainer.style.position = 'fixed';
         particleContainer.style.inset = '0';
         particleContainer.style.pointerEvents = 'none';
-        particleContainer.style.zIndex = '2147483646'; // ウィンドウより下
+        particleContainer.style.zIndex = '2147483647'; // ウィンドウの上に表示
+        particleContainer.style.overflow = 'hidden';
         document.body.appendChild(particleContainer);
 
+        // バーストアニメーション用スタイル
+        if (!document.getElementById('sg-burst-style')) {
+            const burstStyle = document.createElement('style');
+            burstStyle.id = 'sg-burst-style';
+            burstStyle.textContent = `
+                @keyframes sgBurst {
+                    0% { transform: translate(-50%,-50%) scale(0); opacity: 1; }
+                    30% { opacity: 1; }
+                    100% { transform: translate(-50%,-50%) scale(1); opacity: 0; }
+                }
+                @keyframes sgSparkle {
+                    0% { transform: scale(0) rotate(0deg); opacity: 0; }
+                    20% { transform: scale(1.2) rotate(72deg); opacity: 1; }
+                    50% { transform: scale(0.8) rotate(180deg); opacity: 1; }
+                    100% { transform: scale(0) rotate(360deg); opacity: 0; }
+                }
+                @keyframes sgFloat {
+                    0% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                .sg-burst-ring {
+                    position: absolute;
+                    border-radius: 50%;
+                    border: 3px solid;
+                    pointer-events: none;
+                    animation: sgBurst 1.2s ease-out forwards;
+                }
+                .sg-sparkle {
+                    position: absolute;
+                    pointer-events: none;
+                    animation: sgSparkle 1.5s ease-out forwards;
+                }
+            `;
+            document.head.appendChild(burstStyle);
+        }
+
+        const symbols = ['✦', '✧', '★', '✿', '♡', '●'];
+        const colors = ['#FFD700', '#FF69B4', '#FFB7C5', '#87CEEB', '#FFFFFF', '#FFA500'];
+
+        // --- バースト波 (定期的に中央から放射) ---
+        let burstCount = 0;
         const coinInterval = setInterval(() => {
-            const coin = document.createElement('div');
-            coin.textContent = '🪙';
-            coin.style.position = 'absolute';
-            coin.style.left = Math.random() * 100 + 'vw';
-            coin.style.top = '-50px';
-            coin.style.fontSize = (Math.random() * 15 + 15) + 'px';
-            coin.style.opacity = Math.random() * 0.5 + 0.5;
-            coin.style.transition = 'top 3s linear';
-            particleContainer.appendChild(coin);
+            burstCount++;
+            const cx = 30 + Math.random() * 40; // 中央付近 (30%~70%)
+            const cy = 20 + Math.random() * 40; // 中央付近 (20%~60%)
 
-            setTimeout(() => {
-                coin.style.top = '120vh';
-            }, 50);
+            // リング (拡大しながらフェードアウト)
+            const ring = document.createElement('div');
+            ring.className = 'sg-burst-ring';
+            const ringSize = 60 + Math.random() * 100;
+            const ringColor = colors[Math.floor(Math.random() * colors.length)];
+            ring.style.cssText = `left:${cx}%;top:${cy}%;width:${ringSize}px;height:${ringSize}px;border-color:${ringColor};`;
+            particleContainer.appendChild(ring);
+            setTimeout(() => { if (ring.parentNode) ring.remove(); }, 1200);
 
-            setTimeout(() => {
-                if (coin.parentNode) coin.remove();
-            }, 3050);
-        }, 100);
+            // 放射パーティクル (8~12個を放射状に飛ばす)
+            const particleCount = 8 + Math.floor(Math.random() * 5);
+            for (let i = 0; i < particleCount; i++) {
+                const p = document.createElement('div');
+                p.className = 'sg-sparkle';
+                p.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+                const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.5;
+                const dist = 40 + Math.random() * 80;
+                const dx = Math.cos(angle) * dist;
+                const dy = Math.sin(angle) * dist;
+                const size = 12 + Math.random() * 16;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const duration = 0.8 + Math.random() * 0.8;
+
+                p.style.cssText = `
+                    left:${cx}%;top:${cy}%;
+                    font-size:${size}px;color:${color};
+                    text-shadow:0 0 6px ${color};
+                    animation: sgFloat ${duration}s ease-out forwards;
+                `;
+                // 飛ぶ方向をカスタムプロパティで制御
+                p.animate([
+                    { transform: 'translate(0, 0) scale(1) rotate(0deg)', opacity: 1 },
+                    { transform: `translate(${dx}px, ${dy}px) scale(0.3) rotate(${180 + Math.random() * 360}deg)`, opacity: 0 }
+                ], { duration: duration * 1000, easing: 'ease-out', fill: 'forwards' });
+
+                particleContainer.appendChild(p);
+                setTimeout(() => { if (p.parentNode) p.remove(); }, duration * 1000 + 100);
+            }
+        }, 400);
 
         void resultWindow.offsetWidth;
 
