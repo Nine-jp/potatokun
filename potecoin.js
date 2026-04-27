@@ -1865,7 +1865,7 @@ const SearchGame = (() => {
     function startOpeningSequence() {
         console.log("Starting Opening Sequence...");
 
-        // ★説明バージョン: 即時スキップ時はここで処理（モデルロード完了後に実行）
+        // ★説明バージョン: カメラ演出（NPC非表示）→ 説明ウィンドウ → START!
         if (GameConfig.isAnimationPaused) {
             const npc = openingNPC;
             if (!npc) {
@@ -1876,7 +1876,90 @@ const SearchGame = (() => {
             if (overlay) overlay.style.display = 'none';
 
             currentState = GameState.OPENING;
-            finishOpening();
+            isCinematic = true;
+
+            // ポテトくんは非表示
+            npc.visible = false;
+
+            // UIを隠す
+            const dpad = document.getElementById('sg-dpad');
+            if (dpad) dpad.style.display = 'none';
+            const skipBtn = document.getElementById('sg-skip-btn');
+            if (skipBtn) skipBtn.style.display = 'none';
+
+            // カメラ初期位置（通常オープニングと同じ）
+            camera.position.set(-25.0, 20.0, -8.0);
+            camera.lookAt(-26.5, 0.5, -14.0);
+
+            // 通常オープニングと同じカメラ曲線
+            const camPoints = [
+                new THREE.Vector3(-25.0, 20.0, -8.0),
+                new THREE.Vector3(-25.5, 1.3, -11.0),
+                new THREE.Vector3(-25.5, 0.8, -13.5),
+                new THREE.Vector3(-25.5, 0.8, -19.3),
+                NPC_CONFIG.opening_camera_final.pos
+            ];
+            const camCurve = new THREE.CatmullRomCurve3(camPoints);
+
+            const lookPoints = [
+                new THREE.Vector3(-26.5, 0.5, -14.0),
+                new THREE.Vector3(-26.5, 0.5, -14.0),
+                new THREE.Vector3(-26.5, 0.5, -14.0),
+                new THREE.Vector3(-28.0, 0.6, -19.3),
+                NPC_CONFIG.opening_camera_final.look
+            ];
+            const lookCurve = new THREE.CatmullRomCurve3(lookPoints);
+
+            const easeInOutSine = (x) => -(Math.cos(Math.PI * x) - 1) / 2;
+            const startTime = performance.now();
+            const DURATION = 6000; // 6秒でStart位置まで移動
+
+            const camInterval = setInterval(() => {
+                const elapsed = performance.now() - startTime;
+                const t = Math.min(elapsed / DURATION, 1.0);
+                const eased = easeInOutSine(t);
+
+                camera.position.copy(camCurve.getPoint(eased));
+                camera.lookAt(lookCurve.getPoint(eased));
+
+                if (t >= 1.0) {
+                    clearInterval(camInterval);
+
+                    // --- カメラ到着 → 説明ウィンドウ表示 ---
+                    const explOverlay = document.createElement('div');
+                    explOverlay.id = 'sg-explanation-overlay';
+                    explOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:30000;opacity:0;transition:opacity 0.4s ease;';
+
+                    const explWindow = document.createElement('div');
+                    explWindow.style.cssText = `
+                        position:absolute; left:50%; top:26%; transform:translate(-50%, 0);
+                        background:rgba(30,30,30,0.9); color:white;
+                        padding:24px 32px; border-radius:14px;
+                        width:80%; max-width:380px;
+                        text-align:center; font-weight:700; font-size:1.05rem;
+                        line-height:1.7; border:2px solid #FFB7C5;
+                        box-shadow:0 0 24px rgba(255,183,197,0.5);
+                        font-family:'M PLUS Rounded 1c',sans-serif;
+                    `;
+                    explWindow.innerHTML = '公園を探索してコインを10枚集めよう！<br>全てのコインを見つけられるかな？';
+
+                    explOverlay.appendChild(explWindow);
+                    document.body.appendChild(explOverlay);
+                    requestAnimationFrame(() => { explOverlay.style.opacity = '1'; });
+
+                    // --- 2秒後にウィンドウ消失 → START! & 操作解禁 ---
+                    setTimeout(() => {
+                        explOverlay.style.opacity = '0';
+                        setTimeout(() => {
+                            explOverlay.remove();
+
+                            // 既存フローでSTART!表示 & 操作解禁
+                            currentState = GameState.OPENING;
+                            finishOpening();
+                        }, 400);
+                    }, 2000);
+                }
+            }, 16);
             return;
         }
 
