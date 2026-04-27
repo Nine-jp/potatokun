@@ -13,6 +13,20 @@
     --ui-dropdown-text: #333333;
 }
 
+/* Theme: Spring */
+.theme-spring {
+    --primary-color: #FFB7C5;
+    --secondary-color: #FF69B4;
+    --bg-color: #FFF0F5;
+    --theme-accent: #FF1493;
+    --hero-bg: linear-gradient(to bottom, #FFF0F5 0%, #FFB7C5 50%, #FF69B4 100%);
+
+    --ui-select-bg: rgba(255, 105, 180, 0.1);
+    --ui-select-text: #333333;
+    --ui-dropdown-bg: #FFB7C5;
+    --ui-dropdown-text: #333333;
+}
+
 /* Theme: Christmas */
 .theme-christmas {
     --primary-color: #FFD700;
@@ -485,6 +499,14 @@ body.modal-open {
 }
 
 /* Theme specific adjustments for details items */
+.theme-spring .detail-item {
+    border-color: #FFB7C5;
+}
+
+.theme-spring .price {
+    color: #FF1493;
+}
+
 .theme-newyear .detail-item {
     background: rgba(255, 255, 255, 0.95);
     border-color: #e0d0a0;
@@ -644,6 +666,45 @@ body.modal-open {
 
 /* ===== THEME STYLES ===== */
 
+/* Spring Specifics (Pink Theme) */
+.theme-spring .page-effect {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.theme-spring .btn-primary {
+    background: var(--secondary-color);
+    box-shadow: 0 4px 0 #C71585, 0 0 20px rgba(255, 105, 180, 0.5);
+    animation: springGlow 2s ease-in-out infinite;
+}
+
+.theme-spring .btn-primary:hover {
+    background: #FF1493;
+    box-shadow: 0 4px 0 #C71585, 0 0 30px rgba(255, 105, 180, 0.8);
+    transform: translateY(-2px);
+}
+
+.theme-spring .details-card,
+.theme-spring .hero-image {
+    border: 4px solid var(--theme-accent);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1), 0 0 30px rgba(255, 183, 197, 0.4);
+}
+
+@keyframes springGlow {
+    0%, 100% {
+        box-shadow: 0 4px 0 #C71585, 0 0 20px rgba(255, 105, 180, 0.5);
+    }
+    50% {
+        box-shadow: 0 4px 0 #C71585, 0 0 30px rgba(255, 105, 180, 0.8);
+    }
+}
+
 /* Winter Specifics (Blue Theme) */
 .theme-winter {
     --primary-color: #87CEEB;
@@ -801,6 +862,100 @@ body.modal-open {
         transform: translateY(100vh) rotate(360deg);
         opacity: 0;
     }
+}
+
+/* Spring Petals */
+.theme-spring .effect-item {
+    animation-name: sakuraFall;
+    animation-timing-function: ease-in-out;
+}
+
+/* Make some petals scatter and disappear midway at different heights */
+.theme-spring .effect-item:nth-child(1),
+.theme-spring .effect-item:nth-child(4) {
+    animation-name: sakuraFallShort;
+}
+
+.theme-spring .effect-item:nth-child(2),
+.theme-spring .effect-item:nth-child(5) {
+    animation-name: sakuraFallMedium;
+}
+
+@keyframes sakuraFall {
+    0% {
+        transform: translate3d(0, -10vh, 0) rotate(0deg);
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.85;
+    }
+    33% {
+        transform: translate3d(3vw, 30vh, 0) rotate(120deg);
+    }
+    66% {
+        transform: translate3d(-3vw, 66vh, 0) rotate(240deg);
+    }
+    90% {
+        opacity: 0.85;
+    }
+    100% {
+        transform: translate3d(1.5vw, 110vh, 0) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+@keyframes sakuraFallShort {
+    0% {
+        transform: translate3d(0, -10vh, 0) rotate(0deg);
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.85;
+    }
+    25% {
+        transform: translate3d(-3vw, 25vh, 0) rotate(90deg);
+    }
+    40% {
+        opacity: 0.85;
+    }
+    55% {
+        transform: translate3d(2vw, 55vh, 0) rotate(180deg);
+        opacity: 0; /* 途中で消える（散る） */
+    }
+    100% {
+        transform: translate3d(2vw, 110vh, 0) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+@keyframes sakuraFallMedium {
+    0% {
+        transform: translate3d(0, -10vh, 0) rotate(0deg);
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.85;
+    }
+    33% {
+        transform: translate3d(4vw, 35vh, 0) rotate(150deg);
+    }
+    60% {
+        opacity: 0.85;
+    }
+    75% {
+        transform: translate3d(-2vw, 75vh, 0) rotate(250deg);
+        opacity: 0; /* 下の方で散る */
+    }
+    100% {
+        transform: translate3d(-2vw, 110vh, 0) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+.theme-spring .effect-item::before {
+    content: '🌸';
+    color: rgba(255, 183, 197, 0.9);
+    text-shadow: 0 0 5px rgba(255, 183, 197, 0.6);
 }
 
 /* Christmas & Winter Snowflakes */
